@@ -1,0 +1,23 @@
+use anchor_lang::prelude::*;
+
+#[constant]
+pub const MANDATE_SEED: &[u8] = b"mandate";
+#[constant]
+pub const VAULT_SEED: &[u8] = b"vault";
+
+/// Basis points of the portfolio. 10_000 is the whole thing.
+pub const BPS_DENOM: u16 = 10_000;
+
+/// A mandate is prose a person wrote, so it needs room to be read, and a bound
+/// so an account cannot grow without limit. 280 bytes is long enough for every
+/// real mandate we have written and short enough to stay one sentence or two.
+pub const MANDATE_TEXT_MAX: usize = 280;
+
+/// How many mints a single mandate may name as off limits. The plain English
+/// clause "no fossil fuels" resolves off chain into a list, and the list is
+/// what the program enforces, because the program cannot read English.
+pub const DENY_MAX: usize = 8;
+
+/// An agent's authority always expires. There is no permanent grant, because a
+/// permanent grant is the thing that emptied the Grok wallet.
+pub const AGENT_MAX_TTL: i64 = 60 * 60 * 24 * 30;
