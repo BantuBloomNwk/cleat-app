@@ -14,16 +14,19 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build", "arcium-anchor/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
 
 
 [dependencies]
-anchor-lang = "=1.2.0"
+anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
 ephemeral-rollups-sdk = { version = "0.17.0", features = ["anchor", "access-control"] }
 solana-sha256-hasher = "=3.1.0"
+arcium-client = { default-features = false, version = "=0.14.1" }
+arcium-macros = "=0.14.1"
+arcium-anchor = "=0.14.1"
 
 [dev-dependencies]
 litesvm = "0.10.0"

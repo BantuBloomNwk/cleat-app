@@ -142,6 +142,19 @@ pub struct VerdictLog {
     pub refused: u32,
     #[max_len(VERDICT_CAPACITY)]
     pub entries: Vec<Verdict>,
+
+    /// The proposal currently out with the confidential gate.
+    ///
+    /// A callback only receives the circuit's output, so the context it needs
+    /// has to be parked somewhere first. Keeping it on the log rather than in a
+    /// separate per computation account costs one account instead of two and
+    /// means a stalled computation leaves nothing behind to garbage collect.
+    pub pending_offset: u64,
+    pub pending_category: u8,
+    pub pending_bps: u16,
+    /// The single trade cap as it read when the question was asked, so a clamped
+    /// verdict can be written down without the callback needing the mandate.
+    pub pending_clamp_bps: u16,
     pub bump: u8,
 }
 

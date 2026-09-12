@@ -4,6 +4,7 @@ pub mod instructions;
 pub mod state;
 
 use anchor_lang::prelude::*;
+use arcium_anchor::prelude::*;
 use ephemeral_rollups_sdk::anchor::ephemeral;
 
 pub use constants::*;
@@ -21,7 +22,7 @@ declare_id!("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 /// to an encrypted position set instead, so the operator running the agent
 /// cannot read what the agent is trading against.
 #[ephemeral]
-#[program]
+#[arcium_program]
 pub mod cleat {
     use super::*;
 
@@ -77,6 +78,33 @@ pub mod cleat {
         from_ingested_content: bool,
     ) -> Result<()> {
         instructions::verdict::exec_propose_trade(ctx, category, proposed_bps, from_ingested_content)
+    }
+
+    pub fn init_gate_comp_def(ctx: Context<InitGateCompDef>) -> Result<()> {
+        instructions::gate::exec_init_gate_comp_def(ctx)
+    }
+
+    pub fn gate_trade(
+        ctx: Context<GateTrade>,
+        computation_offset: u64,
+        exposure_ct: [u8; 32],
+        total_ct: [u8; 32],
+        pubkey: [u8; 32],
+        nonce: u128,
+        category: u8,
+        proposed_bps: u16,
+    ) -> Result<()> {
+        instructions::gate::exec_gate_trade(
+            ctx, computation_offset, exposure_ct, total_ct, pubkey, nonce, category, proposed_bps,
+        )
+    }
+
+    #[arcium_callback(encrypted_ix = "gate_trade")]
+    pub fn gate_trade_callback(
+        ctx: Context<GateTradeCallback>,
+        output: SignedComputationOutputs<GateTradeOutput>,
+    ) -> Result<()> {
+        instructions::gate::exec_gate_callback(ctx, output)
     }
 
     pub fn delegate_vault(ctx: Context<DelegateVault>) -> Result<()> {

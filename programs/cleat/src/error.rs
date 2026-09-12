@@ -26,4 +26,6 @@ pub enum CleatError {
     StaleMandate,
     #[msg("A proposal has to be for some fraction of the portfolio.")]
     EmptyProposal,
+    #[msg("The confidential gate aborted rather than returning a verdict.")]
+    GateAborted,
 }
