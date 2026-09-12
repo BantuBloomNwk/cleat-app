@@ -82,8 +82,30 @@ overnight, what it did, and what the owner's own sentence stopped. That is an ar
 passive fund cannot produce, it is personal because it is her rule being tested, and it is
 the one screen with nothing private on it, so it is also the screen that can be shared.
 
-Do not build a price chart. It is the reflex, it competes with the diary for the same
-attention, and it is the part every other app already does better.
+**Build the chart.** An earlier draft of this file said not to, which was solving the wrong
+problem: the risk was never that a chart exists, it was a *generic* chart competing with the
+diary. A trader reads charts the way other people read sentences, and a trading product
+without one does not respect its user. The question is what ours shows that nobody else's
+can.
+
+### The chart nobody else can draw
+
+Pump.fun marks what people did. We can mark what people's rules would not let them do.
+
+Real Pyth price for the instrument, then the decisions of every published mandate marked on
+the time axis: cleared, trimmed, refused. At a price spike the chart visibly fills with
+refusals, because that is precisely the moment a person would have chased it and a mandate
+would not. Aggregated it becomes a **discipline heatmap**: at this level, fourteen mandates
+were stopped.
+
+This needs nothing new on chain. The verdict log already publishes, per decision, the
+sector, the size as a fraction of the portfolio, the outcome, the reason and the slot. No
+ticker, no amount, no resulting position. So decisions are plottable already and holdings
+still are not.
+
+It is also a chart no other trading app can render, because no other app knows what was
+prevented. And it tells a story about discipline rather than about dopamine, which is the
+whole difference between our chart and the one worth rejecting.
 
 The loop, at three speeds:
 
@@ -93,6 +115,43 @@ The loop, at three speeds:
   a passive product.
 - **Ongoing.** Other people's mandates as reading material. Not a trade feed. A sentence
   that beat yours is browsable and argues with you.
+
+## Published or private, the switch the privacy claim lives on
+
+**A published mandate's diary is public. A private mandate publishes nothing.**
+
+If a sentence is published for other people to adopt, its decision record *is* the track
+record, and hiding it would make adoption blind faith, which is the thing this product
+exists to remove. A mandate kept to oneself emits no verdicts at all.
+
+The honest cost, which must be a deliberate choice in the UI and never a default somebody
+stumbles into: publishing sector, ratio and timing on every decision, continuously, leaks
+the *shape* of a published mandate over time. Not positions and not sizes, but a determined
+observer could infer its tilts. That is intended for a published mandate and unacceptable
+for a private one, so the switch gets plain words next to it explaining exactly that.
+
+## Adopting a rule is not copy trading, and it is better
+
+`adopt_mandate` copies the sentence, never the positions. The adopter's agent runs that
+sentence against their own portfolio, from their own starting point, at their own size.
+Neither party ever learns what the other holds.
+
+Say this explicitly wherever copy trading comes up, because it answers the sharpest
+criticism of the entire category. In conventional copy trading a follower inherits the
+leader's entry and sizing, which is the mechanism by which followers become exit liquidity
+and by which a leader's edge decays as their following grows. **Here there is no order to
+front-run, only a rule.** That is structural, not a promise.
+
+## Status is adoptions, never PnL
+
+The leaderboard metric is how many people run your sentence. "One thousand two hundred
+people run this" is a claim about authorship and judgement, it survives a bad month, and it
+cannot be won by luck. Ranking by returns rewards whoever took the most risk in the
+luckiest month, which is how every app in this category ends up teaching people to gamble.
+
+The one gamified beat worth having is comparative discipline under stress: your rule held
+through a spike where two hundred others were refused. Privacy safe, genuinely earned, and
+it is the thing people screenshot.
 
 ## The format, and why a feed is the wrong one
 
