@@ -38,10 +38,10 @@ pub struct Mandate {
     pub denied: Vec<Pubkey>,
 
     /// The social graph, on chain. None means someone wrote this from scratch.
-    pub forked_from: Option<Pubkey>,
+    pub adopted_from: Option<Pubkey>,
 
     /// How many people took this as a starting point.
-    pub fork_count: u32,
+    pub adopt_count: u32,
 
     pub created_at: i64,
     pub updated_at: i64,

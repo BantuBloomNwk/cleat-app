@@ -18,6 +18,6 @@ pub enum CleatError {
     AgentTtlTooLong,
     #[msg("This vault has no agent to revoke.")]
     NoAgent,
-    #[msg("A mandate cannot be forked from itself.")]
-    SelfFork,
+    #[msg("A mandate cannot be adopted from itself.")]
+    SelfAdopt,
 }

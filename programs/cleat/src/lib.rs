@@ -45,8 +45,8 @@ pub mod cleat {
         instructions::mandate::exec_update_mandate(ctx, text, max_position_bps, max_trade_bps, denied)
     }
 
-    pub fn fork_mandate(ctx: Context<ForkMandate>, text: String) -> Result<()> {
-        instructions::mandate::exec_fork_mandate(ctx, text)
+    pub fn adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()> {
+        instructions::mandate::exec_adopt_mandate(ctx, text)
     }
 
     pub fn open_vault(ctx: Context<OpenVault>) -> Result<()> {

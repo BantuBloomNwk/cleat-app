@@ -55,8 +55,8 @@ pub fn exec_create_mandate(
     m.max_position_bps = max_position_bps;
     m.max_trade_bps = max_trade_bps;
     m.denied = denied;
-    m.forked_from = None;
-    m.fork_count = 0;
+    m.adopted_from = None;
+    m.adopt_count = 0;
     m.created_at = now;
     m.updated_at = now;
     m.bump = ctx.bumps.mandate;
@@ -105,65 +105,65 @@ pub fn exec_update_mandate(
 }
 
 #[event]
-pub struct MandateForked {
+pub struct MandateAdopted {
     pub parent: Pubkey,
     pub child: Pubkey,
-    pub forker: Pubkey,
+    pub adopter: Pubkey,
 }
 
-/// Taking someone else's sentence as a starting point.
+/// Taking on somebody else's mandate.
 ///
-/// The fork copies the parent's caps so the default is whatever the parent
-/// actually ran, then the forker edits the prose in their own words. Nothing
+/// Adopting copies the parent's caps so the default is whatever the parent
+/// actually ran, then the adopter edits the prose in their own words. Nothing
 /// about the parent's holdings is read, because nothing about the parent's
 /// holdings is readable.
 #[derive(Accounts)]
-pub struct ForkMandate<'info> {
+pub struct AdoptMandate<'info> {
     #[account(mut)]
-    pub forker: Signer<'info>,
+    pub adopter: Signer<'info>,
     #[account(mut)]
     pub parent: Account<'info, Mandate>,
     #[account(
         init,
-        payer = forker,
+        payer = adopter,
         space = 8 + Mandate::INIT_SPACE,
-        seeds = [MANDATE_SEED, forker.key().as_ref()],
+        seeds = [MANDATE_SEED, adopter.key().as_ref()],
         bump
     )]
     pub child: Account<'info, Mandate>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn exec_fork_mandate(ctx: Context<ForkMandate>, text: String) -> Result<()> {
+pub fn exec_adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()> {
     require!(text.len() <= MANDATE_TEXT_MAX, CleatError::TextTooLong);
     require_keys_neq!(
         ctx.accounts.parent.key(),
         ctx.accounts.child.key(),
-        CleatError::SelfFork
+        CleatError::SelfAdopt
     );
 
     let now = Clock::get()?.unix_timestamp;
     let parent = &mut ctx.accounts.parent;
-    parent.fork_count = parent.fork_count.saturating_add(1);
+    parent.adopt_count = parent.adopt_count.saturating_add(1);
 
     let child = &mut ctx.accounts.child;
-    child.owner = ctx.accounts.forker.key();
+    child.owner = ctx.accounts.adopter.key();
     child.version = 1;
     child.text_hash = hash(text.as_bytes()).to_bytes();
     child.text = text;
     child.max_position_bps = parent.max_position_bps;
     child.max_trade_bps = parent.max_trade_bps;
     child.denied = parent.denied.clone();
-    child.forked_from = Some(parent.key());
-    child.fork_count = 0;
+    child.adopted_from = Some(parent.key());
+    child.adopt_count = 0;
     child.created_at = now;
     child.updated_at = now;
     child.bump = ctx.bumps.child;
 
-    emit!(MandateForked {
+    emit!(MandateAdopted {
         parent: parent.key(),
         child: child.key(),
-        forker: ctx.accounts.forker.key(),
+        adopter: ctx.accounts.adopter.key(),
     });
     Ok(())
 }

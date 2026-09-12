@@ -122,10 +122,18 @@ pub fn exec_seal_vault(ctx: Context<SealVault>) -> Result<()> {
     let bump = vault.bump;
     let seeds: &[&[u8]] = &[VAULT_SEED, owner.as_ref(), &[bump]];
 
+    // The sponsor funds the ephemeral permission's storage, 6208 lamports for a
+    // 134 byte account at the rollup's 32 lamports per byte, and it has to be
+    // both delegated to the rollup and holding lamports to spare. Those two
+    // requirements pick the account for you. The signing wallet has spare
+    // balance but is not delegated, so the magic program refuses it with
+    // InvalidAccountForFee. The vault is delegated, so it sponsors, and it must
+    // therefore carry a little more than its rent exempt minimum or the same
+    // call fails with InsufficientFundsForRent instead.
     CreateEphemeralPermissionCpi {
         permissioned_account: ctx.accounts.vault.to_account_info(),
         permission: ctx.accounts.permission.to_account_info(),
-        payer: ctx.accounts.payer.to_account_info(),
+        payer: ctx.accounts.vault.to_account_info(),
         vault: ctx.accounts.ephemeral_vault.to_account_info(),
         magic_program: ctx.accounts.magic_program.to_account_info(),
         permission_program: ctx.accounts.permission_program.to_account_info(),

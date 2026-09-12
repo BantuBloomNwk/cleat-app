@@ -77,6 +77,23 @@ function loadWallet() {
   return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(p, "utf8"))));
 }
 
+// FRESH=1 runs the whole sequence against a brand new owner, which is the only
+// way to exercise the ordering: a vault has to be funded before it is delegated,
+// because once delegated its balance lives in the rollup and stops tracking base.
+function ownerKeypair() {
+  const funder = loadWallet();
+  if (!process.env.FRESH) return { owner: funder, funder: null };
+  const p = new URL("./.fresh-owner.json", import.meta.url);
+  let owner;
+  try {
+    owner = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(p, "utf8"))));
+  } catch {
+    owner = Keypair.generate();
+    fs.writeFileSync(p, JSON.stringify(Array.from(owner.secretKey)));
+  }
+  return { owner, funder };
+}
+
 function baseRpc() {
   // Never the public endpoint. It drops the delegation transactions.
   const env = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8");
@@ -117,7 +134,7 @@ async function step(label, fn) {
 }
 
 async function main() {
-  const owner = loadWallet();
+  const { owner, funder } = ownerKeypair();
   const base = new Connection(baseRpc(), "confirmed");
   let er = null; // opened after session auth, below
 
@@ -134,13 +151,31 @@ async function main() {
   console.log("validator ", TEE_VALIDATOR.toBase58());
   console.log("");
 
-  const send = (conn, ixs, signers = [owner]) => {
+  // Preflight on the rollup reports a rent shortfall inside a CPI as "this
+  // account may not be used to pay transaction fees", which sent me a long way
+  // in the wrong direction. Skip it there and read the real error from the logs.
+  const send = (conn, ixs, signers = [owner], skipPreflight = false) => {
     const tx = new Transaction().add(...ixs);
     tx.feePayer = signers[0].publicKey;
     return sendAndConfirmTransaction(conn, tx, signers, {
-      commitment: "confirmed", skipPreflight: false,
+      commitment: "confirmed", skipPreflight,
     });
   };
+
+  if (funder) {
+    const bal = await base.getBalance(owner.publicKey);
+    if (bal < 200_000_000) {
+      await step("fund the fresh owner", () => {
+        const tx = new Transaction().add(SystemProgram.transfer({
+          fromPubkey: funder.publicKey, toPubkey: owner.publicKey, lamports: 400_000_000,
+        }));
+        tx.feePayer = funder.publicKey;
+        return sendAndConfirmTransaction(base, tx, [funder], { commitment: "confirmed" });
+      });
+    } else {
+      console.log(`  fresh owner balance                ${bal / 1e9} SOL`);
+    }
+  }
 
   // 0. The attestation. Without this the rest is just a fast rollup.
   await step("verify TDX attestation", () => verifyTeeRpcIntegrity(ER_URL));
@@ -195,6 +230,19 @@ async function main() {
     console.log("  open_vault                         exists, skipped");
   }
 
+  // The vault sponsors its own ephemeral permission inside the rollup, so it
+  // needs headroom above its rent exempt minimum. This has to happen before
+  // delegation: afterwards the rollup holds the balance and base transfers no
+  // longer reach it.
+  const vaultBase = await base.getAccountInfo(vault);
+  if (vaultBase && !vaultBase.owner.equals(DELEGATION_PROGRAM_ID) && vaultBase.lamports < 5_000_000) {
+    await step("fund the vault (before delegating)", () => send(base, [
+      SystemProgram.transfer({
+        fromPubkey: owner.publicKey, toPubkey: vault, lamports: 10_000_000,
+      }),
+    ]));
+  }
+
   const preDelegated = (await base.getAccountInfo(vault))?.owner.equals(DELEGATION_PROGRAM_ID);
   if (preDelegated) {
     console.log("  set_agent                          vault already delegated, skipped");
@@ -247,6 +295,7 @@ async function main() {
 
   // 5. Seal it. This runs on the rollup, not on base.
   er = await freshEr();
+
   await step("seal_vault (inside the enclave)", () => send(er, [new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [
@@ -258,7 +307,7 @@ async function main() {
       meta(PERMISSION_PROGRAM_ID, false, false),
     ],
     data: disc("seal_vault"),
-  })]));
+  })], [owner], true));
 
   // 6. Read it back from the rollup.
   const inEr = await step("read vault from the rollup", () => er.getAccountInfo(vault));
@@ -275,7 +324,7 @@ async function main() {
       meta(MAGIC_PROGRAM_ID, false, false),
     ],
     data: disc("release_vault"),
-  })]));
+  })], [owner], true));
 
   const onBase = await step("read vault from base", () => base.getAccountInfo(vault));
   console.log(`     base owner is ${onBase ? onBase.owner.toBase58() : "gone"}`);
