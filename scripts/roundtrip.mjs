@@ -36,12 +36,14 @@ import {
   escrowPdaFromEscrowAuthority,
   createTopUpEscrowInstruction,
   createDelegateInstruction,
+  ConnectionMagicRouter,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import nacl from "tweetnacl";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
 const ER_URL = "https://devnet-tee.magicblock.app";
+const ROUTER_URL = "https://devnet-router.magicblock.app";
 
 // Discriminators read straight out of the generated IDL rather than recomputed,
 // so a rename in the program shows up here as a failure instead of a mystery.
@@ -151,6 +153,13 @@ async function main() {
   const freshEr = async () => {
     const { token } = await getAuthToken(ER_URL, owner.publicKey, signCb);
     return new Connection(`${ER_URL}?token=${token}`, "confirmed");
+  };
+  const router = new ConnectionMagicRouter(ROUTER_URL, "confirmed");
+  const viaRouter = async (ixs, signers = [owner]) => {
+    let tx = new Transaction().add(...ixs);
+    tx.feePayer = signers[0].publicKey;
+    tx = await router.prepareTransaction(tx);
+    return router.sendAndConfirmTransaction(tx, signers, { commitment: "confirmed" });
   };
   await step("session auth", async () => { er = await freshEr(); });
 

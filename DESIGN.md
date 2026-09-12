@@ -37,7 +37,7 @@ the product's, so this never becomes a magazine.
 | ink | `oklch(0.22 0.015 55)` | primary text, warm near-black, never `#000` |
 | ink-muted | `oklch(0.485 0.012 60)` | secondary text, labels |
 | rule | `oklch(0.89 0.008 78)` | hairlines, 1px only |
-| accent | `oklch(0.52 0.078 205)` | petrol, the machine, policy chrome |
+| accent | `oklch(0.50 0.080 187)` | verdigris, the machine, policy chrome |
 
 ### Dark
 
@@ -48,13 +48,18 @@ the product's, so this never becomes a magazine.
 | ink | `oklch(0.945 0.008 78)` |
 | ink-muted | `oklch(0.70 0.010 70)` |
 | rule | `oklch(0.32 0.012 60)` |
-| accent | `oklch(0.70 0.085 205)` |
+| accent | `oklch(0.70 0.082 187)` |
 
 ### The primary colour, decided
 
-**Mineral teal-petrol, `oklch(0.70 0.085 205)` on dark.** Four reasons it is the answer to
+**Verdigris, `oklch(0.70 0.082 187)` on dark.** Four reasons it is the answer to
 "cool but serious and secure" without being a cliche:
 
+- **Verdigris is aged brass, and that is why it is the answer rather than a compromise.**
+  A cleat is bronze deck hardware, and bronze that has lived in salt air turns this
+  colour. So the cool primary and the warm ember on Fork are the same metal at two
+  ages, which means both halves of the palette now come from the name instead of from
+  taste. Hue 187 rather than 205 is what moves it from cyan toward oxidised metal.
 - Cool hues read as serious and secure. Warm ones read as social and playful, and the
   security claim is what this product is selling, so the primary commits to cool.
 - **Chroma held at 0.085 keeps it mineral rather than electric.** That single number is
@@ -62,6 +67,10 @@ the product's, so this never becomes a magazine.
   stone colour, not a screen colour.
 - Teal is genuinely absent from the finance palette, which is dominated by navy, gold and
   trading green. So it is distinctive in the category without being loud in it.
+- **A greener primary cannot clash with gain and loss here, structurally.** Nothing in
+  this product colours direction, so there is no red or green for it to sit beside. That
+  is only safe because of the inversion above, and it would be a mistake in any other
+  trading app.
 - It clears WCAG AA on the warm dark ground and on the warm paper ground, which a
   saturated navy or a neon cyan does not do in both directions.
 
@@ -73,7 +82,7 @@ machine, warm hand. That is the same opposition as the type split.
 
 | State | Light | Meaning |
 |---|---|---|
-| cleared | `oklch(0.52 0.078 205)` at low emphasis | the trade passed the mandate |
+| cleared | `oklch(0.50 0.080 187)` at low emphasis | the trade passed the mandate |
 | clamped | `oklch(0.675 0.105 70)` amber | the trade was shrunk to fit |
 | refused | `oklch(0.475 0.140 32)` rust | the boundary held |
 
