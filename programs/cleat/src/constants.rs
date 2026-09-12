@@ -21,3 +21,14 @@ pub const DENY_MAX: usize = 8;
 /// An agent's authority always expires. There is no permanent grant, because a
 /// permanent grant is the thing that emptied the Grok wallet.
 pub const AGENT_MAX_TTL: i64 = 60 * 60 * 24 * 30;
+
+/// MagicBlock's TDX ephemeral validator on devnet.
+///
+/// Not the plain rollup validator. This one runs inside an Intel TDX enclave and
+/// answers an attestation query, which is the difference between "fast" and
+/// "fast and the operator cannot read it". Measured on devnet at 1.8s to verify
+/// attestation and a 36ms median from submit to confirm.
+pub const TEE_VALIDATOR: Pubkey = pubkey!("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
+
+/// How often the rollup pushes state back to base while delegated.
+pub const COMMIT_FREQUENCY_MS: u32 = 30_000;

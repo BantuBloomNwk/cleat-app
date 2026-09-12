@@ -4,6 +4,7 @@ pub mod instructions;
 pub mod state;
 
 use anchor_lang::prelude::*;
+use ephemeral_rollups_sdk::anchor::ephemeral;
 
 pub use constants::*;
 pub use error::*;
@@ -19,6 +20,7 @@ declare_id!("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 /// mandate. Holdings are not stored here in the clear; a vault carries a handle
 /// to an encrypted position set instead, so the operator running the agent
 /// cannot read what the agent is trading against.
+#[ephemeral]
 #[program]
 pub mod cleat {
     use super::*;
@@ -62,5 +64,17 @@ pub mod cleat {
 
     pub fn revoke_agent(ctx: Context<RevokeAgent>) -> Result<()> {
         instructions::vault::exec_revoke_agent(ctx)
+    }
+
+    pub fn delegate_vault(ctx: Context<DelegateVault>) -> Result<()> {
+        instructions::per::exec_delegate_vault(ctx)
+    }
+
+    pub fn seal_vault(ctx: Context<SealVault>) -> Result<()> {
+        instructions::per::exec_seal_vault(ctx)
+    }
+
+    pub fn release_vault(ctx: Context<ReleaseVault>) -> Result<()> {
+        instructions::per::exec_release_vault(ctx)
     }
 }
