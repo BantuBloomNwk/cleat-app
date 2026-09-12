@@ -32,3 +32,11 @@ pub const TEE_VALIDATOR: Pubkey = pubkey!("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ
 
 /// How often the rollup pushes state back to base while delegated.
 pub const COMMIT_FREQUENCY_MS: u32 = 30_000;
+
+#[constant]
+pub const VERDICT_SEED: &[u8] = b"verdicts";
+
+/// How many verdicts the on chain ring buffer keeps. Enough for a person to
+/// scroll a week of activity without an indexer, bounded so the account cannot
+/// grow forever. Totals are kept separately and never roll over.
+pub const VERDICT_CAPACITY: usize = 16;

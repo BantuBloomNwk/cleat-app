@@ -66,6 +66,19 @@ pub mod cleat {
         instructions::vault::exec_revoke_agent(ctx)
     }
 
+    pub fn open_verdict_log(ctx: Context<OpenVerdictLog>) -> Result<()> {
+        instructions::verdict::exec_open_verdict_log(ctx)
+    }
+
+    pub fn propose_trade(
+        ctx: Context<ProposeTrade>,
+        category: u8,
+        proposed_bps: u16,
+        from_ingested_content: bool,
+    ) -> Result<()> {
+        instructions::verdict::exec_propose_trade(ctx, category, proposed_bps, from_ingested_content)
+    }
+
     pub fn delegate_vault(ctx: Context<DelegateVault>) -> Result<()> {
         instructions::per::exec_delegate_vault(ctx)
     }

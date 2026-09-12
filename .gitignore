@@ -8,3 +8,5 @@ test-ledger
 .surfpool
 scripts/.session-payer.json
 scripts/.fresh-owner.json
+scripts/.verdict-owner.json
+scripts/.verdict-agent.json

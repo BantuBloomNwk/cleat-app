@@ -96,3 +96,67 @@ impl Vault {
         self.agent != Pubkey::default() && now < self.agent_expires_at
     }
 }
+
+/// What the policy decided about one proposal.
+///
+/// Deliberately records a ratio and a category, never a ticker and never an
+/// amount. A complete log of proposals with tickers in it would leak the
+/// portfolio by inference over a few weeks, which would undo the thing the
+/// vault exists to protect. A category and a percentage say enough to be worth
+/// reading and not enough to reconstruct.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace)]
+pub struct Verdict {
+    pub slot: u64,
+    /// Which mandate version was in force when this was decided.
+    pub mandate_version: u16,
+    /// Sector or asset class, not the instrument.
+    pub category: u8,
+    /// What the agent asked for, in basis points of the portfolio.
+    pub proposed_bps: u16,
+    /// What it was allowed to do. Equal to proposed when cleared, smaller when
+    /// clamped, zero when refused.
+    pub allowed_bps: u16,
+    /// 0 cleared, 1 clamped, 2 refused.
+    pub outcome: u8,
+    /// 0 none, 1 position cap, 2 single trade cap, 3 denied asset,
+    /// 4 stale mandate, 5 instruction arrived inside content the agent read.
+    pub reason: u8,
+}
+
+/// The visible record of what the agent was stopped from doing.
+///
+/// This is the only part of the product that is meant to travel. A refusal is
+/// the mechanism working, and it is the one artifact that can be shown to
+/// somebody without revealing a position, so it is kept on chain rather than
+/// left in logs an indexer has to reconstruct.
+#[account]
+#[derive(InitSpace)]
+pub struct VerdictLog {
+    pub owner: Pubkey,
+    pub vault: Pubkey,
+    /// Next slot to write. The buffer wraps.
+    pub head: u8,
+    /// Lifetime tallies. These are the numbers worth quoting.
+    pub cleared: u32,
+    pub clamped: u32,
+    pub refused: u32,
+    #[max_len(VERDICT_CAPACITY)]
+    pub entries: Vec<Verdict>,
+    pub bump: u8,
+}
+
+impl VerdictLog {
+    pub fn push(&mut self, v: Verdict) {
+        match v.outcome {
+            0 => self.cleared = self.cleared.saturating_add(1),
+            1 => self.clamped = self.clamped.saturating_add(1),
+            _ => self.refused = self.refused.saturating_add(1),
+        }
+        if self.entries.len() < VERDICT_CAPACITY {
+            self.entries.push(v);
+        } else {
+            self.entries[self.head as usize] = v;
+        }
+        self.head = ((self.head as usize + 1) % VERDICT_CAPACITY) as u8;
+    }
+}

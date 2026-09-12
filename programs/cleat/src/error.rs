@@ -20,4 +20,10 @@ pub enum CleatError {
     NoAgent,
     #[msg("A mandate cannot be adopted from itself.")]
     SelfAdopt,
+    #[msg("No live agent grant. It was never given, or it expired.")]
+    AgentNotLive,
+    #[msg("This proposal was checked against a mandate version that has since changed.")]
+    StaleMandate,
+    #[msg("A proposal has to be for some fraction of the portfolio.")]
+    EmptyProposal,
 }
