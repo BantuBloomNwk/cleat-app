@@ -48,12 +48,18 @@ pub struct GateTrade<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    // Boxed, all three. Anchor builds this struct on the BPF stack, which is
+    // 4KB a frame, and Arcium's own account set already fills most of it. A
+    // Mandate carries a 280 byte string and a VerdictLog sixteen entries, so
+    // adding them unboxed overflows the frame and the program dies with an
+    // access violation in an unallocated region, before a single line of the
+    // handler runs and with no error worth reading.
     #[account(seeds = [VAULT_SEED, vault.owner.as_ref()], bump = vault.bump)]
-    pub vault: Account<'info, Vault>,
+    pub vault: Box<Account<'info, Vault>>,
     #[account(seeds = [MANDATE_SEED, vault.owner.as_ref()], bump = mandate.bump)]
-    pub mandate: Account<'info, Mandate>,
+    pub mandate: Box<Account<'info, Mandate>>,
     #[account(mut, seeds = [VERDICT_SEED, vault.owner.as_ref()], bump = log.bump)]
-    pub log: Account<'info, VerdictLog>,
+    pub log: Box<Account<'info, VerdictLog>>,
 
     #[account(
         init_if_needed,
@@ -104,7 +110,7 @@ pub struct GateTradeCallback<'info> {
     pub instructions_sysvar: UncheckedAccount<'info>,
     /// The log the verdict lands in, passed through as an extra callback account.
     #[account(mut)]
-    pub log: Account<'info, VerdictLog>,
+    pub log: Box<Account<'info, VerdictLog>>,
 }
 
 #[event]
