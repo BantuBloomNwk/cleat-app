@@ -1484,3 +1484,85 @@ body {
   border: 1px solid var(--verdigris-chip-border);
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   Overflow corrections.
+
+   Almost every "the words escape their box" and "the header sits on
+   two lines" bug here has one cause: a flex item keeps its default
+   min-width of auto, so it refuses to shrink below its own text and
+   pushes its container open instead of wrapping or truncating. These
+   set that floor to zero where shrinking is what we want, and pin the
+   labels that have to stay on one line.
+   ───────────────────────────────────────────────────────────── */
+
+/* The six timeframe buttons could not shrink, so the bar ran past its
+   container at narrow widths. This is the 30D leaving the box. */
+.timeframe-bar { min-width: 0; overflow: hidden; }
+.timeframe-btn {
+  min-width: 0;
+  white-space: nowrap;
+  padding-inline: 2px;
+  font-size: clamp(9.5px, 2.6vw, 11px);
+}
+
+/* Single line rows have to be allowed to truncate rather than widen. */
+.chart-hud-tooltip,
+.chart-hud-badge,
+.mandate-metadata-row,
+.mandate-footer,
+.live-caps-row,
+.ledger-filter-bar,
+.app-header,
+.bottom-dock { min-width: 0; }
+
+.chart-hud-tooltip > *,
+.chart-hud-badge > *,
+.mandate-metadata-row > *,
+.mandate-footer > *,
+.ledger-filter-bar > *,
+.app-header > *,
+.marker-detail-card > *,
+.card > * { min-width: 0; }
+
+.chart-hud-tooltip { overflow: hidden; }
+.chart-hud-tooltip .truncate,
+.dock-tab-btn,
+.ledger-filter-pill,
+.live-cap-chip,
+.immutable-chip,
+.metallic-plate-pill { white-space: nowrap; }
+
+/* Chips and pills sit in rows that must wrap as a whole rather than
+   let one chip push the row open. */
+.live-caps-row, .mandate-metadata-row, .ledger-filter-bar { flex-wrap: wrap; }
+
+/* Long prose, and unbroken strings like a signature or an account,
+   wrap inside their card instead of running out of it. */
+.card,
+.glass-card,
+.ledger-entry,
+.marker-detail-card,
+.mandate-quote,
+.onboarding-card,
+.chart-drawer-card,
+.modal-panel { overflow-wrap: anywhere; }
+
+/* Dialogs were cramped at phone width: too little inner room and no
+   room to scroll once the content grew past the viewport. */
+.chart-drawer-card,
+.modal-panel,
+.onboarding-card {
+  max-height: min(86dvh, 880px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (max-width: 430px) {
+  .chart-drawer-card, .modal-panel, .onboarding-card { padding: 16px; gap: 12px; }
+  .modal-backdrop, .onboarding-overlay { padding: 12px; }
+}
+
+/* Nothing may scroll the page sideways. Anything genuinely wider than
+   the screen scrolls inside its own box. */
+html, body { overflow-x: hidden; }
+svg { max-width: 100%; }

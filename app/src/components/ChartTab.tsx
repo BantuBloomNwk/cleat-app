@@ -513,37 +513,46 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                       fontSize="8.5"
                       fontFamily="var(--font-mono)"
                       fontWeight="700"
-                      opacity={isSelected || isHovered ? '1' : '0.8'}
+                      opacity={isHovered ? '0' : isSelected ? '1' : '0.8'}
                     >
                       {marker.ticker}
                     </text>
 
                     {/* Mini-Tooltip Preview on Hover/Focus */}
-                    {isHovered && (
-                      <g className="pointer-events-none transition-all duration-200" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.65))' }}>
-                        <rect
-                          x={Math.max(8, Math.min(235, marker.cx - 58))}
-                          y={Math.max(8, marker.cy - 38)}
-                          width="118"
-                          height="22"
-                          rx="6"
-                          fill="var(--card-surface-raised)"
-                          stroke={fillColor}
-                          strokeWidth="1.2"
-                        />
-                        <text
-                          x={Math.max(67, Math.min(294, marker.cx))}
-                          y={Math.max(22, marker.cy - 24)}
-                          textAnchor="middle"
-                          fill="var(--text-primary)"
-                          fontSize="8.5"
-                          fontFamily="var(--font-mono)"
-                          fontWeight="700"
-                        >
-                          {marker.ticker} • {marker.status.toUpperCase()} • {marker.saved}
-                        </text>
-                      </g>
-                    )}
+                    {isHovered && (() => {
+                      // The box is measured from the label rather than fixed.
+                      // A fixed 118 wide rect was narrower than the text it had
+                      // to hold, so the words escaped the box they were in.
+                      const label = `${marker.ticker} • ${marker.status.toUpperCase()} • ${marker.saved}`;
+                      const w = Math.min(240, Math.max(78, label.length * 5.15 + 18));
+                      const x = Math.max(6, Math.min(360 - w - 6, marker.cx - w / 2));
+                      const y = Math.max(6, marker.cy - 38);
+                      return (
+                        <g className="pointer-events-none transition-all duration-200" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.65))' }}>
+                          <rect
+                            x={x}
+                            y={y}
+                            width={w}
+                            height="22"
+                            rx="6"
+                            fill="var(--card-surface-raised)"
+                            stroke={fillColor}
+                            strokeWidth="1.2"
+                          />
+                          <text
+                            x={x + w / 2}
+                            y={y + 14.5}
+                            textAnchor="middle"
+                            fill="var(--text-primary)"
+                            fontSize="8.5"
+                            fontFamily="var(--font-mono)"
+                            fontWeight="700"
+                          >
+                            {label}
+                          </text>
+                        </g>
+                      );
+                    })()}
                   </g>
                 );
               })}
