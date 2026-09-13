@@ -396,9 +396,12 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               </g>
             ))}
 
-            {/* Mandate Ceiling Barrier Band */}
+            {/* Mandate Ceiling Barrier Band.
+                The boundary plane. It sits furthest back when the panel is
+                turned, because the price and the refusals are read against
+                it rather than the other way round. */}
             {currentConfig.ceilingPath && (
-              <g>
+              <g className="layer-boundary">
                 <path
                   d={currentConfig.ceilingPath}
                   fill="none"
@@ -445,6 +448,9 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               </g>
             )}
 
+            {/* The price plane, between the boundary behind it and the
+                refusals in front. */}
+            <g className="layer-price">
             {/* Dynamic Wave Area Fill */}
             <path
               id="chartAreaFillPath"
@@ -496,8 +502,14 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               r="5"
             />
 
-            {/* Event Dots with Status Rings & Interactive Hover/Tap Preview */}
-            <g id="chartMarkersGroup">
+            </g>
+
+            {/* Event Dots with Status Rings & Interactive Hover/Tap Preview.
+                Nearest the viewer, so a refused trade occludes the boundary
+                it broke rather than hiding behind it. Occlusion is one of
+                only three depth cues a flat screen has; this is spending
+                one of them on the thing the product is about. */}
+            <g id="chartMarkersGroup" className="layer-marks">
               {activeMarkers.map((marker) => {
                 const isSelected = selectedMarker?.id === marker.id;
                 const isHovered = hoveredMarkerId === marker.id;
