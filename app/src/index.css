@@ -1754,6 +1754,19 @@ h1, h2, h3, h4, h5, h6,
    ───────────────────────────────────────────────────────────── */
 
 .expand-sheet-backdrop {
+  /* Bounded to the same column the app itself lives in.
+     On a phone that is the whole screen anyway. On a desktop the app is a
+     440px column down the middle, and a sheet that blacks out the rest of
+     the monitor is not the same product. Fixed rather than absolute so it
+     stays with the viewport instead of with the scroll height of a very
+     long page. */
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 440px;
   background: oklch(0 0 0 / 0.62);
   backdrop-filter: blur(6px) saturate(1.15);
   -webkit-backdrop-filter: blur(6px) saturate(1.15);
@@ -1802,6 +1815,22 @@ h1, h2, h3, h4, h5, h6,
 
 .expand-sheet-close { width: 44px; height: 44px; background: transparent; cursor: pointer; }
 .expand-open-btn { min-height: 44px; padding: 0 10px; background: transparent; cursor: pointer; }
+
+/* The one that sits inside a small tile next to a chart. A 44px target
+   there eats the height the chart needs, so it keeps the 44px hit area
+   through padding on a 26px box and takes no layout room of its own. */
+.expand-open-btn.is-compact {
+  min-height: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  position: relative;
+}
+.expand-open-btn.is-compact::after {
+  content: '';
+  position: absolute;
+  top: -9px; right: -9px; bottom: -9px; left: -9px;
+}
 
 /* Charts get the room the sheet exists to give them. */
 .expand-sheet-body .chart-canvas-box { min-height: 220px; }

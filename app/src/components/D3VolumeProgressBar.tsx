@@ -250,20 +250,18 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
   return (
     <div className="flex flex-col gap-2 w-full select-none" ref={containerRef}>
       {/* Top Labels: Status & Values */}
-      <div className="flex items-center justify-between font-mono text-[11.5px]">
-        <div className="flex items-center gap-1.5 text-[var(--refused-rust)] font-bold">
+      {/* The percentages used to sit here in brackets as well as on the two
+          tiles above and in the caption below. Three tellings, and the one
+          that made the row too wide to hold a gutter, so at phone width the
+          halves met in the middle and read as (29.0%)(71.0%). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[11.5px]">
+        <div className="flex items-center gap-1.5 text-[var(--refused-rust)] font-bold min-w-0">
           <span className="w-2 h-2 rounded-full bg-[var(--refused-rust)] shrink-0" />
           <span>Refused</span>
           <span className="text-[12.5px]">${refusedVolume.toFixed(2)}M</span>
-          <span className="text-[10px] opacity-75 font-normal">
-            ({refusedRatio.toFixed(1)}%)
-          </span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-[var(--verdigris)] font-bold">
-          <span className="text-[10px] opacity-75 font-normal">
-            ({clearedRatio.toFixed(1)}%)
-          </span>
+        <div className="flex items-center gap-1.5 text-[var(--verdigris)] font-bold min-w-0 ml-auto">
           <span className="text-[12.5px]">${clearedVolume.toFixed(2)}M</span>
           <span>Cleared</span>
           <span className="w-2 h-2 rounded-full bg-[var(--verdigris)] shrink-0" />

@@ -931,13 +931,18 @@ export const ChartTab: React.FC<ChartTabProps> = ({
             <h3 className="font-sans font-bold text-[13.5px] text-[var(--text-primary)] whitespace-nowrap">
               {activeTimeframe === '24H' ? '24-Hour' : `${activeTimeframe}`} Enforcement Volume
             </h3>
+            {/* Kept on the title line. The full sized button pushed the
+                window pill onto a second row and read louder than the
+                heading it sits next to. */}
+            <ExpandButton
+              compact
+              onClick={() => setExpanded('volume')}
+              label="Open enforcement volume in full"
+            />
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-auto">
-            <span className="font-mono text-[10px] text-[var(--text-tertiary)] px-2 py-0.5 rounded-full bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] whitespace-nowrap">
-              Rolling {activeTimeframe} Window
-            </span>
-            <ExpandButton onClick={() => setExpanded('volume')} label="Open enforcement volume in full" />
-          </div>
+          <span className="font-mono text-[10px] text-[var(--text-tertiary)] px-2 py-0.5 rounded-full bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] whitespace-nowrap ml-auto shrink-0">
+            Rolling {activeTimeframe} Window
+          </span>
         </div>
 
         {/* Volume Metric Cards & 7D D3 Sparkline Graph */}
@@ -998,11 +1003,17 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           </div>
 
           {/* 7-Day High-Density D3 Sparkline Graph */}
-          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-between gap-1.5">
-            <D3VolumeSparkline compact={true} />
-            <div className="flex justify-end">
-              <ExpandButton onClick={() => setExpanded('trend')} label="Open the seven day trend in full" />
-            </div>
+          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-center min-w-0 overflow-hidden">
+            <D3VolumeSparkline
+              compact={true}
+              action={
+                <ExpandButton
+                  compact
+                  onClick={() => setExpanded('trend')}
+                  label="Open the seven day trend in full"
+                />
+              }
+            />
           </div>
         </div>
 

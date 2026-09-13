@@ -23,18 +23,21 @@ const DEFAULT_7D_TREND: DayTrendPoint[] = [
 interface D3VolumeSparklineProps {
   data?: DayTrendPoint[];
   compact?: boolean;
+  /** Rendered into the header row, so it costs the chart no height. */
+  action?: React.ReactNode;
 }
 
 export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
   data = DEFAULT_7D_TREND,
   compact = false,
+  action,
 }) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const plotRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current) return;
+    if (!svgRef.current) return;
 
     // Not measured at all any more, which is the point.
     //
@@ -47,17 +50,24 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
     // browser scales it to whatever room exists and it cannot, by
     // construction, draw outside its own box.
     const width = 320;
-    const height = compact ? 52 : 68;
-    const margin = { top: 6, right: 16, bottom: 18, left: 16 };
+    // The compact one was down to 28px of plot, which flattened a week of
+    // trend into two straight lines. The tile has the room, so take it.
+    const height = compact ? 64 : 84;
+    const margin = { top: 5, right: 16, bottom: compact ? 15 : 18, left: 16 };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
     const svg = d3.select(svgRef.current);
+    // viewBox and nothing else. The width and height attributes are left
+    // off on purpose: an svg height attribute has to be a length, so the
+    // height="auto" that was here was rejected outright by the browser and
+    // the element was left with no usable height, which is what kept the
+    // line escaping no matter what else moved. With only a viewBox the
+    // browser takes its own aspect ratio from these coordinates and the
+    // css below sizes it, so it cannot draw outside its box.
     svg
       .attr('viewBox', `0 0 ${width} ${height}`)
-      .attr('preserveAspectRatio', 'xMidYMid meet')
-      .attr('width', '100%')
-      .attr('height', 'auto');
+      .attr('preserveAspectRatio', 'xMidYMid meet');
     svg.selectAll('*').remove();
 
     // Gradients
@@ -92,7 +102,10 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
       .scalePoint<string>()
       .domain(data.map((d) => d.day))
       .range([0, innerWidth])
-      .padding(0.1);
+      // No padding, so a point sits exactly at margin.left + i * step and
+      // the hover maths below can land on the same day the cursor is over
+      // without duplicating d3's own padding arithmetic.
+      .padding(0);
 
     const maxVal = d3.max(data, (d) => Math.max(d.cleared, d.refused)) || 5;
     const yScale = d3.scaleLinear().domain([0, maxVal * 1.15]).range([innerHeight, 0]);
@@ -177,7 +190,7 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
       .attr('stroke-width', 1.5);
 
     // Bottom Day Labels (Compact X-Axis)
-    const labelGroup = g.append('g').attr('transform', `translate(0, ${innerHeight + 12})`);
+    const labelGroup = g.append('g').attr('transform', `translate(0, ${innerHeight + 11})`);
     data.forEach((d, i) => {
       const xPos = xScale(d.day) || 0;
       labelGroup
@@ -229,39 +242,52 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
   const activePoint = hoverIndex !== null ? data[hoverIndex] : data[data.length - 1];
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex flex-col w-full min-w-[200px]"
-      id="d3-volume-sparkline-card"
-    >
-      {/* Sparkline Top Insight & Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] font-mono mb-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+    <div className="relative flex flex-col w-full min-w-0" id="d3-volume-sparkline-card">
+      {/* The reading for whichever day is under the cursor.
+          Compact drops the words Cleared and Refused and leans on the two
+          colours instead, because in a tile this narrow the full legend
+          wrapped onto three lines and pushed the chart out of the card. */}
+      <div className="flex items-center justify-between gap-2 text-[10px] font-mono mb-1 min-w-0">
+        <div className={`flex items-center min-w-0 ${compact ? 'gap-1.5' : 'flex-wrap gap-x-2 gap-y-1'}`}>
           <span className="text-[var(--text-tertiary)] uppercase tracking-wider text-[9px] font-semibold whitespace-nowrap">
-            7D Trend:
+            {compact ? activePoint.day : '7D Trend:'}
           </span>
           <span className="text-[var(--verdigris)] font-bold whitespace-nowrap">
-            ${activePoint.cleared.toFixed(2)}M Cleared
+            ${activePoint.cleared.toFixed(2)}M{compact ? '' : ' Cleared'}
           </span>
           <span className="text-[var(--text-tertiary)]">•</span>
           <span className="text-[var(--refused-rust)] font-bold whitespace-nowrap">
-            ${activePoint.refused.toFixed(2)}M Refused
+            ${activePoint.refused.toFixed(2)}M{compact ? '' : ' Refused'}
           </span>
         </div>
-        <span className="text-[9.5px] text-[var(--text-secondary)] whitespace-nowrap shrink-0 ml-auto">
-          {activePoint.day}
-        </span>
+        {action ? (
+          <div className="shrink-0">{action}</div>
+        ) : (
+          <span className="text-[9.5px] text-[var(--text-secondary)] whitespace-nowrap shrink-0">
+            {activePoint.day}
+          </span>
+        )}
       </div>
 
       {/* SVG Canvas with Interactive Pointer Scrubber */}
       <div
-        className="relative cursor-crosshair touch-none"
+        ref={plotRef}
+        className="relative w-full cursor-crosshair touch-none"
         onMouseMove={(e) => {
-          if (!containerRef.current) return;
-          const rect = containerRef.current.getBoundingClientRect();
-          const relX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-          const stepWidth = rect.width / data.length;
-          const idx = Math.min(data.length - 1, Math.max(0, Math.floor(relX / stepWidth)));
+          if (!plotRef.current) return;
+          // Measured against the plot box, not the whole card, and mapped
+          // back through the same margins the scale uses. Reading the card
+          // was how the crosshair ended up landing on a different day from
+          // the one under the cursor.
+          const rect = plotRef.current.getBoundingClientRect();
+          if (rect.width === 0) return;
+          const scale = 320 / rect.width;
+          const vbX = (e.clientX - rect.left) * scale - 16;
+          const step = (320 - 32) / (data.length - 1);
+          const idx = Math.min(
+            data.length - 1,
+            Math.max(0, Math.round(vbX / step)),
+          );
           if (idx !== hoverIndex) {
             setHoverIndex(idx);
             tactile.sliderTick(idx * 15);
@@ -271,7 +297,7 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
       >
         <svg
           ref={svgRef}
-          className="w-full block overflow-hidden select-none"
+          className="w-full h-auto block overflow-hidden select-none"
           role="img"
           aria-label="7-Day Cleared versus Refused Volume Sparkline"
         />

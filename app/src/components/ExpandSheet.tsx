@@ -89,7 +89,7 @@ export const ExpandSheet: React.FC<ExpandSheetProps> = ({
 
   return createPortal(
     <div
-      className="expand-sheet-backdrop fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="expand-sheet-backdrop z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"
       role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -104,7 +104,7 @@ export const ExpandSheet: React.FC<ExpandSheetProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`expand-sheet-panel w-full ${wide ? 'sm:max-w-2xl' : 'sm:max-w-lg'} flex flex-col gap-3.5 outline-none`}
+        className={`expand-sheet-panel w-full ${wide ? 'is-wide' : ''} flex flex-col gap-3.5 outline-none`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col min-w-0">
@@ -137,11 +137,20 @@ export const ExpandSheet: React.FC<ExpandSheetProps> = ({
   );
 };
 
-/** The affordance that opens one. Small, quiet, and a real 44px target. */
-export const ExpandButton: React.FC<{ onClick: () => void; label: string }> = ({
-  onClick,
-  label,
-}) => (
+/**
+ * The affordance that opens one.
+ *
+ * Two sizes. The default carries the word and a real 44px box, for a card
+ * header where there is room for it. The compact one is the arrows alone in
+ * a 26px box with the hit area pushed out past its edges, for a tile where
+ * a 44px button would take the height the chart needs and shove the chart
+ * out of the card. Both reach 44px to a finger.
+ */
+export const ExpandButton: React.FC<{
+  onClick: () => void;
+  label: string;
+  compact?: boolean;
+}> = ({ onClick, label, compact = false }) => (
   <button
     type="button"
     onClick={() => {
@@ -149,11 +158,14 @@ export const ExpandButton: React.FC<{ onClick: () => void; label: string }> = ({
       onClick();
     }}
     aria-label={label}
-    className="expand-open-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] text-[var(--text-tertiary)] hover:text-[var(--verdigris)] hover:border-[var(--verdigris)]"
+    title={compact ? label : undefined}
+    className={`expand-open-btn ${compact ? 'is-compact justify-center' : ''} shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] text-[var(--text-tertiary)] hover:text-[var(--verdigris)] hover:border-[var(--verdigris)]`}
   >
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
     </svg>
-    <span className="text-[10px] font-mono uppercase tracking-wider whitespace-nowrap">Expand</span>
+    {!compact && (
+      <span className="text-[10px] font-mono uppercase tracking-wider whitespace-nowrap">Expand</span>
+    )}
   </button>
 );
