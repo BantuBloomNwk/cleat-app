@@ -11,6 +11,7 @@
 //   market-sessions   the four real US equity sessions and their hours
 //   market-holidays   the closures, including overnight eves
 //   markets           which of those actually have a market, spot or perp
+//   tickers           what every one of them is trading at, right now
 //
 // A browser cannot call them directly because the API sends no CORS
 // header, so it calls this. Nothing here is authenticated, nothing here
@@ -30,6 +31,7 @@ const ALLOWED = new Set([
   "market-sessions",
   "market-holidays",
   "markets",
+  "tickers",
 ]);
 
 export default async (req: Request) => {
@@ -63,7 +65,10 @@ export default async (req: Request) => {
         // The universe and the calendar change on the order of days, so
         // this is cached hard at the edge. It keeps the page fast and
         // keeps us from leaning on someone else's public endpoint.
-        "cache-control": "public, max-age=900, s-maxage=3600",
+        "cache-control":
+          which === "tickers"
+            ? "public, max-age=15, s-maxage=30"
+            : "public, max-age=900, s-maxage=3600",
       },
     });
   } catch {

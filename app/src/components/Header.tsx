@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
   loadSessions,
+  loadTickers,
   currentSession,
   sessionLabel,
+  liveSummary,
   type MarketSession,
+  type Ticker,
 } from '../lib/backpack';
 import emblemDark from '../assets/emblem-dark.jpg';
 import emblemLight from '../assets/emblem-light.jpg';
@@ -28,16 +31,26 @@ export const Header: React.FC<HeaderProps> = ({
   // knows.
   const [sessions, setSessions] = useState<MarketSession[] | null>(null);
   const [session, setSession] = useState<MarketSession | null>(null);
+  const [tickers, setTickers] = useState<Ticker[] | null>(null);
 
   useEffect(() => {
     let live = true;
     loadSessions().then((s) => {
       if (live) setSessions(s);
     });
+    const pull = () =>
+      loadTickers().then((t) => {
+        if (live) setTickers(t);
+      });
+    pull();
+    const id = window.setInterval(pull, 60_000);
     return () => {
       live = false;
+      window.clearInterval(id);
     };
   }, []);
+
+  const live = liveSummary(tickers);
 
   useEffect(() => {
     if (!sessions) return;
@@ -206,7 +219,10 @@ export const Header: React.FC<HeaderProps> = ({
             </svg>
           </h1>
 
-          <div className="flex items-center gap-1.5 mt-1 text-[10px] font-mono font-bold tracking-wider">
+          {/* Four items now, and at 320px they do not fit one line. Wrapping
+              beats truncating here: every one of them is a state someone
+              needs to be able to read. */}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1 text-[10px] font-mono font-bold tracking-wider">
             <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
               <span className="pulse-dot" />
               <span>WATCHING</span>
@@ -219,6 +235,21 @@ export const Header: React.FC<HeaderProps> = ({
               </svg>
               <span>SEALED</span>
             </span>
+            {/* Two clocks, and only one of them stops.
+                The venue state comes first because it is the one that
+                decides whether the agent can act, and it is always open.
+                New York's session is context, not a gate. */}
+            {live && (
+              <>
+                <span className="text-[var(--text-tertiary)]">•</span>
+                <span
+                  className="inline-flex items-center gap-1 uppercase tracking-wide whitespace-nowrap text-[var(--verdigris)]"
+                  title={`${live.markets} tokenized markets quoting, ${live.trades.toLocaleString()} trades in the last 24 hours`}
+                >
+                  24/7 LIVE
+                </span>
+              </>
+            )}
             {sessions && (
               <>
                 <span className="text-[var(--text-tertiary)]">•</span>
@@ -226,11 +257,13 @@ export const Header: React.FC<HeaderProps> = ({
                   className={`inline-flex items-center gap-1 uppercase tracking-wide whitespace-nowrap ${
                     session?.name === 'US_EQUITIES_OVERNIGHT'
                       ? 'text-[var(--ember)]'
-                      : session
-                        ? 'text-[var(--text-secondary)]'
-                        : 'text-[var(--text-tertiary)]'
+                      : 'text-[var(--text-tertiary)]'
                   }`}
-                  title={session ? session.description : 'US equities are closed'}
+                  title={
+                    session
+                      ? session.description
+                      : 'The New York exchanges are shut. The tokenized market is not.'
+                  }
                 >
                   {sessionLabel(session)}
                 </span>

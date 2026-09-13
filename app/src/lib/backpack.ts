@@ -111,16 +111,75 @@ export function currentSession(
   return null;
 }
 
-/** What a session is called when it is shown to someone. */
+/**
+ * What a session is called when it is shown to someone.
+ *
+ * Note what this never says: closed. There are two clocks here and only
+ * one of them stops. The US equities session calendar gates the request
+ * for quote flow, and the Solana market, spot books and perpetuals, does
+ * not close at all. On the Sunday this was written, with the New York
+ * exchanges shut, SPY was doing two and a half thousand trades and half a
+ * million dollars of volume on chain.
+ *
+ * Calling that "market closed" would be repeating the assumption the whole
+ * category exists to break, so when New York is shut this says so about
+ * New York and leaves the market out of it.
+ */
 export function sessionLabel(s: MarketSession | null): string {
-  if (!s) return "Market closed";
   const m: Record<string, string> = {
     US_EQUITIES_PRE_MARKET: "Pre-market",
-    US_EQUITIES_REGULAR: "Regular hours",
+    US_EQUITIES_REGULAR: "NYSE open",
     US_EQUITIES_POST_MARKET: "After hours",
     US_EQUITIES_OVERNIGHT: "Overnight",
   };
+  if (!s) return "NYSE shut";
   return m[s.name] ?? s.description;
+}
+
+/**
+ * The tokenized markets, live.
+ *
+ * One unauthenticated call returns every ticker the venue quotes. The ones
+ * that matter here carry a ".US_" in the symbol: "NVDA.US_USDC" is the
+ * tokenized share, "NVDA.US_USDC_PERP" the perpetual on it.
+ */
+export interface Ticker {
+  symbol: string;
+  lastPrice: string;
+  priceChangePercent: string;
+  quoteVolume: string;
+  trades: number;
+  high: string;
+  low: string;
+}
+
+export async function loadTickers(): Promise<Ticker[] | null> {
+  const all = await load<Ticker[]>("tickers");
+  if (!all) return null;
+  return all.filter((t) => t.symbol.includes(".US_"));
+}
+
+/** "NVDA.US_USDC_PERP" reads as "NVDA". */
+export const symbolTicker = (symbol: string) =>
+  symbol.split("_")[0].replace(/\.US$/, "");
+
+export const isPerp = (symbol: string) => symbol.endsWith("_PERP");
+
+/**
+ * Is anything actually trading, and how much.
+ *
+ * Used to say the true thing when New York is shut, which is that the
+ * market is still here.
+ */
+export function liveSummary(tickers: Ticker[] | null): {
+  markets: number;
+  trades: number;
+} | null {
+  if (!tickers || tickers.length === 0) return null;
+  return {
+    markets: tickers.length,
+    trades: tickers.reduce((a, t) => a + (Number(t.trades) || 0), 0),
+  };
 }
 
 /**
