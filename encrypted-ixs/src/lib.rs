@@ -39,11 +39,11 @@ mod circuits {
     /// decided it is never revealed to anyone, including this program and
     /// whoever runs the agent.
     #[instruction]
-    pub fn gate_breach_v4(
+    pub fn gate_breach_v5(
         exposure_bps: Enc<Shared, u64>,
         effective_bps: u64,
         max_position_bps: u64,
-    ) -> (Enc<Shared, u64>, bool) {
+    ) -> (Enc<Mxe, u64>, Enc<Shared, u64>, bool) {
         let held = exposure_bps.to_arcis();
         let next = held + effective_bps;
         let breaches = next > max_position_bps;
@@ -60,6 +60,20 @@ mod circuits {
         // as an argument on every call. A circuit that has optimized it
         // away is not the circuit the program is calling.
         let updated = if breaches { held } else { next };
-        (exposure_bps.owner.from_arcis(updated), breaches.reveal())
+        // The one thing every circuit that works on this cluster has, and
+        // that none of ours has ever had: a value encrypted to the MXE.
+        //
+        // Four of ours have aborted now. They differ from one another in the
+        // width of the number, whether it was wrapped in a struct, the
+        // arithmetic, and whether the caller's key was used, and all four
+        // died the same way. Four of Ilowa's run on this same cluster and
+        // differ from each other in those same respects. The only line that
+        // separates the two sets is that every working one touches
+        // Enc<Mxe, T> somewhere, and not one of ours does.
+        (
+            Mxe::get().from_arcis(updated),
+            exposure_bps.owner.from_arcis(updated),
+            breaches.reveal(),
+        )
     }
 }

@@ -11,9 +11,9 @@ use crate::constants::*;
 use crate::error::CleatError;
 use crate::state::{Mandate, Vault, Verdict, VerdictLog};
 
-pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v4");
+pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v5");
 
-#[init_computation_definition_accounts("gate_breach_v4", payer)]
+#[init_computation_definition_accounts("gate_breach_v5", payer)]
 #[derive(Accounts)]
 pub struct InitGateCompDef<'info> {
     #[account(mut)]
@@ -41,7 +41,7 @@ pub struct InitGateCompDef<'info> {
 /// The caps travel in the clear because they are already public on the mandate,
 /// and sending them as plaintext keeps them out of the expensive part of the
 /// circuit.
-#[queue_computation_accounts("gate_breach_v4", payer)]
+#[queue_computation_accounts("gate_breach_v5", payer)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct GateTrade<'info> {
@@ -93,9 +93,9 @@ pub struct GateTrade<'info> {
     pub arcium_program: Program<'info, Arcium>,
 }
 
-#[callback_accounts("gate_breach_v4")]
+#[callback_accounts("gate_breach_v5")]
 #[derive(Accounts)]
-pub struct GateBreachV4Callback<'info> {
+pub struct GateBreachV5Callback<'info> {
     pub arcium_program: Program<'info, Arcium>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_BREACH))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
@@ -183,7 +183,7 @@ pub fn exec_gate_trade(
         ctx.accounts,
         computation_offset,
         args,
-        vec![GateBreachV4Callback::callback_ix(
+        vec![GateBreachV5Callback::callback_ix(
             computation_offset,
             &ctx.accounts.mxe_account,
             &[CallbackAccount {
@@ -204,8 +204,8 @@ pub fn exec_gate_trade(
 /// what was parked before the question was asked, which is why the log carries
 /// the pending fields at all.
 pub fn exec_gate_callback(
-    ctx: Context<GateBreachV4Callback>,
-    output: SignedComputationOutputs<GateBreachV4Output>,
+    ctx: Context<GateBreachV5Callback>,
+    output: SignedComputationOutputs<GateBreachV5Output>,
 ) -> Result<()> {
     // verify_output_raw, not verify_output, and the difference is the whole
     // reason every computation came back as an abort.
@@ -227,10 +227,9 @@ pub fn exec_gate_callback(
         Ok(b) => b,
         Err(_) => return Err(CleatError::GateAborted.into()),
     };
-    // The circuit now returns the caller's updated exposure, still sealed
-    // to their own key, and then the bit. So the bool is the last byte
-    // rather than the first: everything before it is ciphertext this
-    // program cannot read and has no business reading.
+    // The output is now an MXE sealed copy, a caller sealed copy, then the
+    // bit. The bool is still the last byte and everything in front of it is
+    // ciphertext this program cannot read and has no business reading.
     let breaches = *bytes.last().ok_or(CleatError::GateAborted)? != 0;
 
     let log = &mut ctx.accounts.log;

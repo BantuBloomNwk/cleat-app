@@ -98,10 +98,10 @@ pub mod cleat {
         )
     }
 
-    #[arcium_callback(encrypted_ix = "gate_breach_v4")]
-    pub fn gate_breach_v4_callback(
-        ctx: Context<GateBreachV4Callback>,
-        output: SignedComputationOutputs<GateBreachV4Output>,
+    #[arcium_callback(encrypted_ix = "gate_breach_v5")]
+    pub fn gate_breach_v5_callback(
+        ctx: Context<GateBreachV5Callback>,
+        output: SignedComputationOutputs<GateBreachV5Output>,
     ) -> Result<()> {
         instructions::gate::exec_gate_callback(ctx, output)
     }

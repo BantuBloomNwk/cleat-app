@@ -32,7 +32,7 @@ import {
 } from "@arcium-hq/client";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CIRCUIT = "gate_breach_v4";
+const CIRCUIT = "gate_breach_v5";
 const LUT_PROGRAM_ID = new PublicKey("AddressLookupTab1e1111111111111111111111111");
 
 const IDL = JSON.parse(
@@ -126,10 +126,19 @@ async function main() {
   console.log(`uploaded in ${sigs.length} transactions`);
 
   console.log("\nfinalizing...");
+  // Let the throttle queue drain before asking for a blockhash.
+  //
+  // The gap that keeps the upload under the rate limit also delays every
+  // call behind it, so on a ninety chunk circuit the finalize was being
+  // signed against a blockhash fetched minutes earlier and rejected as
+  // "Blockhash not found". Waiting for the queue, then fetching, means the
+  // blockhash is as fresh as the send.
+  await new Promise((r) => setTimeout(r, 1500));
   const finalizeTx = await buildFinalizeCompDefTx(provider, offset, PROGRAM_ID);
   finalizeTx.feePayer = owner.publicKey;
-  finalizeTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-  const fsig = await sendAndConfirmTransaction(connection, finalizeTx, [owner], { commitment: "confirmed" });
+  const fresh = new Connection(baseRpc(), "confirmed");
+  finalizeTx.recentBlockhash = (await fresh.getLatestBlockhash()).blockhash;
+  const fsig = await sendAndConfirmTransaction(fresh, finalizeTx, [owner], { commitment: "confirmed" });
   console.log("finalized:", fsig.slice(0, 28) + "…");
 }
 
