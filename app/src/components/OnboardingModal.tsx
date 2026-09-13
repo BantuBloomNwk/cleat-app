@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tactile } from '../utils/haptics';
-import emblemDark from '../assets/emblem-dark.jpg';
-import emblemLight from '../assets/emblem-light.jpg';
+import emblemDark from '../assets/emblem-dark.png';
+import emblemLight from '../assets/emblem-light.png';
 
 interface OnboardingModalProps {
   isOpen: boolean;

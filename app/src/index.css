@@ -186,17 +186,20 @@ body {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  overflow: hidden !important;
+  /* No background and nothing to clip. The emblem is a png with its
+     corners cut to transparent, so it brings its own silhouette and a
+     box painted behind it would only show through those corners. */
+  overflow: visible;
   position: relative;
   flex-shrink: 0;
-  background: #0c0b0a !important;
+  background: transparent !important;
   border: none !important;
   padding: 0;
   margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
   transform: perspective(400px) translateZ(0);
   transition: transform 0.2s ease;
 }
@@ -1546,19 +1549,22 @@ body {
   width: 96px;
   height: 96px;
   border-radius: 26px;
-  overflow: hidden !important;
-  background: #0c0b0a !important;
+  overflow: visible;
+  background: transparent !important;
   border: none !important;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 20px auto;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  /* drop-shadow rather than box-shadow, because the emblem is a squircle
+     with transparent corners and box-shadow would trace the square box
+     around it instead of the shape you can see. */
+  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.6));
   transform: perspective(400px) translateZ(0);
 }
 [data-theme="light"] .cinematic-emblem {
-  background: #f4f1ea !important;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  background: transparent !important;
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.18));
 }
 .cinematic-emblem img {
   width: 100% !important;

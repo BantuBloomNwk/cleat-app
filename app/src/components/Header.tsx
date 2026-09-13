@@ -8,8 +8,8 @@ import {
   type MarketSession,
   type Ticker,
 } from '../lib/backpack';
-import emblemDark from '../assets/emblem-dark.jpg';
-import emblemLight from '../assets/emblem-light.jpg';
+import emblemDark from '../assets/emblem-dark.png';
+import emblemLight from '../assets/emblem-light.png';
 
 interface HeaderProps {
   theme: 'dark' | 'light';
