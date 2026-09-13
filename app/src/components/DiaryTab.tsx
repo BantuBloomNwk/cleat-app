@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Copy, Check, Share2, ShieldCheck, Cpu } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
+import { loadSessions, type MarketSession } from '../lib/backpack';
 import { ToastNotification } from './ToastNotification';
 import { MagicblockPerDiagram } from './MagicblockPerDiagram';
 
@@ -18,7 +19,7 @@ interface DiaryTabProps {
 const PERIOD_CONFIGS = {
   overnight: {
     label: 'Overnight',
-    badge: 'Nocturnal Session (22:00 - 06:00 UTC)',
+    badge: null as string | null, // see overnightBadge below
     headingSuffix: 'overnight trade refusals',
     description:
       'Your overnight boundaries held solid. While you slept, the agent attempted automated portfolio rebalances; your plain English mandate halted all 3 without balance leakage.',
@@ -78,6 +79,30 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   onInjectScenario,
   overnightRefusalCount,
 }) => {
+  // The overnight window, from the exchange rather than from a number
+  // someone typed. It was written as 22:00 to 06:00 UTC, which is not when
+  // the US equities overnight session runs: it is 20:00 to 04:00 in New
+  // York, which drifts against UTC twice a year. A card that claims to
+  // report what happened overnight should agree with the market about
+  // which hours those were.
+  const [overnightBadge, setOvernightBadge] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    loadSessions().then((sessions) => {
+      if (!live || !sessions) return;
+      const s = sessions.find((x: MarketSession) => x.name === 'US_EQUITIES_OVERNIGHT');
+      if (!s) return;
+      const hhmm = (t: string) => t.slice(0, 5);
+      setOvernightBadge(
+        `Overnight session (${hhmm(s.startTime)} to ${hhmm(s.endTime)} New York)`,
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const [selectedPeriod, setSelectedPeriod] = useState<'overnight' | 'week' | 'month'>('overnight');
   const [statusFilter, setStatusFilter] = useState<'all' | 'refused' | 'trimmed' | 'cleared'>('all');
   const [selectedHeadline, setSelectedHeadline] = useState('fossil');
@@ -433,7 +458,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
         <div className="hero-refusal-body flex flex-col gap-1 w-full">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--refused-rust)] font-bold">
-              {currentPeriodConfig.badge}
+              {currentPeriodConfig.badge ?? overnightBadge ?? 'Overnight session'}
             </span>
             <span className="text-[10.5px] font-mono text-[var(--text-tertiary)]">
               Enforcer Engine v2.4
