@@ -14,6 +14,7 @@ import {
   type MarketSession,
 } from '../lib/backpack';
 import { tactile } from '../utils/haptics';
+import { FlipDigits } from './FlipDigits';
 
 /**
  * The instrument the agent is actually working against, priced live.
@@ -38,6 +39,11 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
   const [book, setBook] = useState<ReturnType<typeof bookQuality>>(null);
   const [picking, setPicking] = useState(false);
   const [sessions, setSessions] = useState<MarketSession[] | null>(null);
+  // The board runs itself until someone takes it over, then it stays where
+  // they put it. Cycling under a person who has just chosen something is
+  // the behaviour that makes an auto advancing display infuriating.
+  const [autoRunning, setAutoRunning] = useState(true);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -69,6 +75,8 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
     };
   }, [symbol]);
 
+  const DWELL = 4200;
+
   // Busiest first. Someone opening this should land on a market that is
   // actually trading rather than the one that sorts first alphabetically.
   const ranked = useMemo(
@@ -78,6 +86,24 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
         .sort((a, b) => Number(b.quoteVolume || 0) - Number(a.quoteVolume || 0)),
     [tickers],
   );
+
+  // Advance through the board while nobody has taken it over. Only the
+  // busiest dozen, because the tail is names nobody is trading and a board
+  // that shows them is padding itself.
+  useEffect(() => {
+    if (!autoRunning || paused || picking || ranked.length < 2) return;
+    const board = ranked.slice(0, 12);
+    const id = window.setInterval(() => {
+      const at = board.findIndex((t) => t.symbol === symbol);
+      const next = board[(at + 1) % board.length];
+      if (next) onSelect(next.symbol);
+    }, DWELL);
+    return () => window.clearInterval(id);
+  }, [autoRunning, paused, picking, ranked, symbol, onSelect]);
+
+  const takeOver = () => {
+    setAutoRunning(false);
+  };
 
   const active = ranked.find((t) => t.symbol === symbol) ?? ranked[0];
   const change = active ? Number(active.priceChangePercent) * 100 : 0;
@@ -104,21 +130,31 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
       {/* Say what this number is. It was a ticker and a price with nothing
           around them, which reads as decoration rather than as the thing
           the agent is working against. */}
-      <div className="flex items-center gap-1.5 text-[9.5px] font-mono uppercase tracking-[0.09em] text-[var(--text-tertiary)]">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9.5px] font-mono uppercase tracking-[0.09em] text-[var(--text-tertiary)] min-w-0">
         <span className="whitespace-nowrap">Agent is working against</span>
-        <span className="text-[var(--verdigris)] whitespace-nowrap">tap to change</span>
+        <span className="text-[var(--verdigris)] whitespace-nowrap">
+          {autoRunning ? 'cycling · tap to hold' : 'tap to change'}
+        </span>
       </div>
       <button
         type="button"
         onClick={() => {
           tactile.selectionTap();
+          takeOver();
           setPicking((p) => !p);
         }}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
         aria-expanded={picking}
-        className="flex items-baseline gap-2 min-w-0 text-left"
+        style={{ ['--ticker-dwell' as string]: `${DWELL}ms` }}
+        className={`flex items-baseline gap-2 min-w-0 text-left ${
+          autoRunning && !paused && !picking ? 'ticker-auto' : ''
+        }`}
       >
         <span className="font-bold text-[16px] text-[var(--text-primary)] whitespace-nowrap">
-          {symbolTicker(active.symbol)}
+          <FlipDigits value={symbolTicker(active.symbol)} />
         </span>
         {/* A perpetual is not a share. No entitlement behind it, cash
             settled on a single name, which is a different legal object
@@ -138,15 +174,20 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
         >
           {isEntitlement(active.symbol) ? 'share' : 'perp'}
         </span>
-        <span className="font-mono text-[15px] font-extrabold text-[var(--text-primary)] tabular-nums">
-          ${Number(active.lastPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        <span className="font-mono text-[15px] font-extrabold text-[var(--text-primary)]">
+          <FlipDigits
+            value={`$${Number(active.lastPrice).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`}
+          />
         </span>
         <span
-          className={`font-mono text-[12px] font-bold tabular-nums whitespace-nowrap ${
+          className={`font-mono text-[12px] font-bold whitespace-nowrap ${
             up ? 'text-[var(--verdigris)]' : 'text-[var(--refused-rust)]'
           }`}
         >
-          {up ? '+' : ''}{change.toFixed(2)}%
+          <FlipDigits value={`${up ? '+' : ''}${change.toFixed(2)}%`} />
         </span>
         <span className="text-[var(--text-tertiary)] text-[11px]" aria-hidden="true">
           {picking ? '▴' : '▾'}
@@ -210,6 +251,7 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
                 aria-selected={t.symbol === symbol}
                 onClick={() => {
                   tactile.selectionTap();
+                  takeOver();
                   onSelect(t.symbol);
                   setPicking(false);
                 }}

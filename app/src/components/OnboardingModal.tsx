@@ -134,12 +134,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         {/* Step 1: Cinematic Vision & Emblem */}
         {step === 1 && (
           <div className="onboarding-step-content active flex flex-col items-center text-center">
-            {/* Zoomed in emblem - no white border */}
+            {/* The emblem ships cropped to its own artwork now, so the zoom
+                that used to hide a white margin crops into it instead and
+                chips the corners off. */}
             <div className="cinematic-emblem">
               <img
                 src={theme === 'light' ? emblemLight : emblemDark}
                 alt="Cleat Emblem"
-                className="w-full h-full object-cover scale-[1.38] object-center"
+                className="w-full h-full object-contain object-center"
               />
             </div>
             <div className="splash-claim-sentence">

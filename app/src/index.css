@@ -206,9 +206,11 @@ body {
 .logo-squircle-wrap img {
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important;
+  /* Was cover plus a 1.38 zoom, to hide the white margin the original
+     jpeg carried. The asset is cropped to its artwork now, so the zoom
+     only ate the corners of the mark. */
+  object-fit: contain !important;
   object-position: center !important;
-  transform: scale(1.38) !important;
   display: block;
   border: none !important;
   background: transparent;
@@ -1499,9 +1501,11 @@ body {
 .cinematic-emblem img {
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important;
+  /* contain rather than cover, and no scale. The artwork is a rounded
+     square that already fills its own file, so covering and zooming it
+     cut the corners off the thing it was meant to show. */
+  object-fit: contain !important;
   object-position: center !important;
-  transform: scale(1.38) !important;
   border: none !important;
   display: block;
 }
@@ -1969,4 +1973,73 @@ h1, h2, h3, h4, h5, h6,
    dots were never doing work that spacing could not do. */
 .status-strip {
   column-gap: 12px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Split flap characters.
+
+   The board is the point: when a price changes, only the digits that
+   changed turn over, so movement itself carries the information. A
+   number that redraws whole tells you nothing about what moved.
+   ───────────────────────────────────────────────────────────── */
+.flip-digits {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  /* Without this the row jitters as digits change width mid turn. */
+  letter-spacing: 0;
+}
+.flip-digit {
+  display: inline-block;
+  transform-origin: center center;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+.flip-digit.is-turning {
+  animation: flipOver 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes flipOver {
+  0% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+  45% {
+    transform: rotateX(-88deg);
+    opacity: 0.35;
+  }
+  55% {
+    transform: rotateX(88deg);
+    opacity: 0.35;
+  }
+  100% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+/* The board advances on its own until someone takes it over. */
+.ticker-auto {
+  position: relative;
+}
+.ticker-auto::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 1px;
+  width: 100%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--verdigris), transparent);
+  animation: tickerSweep var(--ticker-dwell, 4200ms) linear infinite;
+  opacity: 0.5;
+}
+
+@keyframes tickerSweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip-digit.is-turning { animation: none; }
+  .ticker-auto::after { animation: none; opacity: 0; }
 }
