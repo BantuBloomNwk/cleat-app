@@ -1,7 +1,9 @@
 import { ExpandSheet, ExpandButton } from './ExpandSheet';
 import { LiveInstrument } from './LiveInstrument';
+import { CrossIssuer } from './CrossIssuer';
 import { useTilt3D } from '../utils/useTilt3D';
-import React, { useState, useRef } from 'react';
+import { symbolTicker, loadTickers, loadDepth, bookQuality } from '../lib/backpack';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
 import { TIMEFRAME_CONFIGS, INITIAL_SOCIAL_TRADE_MESSAGES } from '../data/initialData';
 import { tactile } from '../utils/haptics';
@@ -54,6 +56,29 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   // labelled.
   const [instrument, setInstrument] = useState('MU.US_USDC');
   const tilt = useTilt3D(is3DActive);
+
+  // What the venue's own book says about the selected name, so the
+  // comparison against the other issuers is complete rather than missing
+  // the one row we already have.
+  const [venuePrice, setVenuePrice] = useState<number | null>(null);
+  const [venueDepth, setVenueDepth] = useState<number | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    loadTickers().then((ts) => {
+      if (!live || !ts) return;
+      const t = ts.find((x) => x.symbol === instrument);
+      setVenuePrice(t ? Number(t.lastPrice) : null);
+    });
+    loadDepth(instrument).then((d) => {
+      if (!live) return;
+      const q = bookQuality(d);
+      setVenueDepth(q ? q.nearDepthUsd : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [instrument]);
   const [traderDetailTab, setTraderDetailTab] = useState<'telemetry' | 'counterfactual' | 'proof'>('telemetry');
   const [copiedProof, setCopiedProof] = useState(false);
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
@@ -1058,7 +1083,13 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           </div>
         </div>
 
-        {/* D3-Based Horizontal Progress Bar with Smooth Dynamic Interpolation */}
+        <CrossIssuer
+        ticker={symbolTicker(instrument)}
+        venuePrice={venuePrice}
+        venueDepthUsd={venueDepth}
+      />
+
+      {/* D3-Based Horizontal Progress Bar with Smooth Dynamic Interpolation */}
         <D3VolumeProgressBar
           refusedVolume={currentVolume.refused}
           clearedVolume={currentVolume.cleared}
