@@ -37,7 +37,10 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
     if (!svgRef.current || !containerRef.current) return;
 
     const container = containerRef.current;
-    const width = container.clientWidth || 320;
+    // Measured, never guessed. A 320 fallback is wider than the card on a
+    // small phone, so the bar drew past its own edge before any measurement
+    // arrived. Same defect as the sparkline had.
+    const width = Math.max(160, container.clientWidth || container.getBoundingClientRect().width || 320);
     const height = 48;
     const barHeight = 22;
     const barY = 13;
@@ -268,10 +271,10 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
       </div>
 
       {/* D3 Render Target with Floating Tooltip */}
-      <div className="relative w-full overflow-visible">
+      <div className="relative w-full overflow-hidden">
         <svg
           ref={svgRef}
-          className="w-full overflow-visible block"
+          className="w-full overflow-hidden block"
           style={{ height: '44px' }}
           role="img"
           aria-label={`D3 Volume Ratio: ${refusedRatio.toFixed(1)}% Refused vs ${clearedRatio.toFixed(1)}% Cleared`}

@@ -32,7 +32,7 @@ mod circuits {
     /// `effective_bps` arrives already trimmed to the single trade cap, because
     /// that is a comparison between two public numbers and belongs on chain.
     #[instruction]
-    pub fn gate_breach_v1(
+    pub fn gate_breach_v2(
         holdings: Enc<Shared, Holdings>,
         effective_bps: u16,
         max_position_bps: u16,

@@ -31,15 +31,19 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
 
     const container = containerRef.current;
-    const width = container.clientWidth || 240;
+    // Measured, never guessed. The old fallback of 240 was wider than the
+    // card on a small phone, so the chart drew past its own edge before a
+    // measurement ever arrived.
+    const width = Math.max(160, container.clientWidth || container.getBoundingClientRect().width || 240);
     const height = compact ? 52 : 68;
-    const margin = { top: 6, right: 10, bottom: 18, left: 10 };
+    const margin = { top: 6, right: 14, bottom: 18, left: 14 };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
@@ -165,13 +169,13 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
 
     // Bottom Day Labels (Compact X-Axis)
     const labelGroup = g.append('g').attr('transform', `translate(0, ${innerHeight + 12})`);
-    data.forEach((d) => {
+    data.forEach((d, i) => {
       const xPos = xScale(d.day) || 0;
       labelGroup
         .append('text')
         .attr('x', xPos)
         .attr('y', 0)
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', i === 0 ? 'start' : i === data.length - 1 ? 'end' : 'middle')
         .attr('fill', 'var(--text-tertiary)')
         .attr('font-size', '8.5px')
         .attr('font-family', 'var(--font-mono)')
@@ -211,7 +215,21 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
         .attr('stroke', '#ffffff')
         .attr('stroke-width', 1.5);
     }
-  }, [data, compact, hoverIndex]);
+  }, [data, compact, hoverIndex, containerWidth]);
+
+  // A width read once is a width that is wrong after a rotation, a tab
+  // switch that reveals a hidden card, or any layout change. Watch the
+  // container instead of trusting the first measurement.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0]?.contentRect.width ?? 0);
+      if (w > 0) setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const activePoint = hoverIndex !== null ? data[hoverIndex] : data[data.length - 1];
 
@@ -258,7 +276,7 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
       >
         <svg
           ref={svgRef}
-          className="w-full overflow-visible select-none"
+          className="w-full block overflow-hidden select-none"
           role="img"
           aria-label="7-Day Cleared versus Refused Volume Sparkline"
         />

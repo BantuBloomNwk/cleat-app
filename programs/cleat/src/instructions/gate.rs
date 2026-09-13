@@ -11,9 +11,9 @@ use crate::constants::*;
 use crate::error::CleatError;
 use crate::state::{Mandate, Vault, Verdict, VerdictLog};
 
-pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v1");
+pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v2");
 
-#[init_computation_definition_accounts("gate_breach_v1", payer)]
+#[init_computation_definition_accounts("gate_breach_v2", payer)]
 #[derive(Accounts)]
 pub struct InitGateCompDef<'info> {
     #[account(mut)]
@@ -41,7 +41,7 @@ pub struct InitGateCompDef<'info> {
 /// The caps travel in the clear because they are already public on the mandate,
 /// and sending them as plaintext keeps them out of the expensive part of the
 /// circuit.
-#[queue_computation_accounts("gate_breach_v1", payer)]
+#[queue_computation_accounts("gate_breach_v2", payer)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct GateTrade<'info> {
@@ -93,9 +93,9 @@ pub struct GateTrade<'info> {
     pub arcium_program: Program<'info, Arcium>,
 }
 
-#[callback_accounts("gate_breach_v1")]
+#[callback_accounts("gate_breach_v2")]
 #[derive(Accounts)]
-pub struct GateBreachV1Callback<'info> {
+pub struct GateBreachV2Callback<'info> {
     pub arcium_program: Program<'info, Arcium>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_BREACH))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
@@ -183,7 +183,7 @@ pub fn exec_gate_trade(
         ctx.accounts,
         computation_offset,
         args,
-        vec![GateBreachV1Callback::callback_ix(
+        vec![GateBreachV2Callback::callback_ix(
             computation_offset,
             &ctx.accounts.mxe_account,
             &[CallbackAccount {
@@ -204,8 +204,8 @@ pub fn exec_gate_trade(
 /// what was parked before the question was asked, which is why the log carries
 /// the pending fields at all.
 pub fn exec_gate_callback(
-    ctx: Context<GateBreachV1Callback>,
-    output: SignedComputationOutputs<GateBreachV1Output>,
+    ctx: Context<GateBreachV2Callback>,
+    output: SignedComputationOutputs<GateBreachV2Output>,
 ) -> Result<()> {
     // verify_output_raw, not verify_output, and the difference is the whole
     // reason every computation came back as an abort.
