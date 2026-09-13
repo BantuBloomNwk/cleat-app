@@ -39,11 +39,12 @@ export function useDialog(
       // Without this the focus ring walks off into the page behind, which
       // for anyone on a keyboard or a screen reader means the dialog was
       // never really modal.
-      const focusable = Array.from(
-        panelRef.current.querySelectorAll<HTMLElement>(
-          'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+      const nodes = panelRef.current.querySelectorAll<HTMLElement>(
+        'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      const focusable = [...nodes].filter(
+        (el) => !el.hasAttribute('disabled') && el.offsetParent !== null,
+      );
       if (focusable.length === 0) return;
 
       const first = focusable[0];

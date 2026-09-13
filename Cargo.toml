@@ -5,6 +5,24 @@ members = [
 ]
 resolver = "2"
 
+# The arcium version lives here and nowhere else.
+#
+# Four things have to agree on it: the on chain program, the circuit
+# compiler, the anchor version arcium itself pins, and the javascript
+# client in package.json. Exact pins rather than carets, because a caret
+# lets cargo move one of them on its own and the mismatch does not show
+# up until a computation is queued against a definition derived from a
+# different build.
+#
+# scripts/check-pins.mjs asserts the javascript side still matches, and
+# the build runs it.
+[workspace.dependencies]
+arcium-client = { version = "=0.13.2", default-features = false }
+arcium-macros = "=0.13.2"
+arcium-anchor = "=0.13.2"
+arcis = "=0.13.2"
+anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
+
 [profile.release]
 overflow-checks = true
 lto = "fat"

@@ -21,12 +21,12 @@ custom-panic = []
 
 
 [dependencies]
-anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
+anchor-lang = { workspace = true }
 ephemeral-rollups-sdk = { version = "0.17.0", features = ["anchor", "access-control"] }
 solana-sha256-hasher = "=3.1.0"
-arcium-client = { default-features = false, version = "=0.13.2" }
-arcium-macros = "=0.13.2"
-arcium-anchor = "=0.13.2"
+arcium-client = { workspace = true }
+arcium-macros = { workspace = true }
+arcium-anchor = { workspace = true }
 
 [dev-dependencies]
 litesvm = "0.10.0"

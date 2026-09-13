@@ -2,13 +2,14 @@
   "license": "",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
+    "check-pins": "node scripts/check-pins.mjs"
   },
   "dependencies": {
-    "@anchor-lang/core": "^1.2.0",
-    "@arcium-hq/client": "0.14.1",
-    "@magicblock-labs/ephemeral-rollups-sdk": "^0.17.0",
-    "@solana/web3.js": "^1.99.0"
+    "@anchor-lang/core": "1.0.2",
+    "@arcium-hq/client": "0.13.2",
+    "@magicblock-labs/ephemeral-rollups-sdk": "0.17.0",
+    "@solana/web3.js": "1.99.0"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",

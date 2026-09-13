@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import wallpaperDark from './assets/wallpaper-dark.jpg';
+import wallpaperLight from './assets/wallpaper-light.jpg';
 import { Header } from './components/Header';
 import { BottomDock } from './components/BottomDock';
 import { DiaryTab } from './components/DiaryTab';
@@ -240,14 +242,14 @@ export default function App() {
       <div aria-hidden="true" className="wallpaper-container">
         <img
           id="darkBgWallpaper"
-          src="https://lh3.googleusercontent.com/aida/AEtjO1XN10ZFXfRhMFen3Q9egWeOamOUvXkrTEhrN7iZgPiXVurlpoR0kwIl6j0TxjqLeh13iQ2cyaswXkpgR3jsiRtXBr8wNSrrEaHrsgD_5JntEc1fxTVveCvvV168s76OS10Xt1P3_0nFEk1X3jOI_wsN_nFzhDQm94PzjLGYlcUZKzk7WV-xpG0feyt_zwrLZknL1lYYyRMfRo_gzwkpzhkzi_dKCSb1mlThuhZq1kXsRdDX48N379tmMT2z"
-          alt="Fluid Wave Dark Wallpaper"
+          src={wallpaperDark}
+          alt=""
           className="wallpaper-img wallpaper-dark"
         />
         <img
           id="lightBgWallpaper"
-          src="https://lh3.googleusercontent.com/aida/AEtjO1UrZJZIt2IO6PevscGcFhXipxZTjGRKPHwNo7A_33Yu0-3MgOBxGIVb9MrlBMXo9vVJpiHJ6m3WeZqjqTbTHTUgFtixCFCS3u8dpFZBy3QtRYULlK11oyIWKQBrRpfg0LAnYEZ13-4OxwbF8kGCMPCtYEK0RjdX6y4E_HWsVF0MrU3_DyRXJFyJNFSBCaoFAWmU6SnW18LtrE4PFN1gcRoviPHPx3dQf9G6KFoifjzt0GMJEvpf8ARu5_Bj"
-          alt="Porcelain Alabaster Wallpaper"
+          src={wallpaperLight}
+          alt=""
           className="wallpaper-img wallpaper-light"
         />
         <div className="wallpaper-veil" />

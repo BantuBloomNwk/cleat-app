@@ -1,4 +1,6 @@
 import React from 'react';
+import emblemDark from '../assets/emblem-dark.jpg';
+import emblemLight from '../assets/emblem-light.jpg';
 
 interface HeaderProps {
   theme: 'dark' | 'light';
@@ -11,20 +13,17 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onOpenOnboarding,
 }) => {
-  const DARK_LOGO =
-    'https://lh3.googleusercontent.com/aida/AEtjO1UXb-zL634hCHiPTT-sBIPYIqIKkn4n3eHEOJoQg0pNpuZoRMg_Tfo_4WQQbF0BLjqzHUGLIjVRuRV35Ber1840pkvLmOnKOQLdjl5EGdjzTlowOyhZcK9e05wqGCG3Imv5WNXUl-7w7DcPj_7K2gj8P4VYCWG8uiXSB15qMb_1R0p8We30WK4N1NZ-aZq3zbYrhEDIoz74Gf-E5xQ163PXsu5U_guLJvQe6NIFSZHEVTz-dYa7Qe7qKPA';
-  const LIGHT_LOGO =
-    'https://lh3.googleusercontent.com/aida/AEtjO1WrBRt5h9UsXAmZ8FGI6COLQqQFsnkQ4Vl0PNQajRZPkbcHNOb4W2cqRBenfNuXO9AyJvjNOtGmkizXL_LRFJmFujAhSkNLQWu8AsZr0qc_q0WuTguOSTTLnH_0iVFjZs0jtnW9PzucCyYes_NfERrdy9qtRMuMk_vIQh8gDeDo8pD49FOBxBD7lCTlp7TZIvSksnj4ZTr3fs5rH3eYRMlMekXcFnQEWhUPxQ-NppiCY_xRSqnTGstMCV0';
 
   return (
     <header className="app-header">
       <div className="flex items-center gap-3 min-w-0">
-        {/* Zoomed in squircle logo - strictly no white border */}
+        {/* The emblem ships with the build and is cropped to the artwork,
+            so it no longer needs to be zoomed past its own white margin. */}
         <div className="logo-squircle-wrap bg-[#0c0b0a] overflow-hidden" title="Cleat Protocol Enforcer">
           <img
-            src={theme === 'light' ? LIGHT_LOGO : DARK_LOGO}
+            src={theme === 'light' ? emblemLight : emblemDark}
             alt="Cleat Logo"
-            className="w-full h-full object-cover scale-[1.38] object-center transition-transform duration-200"
+            className="w-full h-full object-cover object-center"
           />
         </div>
 

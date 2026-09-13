@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arcis = "0.13.2"
+# Exact, like every other arcium crate here. A caret on arcis lets cargo
+# pull a newer compiler than the client and the on chain program were
+# built against, and the three have to agree on the circuit format.
+arcis = { workspace = true }

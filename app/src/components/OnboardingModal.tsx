@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tactile } from '../utils/haptics';
+import emblemDark from '../assets/emblem-dark.jpg';
+import emblemLight from '../assets/emblem-light.jpg';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -25,11 +27,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [mandateText, setMandateText] = useState(initialSentence);
 
   if (!isOpen) return null;
-
-  const DARK_LOGO =
-    'https://lh3.googleusercontent.com/aida/AEtjO1UXb-zL634hCHiPTT-sBIPYIqIKkn4n3eHEOJoQg0pNpuZoRMg_Tfo_4WQQbF0BLjqzHUGLIjVRuRV35Ber1840pkvLmOnKOQLdjl5EGdjzTlowOyhZcK9e05wqGCG3Imv5WNXUl-7w7DcPj_7K2gj8P4VYCWG8uiXSB15qMb_1R0p8We30WK4N1NZ-aZq3zbYrhEDIoz74Gf-E5xQ163PXsu5U_guLJvQe6NIFSZHEVTz-dYa7Qe7qKPA';
-  const LIGHT_LOGO =
-    'https://lh3.googleusercontent.com/aida/AEtjO1WrBRt5h9UsXAmZ8FGI6COLQqQFsnkQ4Vl0PNQajRZPkbcHNOb4W2cqRBenfNuXO9AyJvjNOtGmkizXL_LRFJmFujAhSkNLQWu8AsZr0qc_q0WuTguOSTTLnH_0iVFjZs0jtnW9PzucCyYes_NfERrdy9qtRMuMk_vIQh8gDeDo8pD49FOBxBD7lCTlp7TZIvSksnj4ZTr3fs5rH3eYRMlMekXcFnQEWhUPxQ-NppiCY_xRSqnTGstMCV0';
 
   const handleSimulatePasskey = () => {
     tactile.mandateAction();
@@ -140,7 +137,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             {/* Zoomed in emblem - no white border */}
             <div className="cinematic-emblem">
               <img
-                src={theme === 'light' ? LIGHT_LOGO : DARK_LOGO}
+                src={theme === 'light' ? emblemLight : emblemDark}
                 alt="Cleat Emblem"
                 className="w-full h-full object-cover scale-[1.38] object-center"
               />
