@@ -1537,8 +1537,13 @@ body {
    let one chip push the row open. */
 .live-caps-row, .mandate-metadata-row, .ledger-filter-bar { flex-wrap: wrap; }
 
-/* Long prose, and unbroken strings like a signature or an account,
-   wrap inside their card instead of running out of it. */
+/* Long prose, and unbroken strings like a signature or an account, wrap
+   inside their card instead of running out of it.
+
+   break-word, NOT anywhere. A previous pass used anywhere, which breaks
+   text at any point it likes, and that is what split 29 from its percent
+   sign and pushed the second word of a two word label onto its own line.
+   break-word only breaks a word that cannot fit on a line by itself. */
 .card,
 .glass-card,
 .ledger-entry,
@@ -1546,7 +1551,7 @@ body {
 .mandate-quote,
 .onboarding-card,
 .chart-drawer-card,
-.modal-panel { overflow-wrap: anywhere; }
+.modal-panel { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 
 /* Dialogs were cramped at phone width: too little inner room and no
    room to scroll once the content grew past the viewport. */
@@ -1624,5 +1629,119 @@ svg { max-width: 100%; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   Keeping phrases whole.
+
+   A number and its unit are one thing and must never be split across
+   lines, and a short label of two or three words reads as a phrase
+   rather than a stack. These stop "29" and "%" parting company, and
+   stop "Room", "flow" and "mandate" dropping under the word before.
+   ───────────────────────────────────────────────────────────── */
+
+/* Numerals keep their unit. Applied to the places figures live. */
+.chart-hud-badge,
+.chart-hud-tooltip,
+.live-cap-chip,
+.immutable-chip,
+.metallic-plate-pill,
+.metallic-plate-label,
+.metallic-plate-sub,
+.ledger-filter-count,
+.marker-badge-status,
+.meta-kicker { white-space: nowrap; }
+
+/* Short labels and headings read as a phrase. Balance distributes the
+   words evenly instead of orphaning the last one, and pretty stops a
+   single word being left alone on the final line. */
+h1, h2, h3, h4, h5, h6,
+.metallic-plate-label,
+.meta-kicker,
+.dock-tab-btn,
+.timeframe-btn { text-wrap: balance; }
+
+.ledger-entry p,
+.marker-detail-card p,
+.mandate-quote,
+.onboarding-card p,
+.chart-drawer-card p { text-wrap: pretty; }
+
+/* A label and its figure sitting side by side must not be torn apart
+   by a flex row that is one pixel too narrow. */
+.live-caps-row > *,
+.mandate-metadata-row > *,
+.chart-hud-badge > * { flex: 0 0 auto; }
+
+/* ─────────────────────────────────────────────────────────────
+   Glass, made a material rather than a default.
+
+   Glassmorphism reads as an AI tell when it is decorative and uniform:
+   every surface blurred at the same radius whether or not anything is
+   behind it. It stops being a tell when it is purposeful, and the tells
+   here were the radii. Blurs of 20 and 24px are so soft that the panel
+   loses its edge and the text loses its ground, which is exactly the
+   "overwhelming the words" problem.
+
+   Three changes: a shorter radius so the edge stays crisp, saturation
+   so the blur carries colour instead of going milky, and a more opaque
+   ground under text so legibility never depends on what is behind.
+   ───────────────────────────────────────────────────────────── */
+
+.glass-card,
+.chart-drawer-card,
+.onboarding-card,
+.modal-panel,
+.app-header,
+.bottom-dock {
+  /* Shorter and saturated. The saturation is what separates deliberate
+     glass from a plain blur, because it keeps the colour underneath
+     alive rather than washing it grey. */
+  backdrop-filter: blur(11px) saturate(1.5);
+  -webkit-backdrop-filter: blur(11px) saturate(1.5);
+}
+
+/* Depth comes from layered shadow, not from more blur: one tight
+   contact shadow that reads as the panel touching the surface, one
+   broad ambient shadow that reads as distance, and a hairline top
+   highlight that catches an implied light. */
+.glass-card,
+.chart-drawer-card,
+.onboarding-card {
+  box-shadow:
+    0 1px 1px oklch(0 0 0 / 0.30),
+    0 2px 6px oklch(0 0 0 / 0.24),
+    0 12px 32px oklch(0 0 0 / 0.34),
+    inset 0 1px 0 oklch(1 0 0 / 0.07);
+}
+
+/* Text sits on its own ground. A panel carrying words does not rely on
+   whatever happens to be behind it for contrast, which is what made
+   the words hard to read over a busy chart. */
+.chart-drawer-card,
+.onboarding-card,
+.modal-panel {
+  background-color: color-mix(in oklab, var(--card-surface-raised) 94%, transparent);
+}
+
+/* A modal backdrop should separate, not smear. Darker and much less
+   blurred than the panel above it, so the panel reads as the sharp
+   thing and the page behind reads as dismissed. */
+.modal-backdrop,
+.onboarding-overlay {
+  backdrop-filter: blur(6px) saturate(1.15);
+  -webkit-backdrop-filter: blur(6px) saturate(1.15);
+}
+
+/* Blur is expensive on the mid range Android this product is aimed at,
+   and it is the first thing to drop when a device cannot keep up. */
+@media (max-width: 380px), (prefers-reduced-transparency: reduce) {
+  .glass-card, .chart-drawer-card, .onboarding-card, .modal-panel,
+  .app-header, .bottom-dock {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: var(--card-surface-raised);
   }
 }

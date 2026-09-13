@@ -1009,15 +1009,15 @@ export const ChartTab: React.FC<ChartTabProps> = ({
 
       {/* Social Trading Room & Copier Feed for Social Trading dApp */}
       <div className="social-stream-card" id="social-trading-dapp-room">
-        <div className="flex items-center justify-between pb-1 border-b border-[var(--card-border-subtle)]">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--verdigris)] animate-pulse" />
-            <h3 className="font-sans font-bold text-[14px] text-[var(--text-primary)]">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-1 border-b border-[var(--card-border-subtle)]">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--verdigris)] animate-pulse shrink-0" />
+            <h3 className="font-sans font-bold text-[14px] text-[var(--text-primary)] whitespace-nowrap">
               Copier Trading Room
             </h3>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-mono text-[var(--text-tertiary)] whitespace-nowrap">
               1,420 Active Copiers
             </span>
             <button
@@ -1029,7 +1029,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               }`}
               onClick={handleToggleSync}
             >
-              {isCopierSynced ? '✓ Synced' : 'Sync Mandate'}
+              <span className="whitespace-nowrap">{isCopierSynced ? '✓ Synced' : 'Sync Mandate'}</span>
             </button>
           </div>
         </div>

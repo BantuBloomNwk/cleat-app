@@ -294,15 +294,15 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
       </div>
 
       {/* Sub-bar Metadata & Ratio Caption */}
-      <div className="flex items-center justify-between text-[10px] font-mono text-[var(--text-tertiary)] -mt-1">
-        <span className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[10px] font-mono text-[var(--text-tertiary)] -mt-1">
+        <span className="flex items-center gap-1 whitespace-nowrap shrink-0">
           <span>Shielded rogue outflow:</span>
           <strong className="text-[var(--refused-rust)]">{refusedRatio.toFixed(0)}%</strong>
         </span>
-        <span className="text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
+        <span className="order-3 w-full text-center sm:order-none sm:w-auto text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] whitespace-nowrap shrink-0">
           {timeframeLabel} Ratio Visualizer
         </span>
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 whitespace-nowrap shrink-0">
           <span>Compliant execution:</span>
           <strong className="text-[var(--verdigris)]">{clearedRatio.toFixed(0)}%</strong>
         </span>
