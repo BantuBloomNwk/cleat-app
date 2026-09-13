@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Cleat — Autonomous Agent Enforcer",
+  "short_name": "Cleat",
+  "description": "Autonomous speed governed by unbreakable, plain English human mandates.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c0b0a",
+  "theme_color": "#0c0b0a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

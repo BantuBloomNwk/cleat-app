@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#0C0B0A"/>
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#141311" stroke="#2DD4BF" stroke-width="6" stroke-opacity="0.25"/>
+  <defs>
+    <linearGradient id="iconPlat" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#FFFFFF"/>
+      <stop offset="50%" stopColor="#CBD5E1"/>
+      <stop offset="100%" stopColor="#64748B"/>
+    </linearGradient>
+    <filter id="iconGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" floodColor="rgba(45, 212, 191, 0.4)"/>
+    </filter>
+  </defs>
+  <!-- Geometric CLEAT Monogram Emblem -->
+  <g transform="translate(48, 64) scale(0.8)">
+    <path d="M 280 90 L 140 90 C 80 90 40 140 40 210 C 40 280 80 330 140 330 L 280 330 L 260 270 L 150 270 C 115 270 100 245 100 210 C 100 175 115 150 150 150 L 260 150 Z" fill="url(#iconPlat)"/>
+    <circle cx="340" cy="290" r="36" fill="#2DD4BF" filter="url(#iconGlow)"/>
+  </g>
+</svg>

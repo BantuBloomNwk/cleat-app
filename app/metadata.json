@@ -1,0 +1,6 @@
+{
+  "name": "Cleat — Autonomous Agent Enforcer",
+  "description": "Autonomous speed governed by what you actually told it to do. Solana cryptographic agent enforcer with Magicblock PER & Arcium MPC on-chain trade refusal ledger, interactive protection geometry, and community mandate exchange.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -32,7 +32,7 @@ import {
 } from "@arcium-hq/client";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CIRCUIT = "gate_trade";
+const CIRCUIT = "gate_breach_v1";
 const LUT_PROGRAM_ID = new PublicKey("AddressLookupTab1e1111111111111111111111111");
 
 const IDL = JSON.parse(

@@ -11,9 +11,9 @@ use crate::constants::*;
 use crate::error::CleatError;
 use crate::state::{Mandate, Vault, Verdict, VerdictLog};
 
-pub const COMP_DEF_OFFSET_GATE_TRADE: u32 = comp_def_offset("gate_trade");
+pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v1");
 
-#[init_computation_definition_accounts("gate_trade", payer)]
+#[init_computation_definition_accounts("gate_breach_v1", payer)]
 #[derive(Accounts)]
 pub struct InitGateCompDef<'info> {
     #[account(mut)]
@@ -41,7 +41,7 @@ pub struct InitGateCompDef<'info> {
 /// The caps travel in the clear because they are already public on the mandate,
 /// and sending them as plaintext keeps them out of the expensive part of the
 /// circuit.
-#[queue_computation_accounts("gate_trade", payer)]
+#[queue_computation_accounts("gate_breach_v1", payer)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct GateTrade<'info> {
@@ -81,7 +81,7 @@ pub struct GateTrade<'info> {
     #[account(mut, address = derive_comp_pda!(computation_offset, mxe_account))]
     /// CHECK: checked by the arcium program.
     pub computation_account: UncheckedAccount<'info>,
-    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_TRADE))]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_BREACH))]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     #[account(mut, address = derive_cluster_pda!(mxe_account))]
     pub cluster_account: Box<Account<'info, Cluster>>,
@@ -93,11 +93,11 @@ pub struct GateTrade<'info> {
     pub arcium_program: Program<'info, Arcium>,
 }
 
-#[callback_accounts("gate_trade")]
+#[callback_accounts("gate_breach_v1")]
 #[derive(Accounts)]
-pub struct GateTradeCallback<'info> {
+pub struct GateBreachV1Callback<'info> {
     pub arcium_program: Program<'info, Arcium>,
-    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_TRADE))]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_BREACH))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Account<'info, MXEAccount>,
@@ -130,7 +130,6 @@ pub fn exec_gate_trade(
     ctx: Context<GateTrade>,
     computation_offset: u64,
     exposure_ct: [u8; 32],
-    total_ct: [u8; 32],
     pubkey: [u8; 32],
     nonce: u128,
     category: u8,
@@ -165,23 +164,26 @@ pub fn exec_gate_trade(
 
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
 
+    // Trimming to the single trade cap is a comparison between two public
+    // numbers, so it happens here rather than inside the computation. Only the
+    // trimmed size goes to the network, which is both cheaper and less to say.
+    let effective_bps = if proposed_bps > clamp_to { clamp_to } else { proposed_bps };
+
     // Argument order has to match the circuit exactly. An Enc<Shared, T>
     // expands to the sender's x25519 key, the nonce, then one entry per field.
     let args = ArgBuilder::new()
         .x25519_pubkey(pubkey)
         .plaintext_u128(nonce)
-        .encrypted_u32(exposure_ct)
-        .encrypted_u32(total_ct)
-        .plaintext_u16(proposed_bps)
+        .encrypted_u16(exposure_ct)
+        .plaintext_u16(effective_bps)
         .plaintext_u16(max_position_bps)
-        .plaintext_u16(clamp_to)
         .build();
 
     queue_computation(
         ctx.accounts,
         computation_offset,
         args,
-        vec![GateTradeCallback::callback_ix(
+        vec![GateBreachV1Callback::callback_ix(
             computation_offset,
             &ctx.accounts.mxe_account,
             &[CallbackAccount {
@@ -202,25 +204,47 @@ pub fn exec_gate_trade(
 /// what was parked before the question was asked, which is why the log carries
 /// the pending fields at all.
 pub fn exec_gate_callback(
-    ctx: Context<GateTradeCallback>,
-    output: SignedComputationOutputs<GateTradeOutput>,
+    ctx: Context<GateBreachV1Callback>,
+    output: SignedComputationOutputs<GateBreachV1Output>,
 ) -> Result<()> {
-    let outcome = match output.verify_output(
+    // verify_output_raw, not verify_output, and the difference is the whole
+    // reason every computation came back as an abort.
+    //
+    // verify_output decodes the payload into O and verifies over a re-serialized
+    // copy sized by O::SIZE. This circuit reveals a plaintext u8, so O::SIZE is
+    // one byte while the node signed a larger envelope, so the BLS check ran
+    // over the wrong bytes and failed every time. The computation itself had
+    // succeeded on every attempt: Arcium's CallbackComputation logged success
+    // and delivered the output, and only our own verification rejected it.
+    //
+    // The raw variant verifies against the bytes actually on the wire and hands
+    // them back undecoded, which is correct whenever the decoded type is a
+    // prefix of the signed output rather than the whole of it.
+    let bytes = match output.verify_output_raw(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
     ) {
-        Ok(GateTradeOutput { field_0 }) => field_0,
+        Ok(b) => b,
         Err(_) => return Err(CleatError::GateAborted.into()),
     };
+    // The circuit reveals one bit: would this breach the position cap.
+    let breaches = *bytes.first().ok_or(CleatError::GateAborted)? != 0;
 
     let log = &mut ctx.accounts.log;
     let proposed_bps = log.pending_bps;
+    let clamp_to = log.pending_clamp_bps;
     let category = log.pending_category;
     let vault_key = log.vault;
-    let allowed_bps = match outcome {
-        0 => proposed_bps,
-        1 => log.pending_clamp_bps,
-        _ => 0,
+
+    // Everything except the breach was always public, so it is decided here.
+    let clamped = proposed_bps > clamp_to;
+    let outcome = if breaches { 2u8 } else if clamped { 1u8 } else { 0u8 };
+    let allowed_bps = if breaches {
+        0
+    } else if clamped {
+        clamp_to
+    } else {
+        proposed_bps
     };
     let reason = match outcome {
         0 => 0u8,

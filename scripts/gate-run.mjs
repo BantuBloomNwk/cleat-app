@@ -24,7 +24,7 @@ import {
 } from "@arcium-hq/client";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CIRCUIT = "gate_trade";
+const CIRCUIT = "gate_breach_v1";
 const CLUSTER = 456; // the devnet cluster this MXE was initialised on
 
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
@@ -132,7 +132,7 @@ async function main() {
   if (!mxePub) throw new Error("no MXE x25519 key yet");
   console.log("mxe x25519 key present\n");
 
-  const ask = async (label, exposure, total, proposedBps, category) => {
+  const ask = async (label, exposureBps, proposedBps, category) => {
     // Fresh keypair and nonce per request. The holdings are encrypted to a
     // secret shared with the MXE, so the program forwarding them never has a
     // key that would open them.
@@ -141,7 +141,9 @@ async function main() {
     const shared = x25519.getSharedSecret(priv, mxePub);
     const cipher = new RescueCipher(shared);
     const nonce = crypto.randomBytes(16);
-    const ct = cipher.encrypt([BigInt(exposure), BigInt(total)], nonce);
+    // one secret now: the exposure as a share of the book. The circuit needs
+    // nothing else, because the caps are public on the mandate.
+    const ct = cipher.encrypt([BigInt(exposureBps)], nonce);
 
     const compOffset = crypto.randomBytes(8).readBigUInt64LE(0) >> 1n;
     const computation = getComputationAccAddress(CLUSTER, new anchor.BN(compOffset.toString()));
@@ -172,7 +174,7 @@ async function main() {
       ],
       data: Buffer.concat([
         disc("gate_trade"), u64(compOffset),
-        Buffer.from(ct[0]), Buffer.from(ct[1]),
+        Buffer.from(ct[0]),
         Buffer.from(pub), u128(nonce),
         u8b(category), u16(proposedBps),
       ]),
@@ -203,8 +205,8 @@ async function main() {
   };
 
   console.log("two proposals that look identical from outside");
-  await ask("3% of tech, with 1% already held there", 1_000, 100_000, 300, 1);
-  await ask("3% of tech, with 14% already held there", 14_000, 100_000, 300, 1);
+  await ask("3% of tech, with 1% already held there", 100, 300, 1);
+  await ask("3% of tech, with 14% already held there", 1400, 300, 1);
 
   const final = readLog((await connection.getAccountInfo(log)).data);
   console.log(`\ncleared ${final.cleared}   clamped ${final.clamped}   refused ${final.refused}`);

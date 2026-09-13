@@ -88,21 +88,20 @@ pub mod cleat {
         ctx: Context<GateTrade>,
         computation_offset: u64,
         exposure_ct: [u8; 32],
-        total_ct: [u8; 32],
         pubkey: [u8; 32],
         nonce: u128,
         category: u8,
         proposed_bps: u16,
     ) -> Result<()> {
         instructions::gate::exec_gate_trade(
-            ctx, computation_offset, exposure_ct, total_ct, pubkey, nonce, category, proposed_bps,
+            ctx, computation_offset, exposure_ct, pubkey, nonce, category, proposed_bps,
         )
     }
 
-    #[arcium_callback(encrypted_ix = "gate_trade")]
-    pub fn gate_trade_callback(
-        ctx: Context<GateTradeCallback>,
-        output: SignedComputationOutputs<GateTradeOutput>,
+    #[arcium_callback(encrypted_ix = "gate_breach_v1")]
+    pub fn gate_breach_v1_callback(
+        ctx: Context<GateBreachV1Callback>,
+        output: SignedComputationOutputs<GateBreachV1Output>,
     ) -> Result<()> {
         instructions::gate::exec_gate_callback(ctx, output)
     }
