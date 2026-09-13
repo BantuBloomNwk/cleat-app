@@ -1745,3 +1745,71 @@ h1, h2, h3, h4, h5, h6,
     background-color: var(--card-surface-raised);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   The pop out sheet.
+
+   A bottom sheet on a phone, because a thumb reaches the bottom of the
+   screen and not the middle of it, and a centred dialog from small up.
+   ───────────────────────────────────────────────────────────── */
+
+.expand-sheet-backdrop {
+  background: oklch(0 0 0 / 0.62);
+  backdrop-filter: blur(6px) saturate(1.15);
+  -webkit-backdrop-filter: blur(6px) saturate(1.15);
+  animation: sheetFade 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.expand-sheet-panel {
+  background: color-mix(in oklab, var(--card-surface-raised) 96%, transparent);
+  border: 1px solid var(--card-border);
+  border-radius: 20px 20px 0 0;
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow:
+    0 1px 1px oklch(0 0 0 / 0.30),
+    0 -2px 8px oklch(0 0 0 / 0.22),
+    0 -18px 48px oklch(0 0 0 / 0.40),
+    inset 0 1px 0 oklch(1 0 0 / 0.07);
+  animation: sheetRise 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 640px) {
+  .expand-sheet-panel {
+    border-radius: 20px;
+    padding: 20px;
+    max-height: 88dvh;
+    animation: sheetPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+/* A grab handle, so a bottom sheet looks like something you can push
+   back down rather than something that has taken over the screen. */
+.expand-sheet-panel::before {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--card-border);
+  margin: -6px auto 12px;
+}
+@media (min-width: 640px) {
+  .expand-sheet-panel::before { display: none; }
+}
+
+.expand-sheet-close { width: 44px; height: 44px; background: transparent; cursor: pointer; }
+.expand-open-btn { min-height: 44px; padding: 0 10px; background: transparent; cursor: pointer; }
+
+/* Charts get the room the sheet exists to give them. */
+.expand-sheet-body .chart-canvas-box { min-height: 220px; }
+
+@keyframes sheetFade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes sheetRise { from { transform: translateY(14px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes sheetPop  { from { transform: scale(0.985); opacity: 0 } to { transform: none; opacity: 1 } }
+
+@media (prefers-reduced-motion: reduce) {
+  .expand-sheet-backdrop, .expand-sheet-panel { animation: none; }
+}

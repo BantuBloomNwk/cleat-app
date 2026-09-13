@@ -1,3 +1,4 @@
+import { ExpandSheet, ExpandButton } from './ExpandSheet';
 import React, { useState, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
 import { TIMEFRAME_CONFIGS, INITIAL_SOCIAL_TRADE_MESSAGES } from '../data/initialData';
@@ -37,6 +38,8 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   const [is3DActive, setIs3DActive] = useState(false);
   const [showKernelLayers, setShowKernelLayers] = useState(false);
   const [isCopiedAlert, setIsCopiedAlert] = useState(false);
+  // which card has been opened for a closer look, if any
+  const [expanded, setExpanded] = useState<null | 'volume' | 'trend' | 'chart'>(null);
   const [traderDetailTab, setTraderDetailTab] = useState<'telemetry' | 'counterfactual' | 'proof'>('telemetry');
   const [copiedProof, setCopiedProof] = useState(false);
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
@@ -922,16 +925,19 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         id="enforcement-volume-summary-dashboard"
         aria-label="24-Hour Enforcement Volume Summary"
       >
-        <div className="flex items-center justify-between pb-1.5 border-b border-[var(--card-border-subtle)]">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[var(--verdigris)] animate-pulse" />
-            <h3 className="font-sans font-bold text-[13.5px] text-[var(--text-primary)]">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 pb-1.5 border-b border-[var(--card-border-subtle)]">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-[var(--verdigris)] animate-pulse shrink-0" />
+            <h3 className="font-sans font-bold text-[13.5px] text-[var(--text-primary)] whitespace-nowrap">
               {activeTimeframe === '24H' ? '24-Hour' : `${activeTimeframe}`} Enforcement Volume
             </h3>
           </div>
-          <span className="font-mono text-[10px] text-[var(--text-tertiary)] px-2 py-0.5 rounded-full bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
-            Rolling {activeTimeframe} Window
-          </span>
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <span className="font-mono text-[10px] text-[var(--text-tertiary)] px-2 py-0.5 rounded-full bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] whitespace-nowrap">
+              Rolling {activeTimeframe} Window
+            </span>
+            <ExpandButton onClick={() => setExpanded('volume')} label="Open enforcement volume in full" />
+          </div>
         </div>
 
         {/* Volume Metric Cards & 7D D3 Sparkline Graph */}
@@ -992,8 +998,11 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           </div>
 
           {/* 7-Day High-Density D3 Sparkline Graph */}
-          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-between">
+          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-between gap-1.5">
             <D3VolumeSparkline compact={true} />
+            <div className="flex justify-end">
+              <ExpandButton onClick={() => setExpanded('trend')} label="Open the seven day trend in full" />
+            </div>
           </div>
         </div>
 
@@ -1120,6 +1129,57 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         onClose={() => setIsInsightsOpen(false)}
         marker={insightsMarker || selectedMarker}
       />
+
+      {/* Pop out views. Each renders the same component the card does, so
+          the two can never drift apart; they simply get more room here. */}
+      <ExpandSheet
+        isOpen={expanded === 'volume'}
+        onClose={() => setExpanded(null)}
+        kicker={`Rolling ${activeTimeframe} window`}
+        title={`${activeTimeframe === '24H' ? '24-Hour' : activeTimeframe} enforcement volume`}
+        wide
+      >
+        <D3VolumeProgressBar
+          refusedVolume={currentVolume.refused}
+          clearedVolume={currentVolume.cleared}
+          refusedCount={currentVolume.refusedCount}
+          clearedCount={currentVolume.clearedCount}
+          timeframeLabel={activeTimeframe}
+        />
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="p-3 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
+            <span className="block text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">Cleared</span>
+            <span className="block font-mono text-[19px] text-[var(--verdigris)] tabular-nums">${currentVolume.cleared.toFixed(2)}M</span>
+            <span className="block text-[11px] text-[var(--text-secondary)]">{currentVolume.clearedCount.toLocaleString()} decisions</span>
+          </div>
+          <div className="p-3 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
+            <span className="block text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">Refused</span>
+            <span className="block font-mono text-[19px] text-[var(--refused-rust)] tabular-nums">${currentVolume.refused.toFixed(2)}M</span>
+            <span className="block text-[11px] text-[var(--text-secondary)]">{currentVolume.refusedCount.toLocaleString()} decisions</span>
+          </div>
+        </div>
+        <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
+          Volume the mandate allowed against volume it stopped, over the rolling
+          {' '}{activeTimeframe} window. Sector and share of the book only; no instrument
+          and no holding appears here, which is why this view is safe to show anybody.
+        </p>
+      </ExpandSheet>
+
+      <ExpandSheet
+        isOpen={expanded === 'trend'}
+        onClose={() => setExpanded(null)}
+        kicker="Seven day trend"
+        title="Cleared against refused, by day"
+        wide
+      >
+        <div className="p-3 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
+          <D3VolumeSparkline compact={false} />
+        </div>
+        <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
+          Drag across the chart to read any day. The gap between the two lines is
+          the work the mandate did that week.
+        </p>
+      </ExpandSheet>
     </section>
   );
 };

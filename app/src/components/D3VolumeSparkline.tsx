@@ -31,24 +31,33 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
 
-    const container = containerRef.current;
-    // Measured, never guessed. The old fallback of 240 was wider than the
-    // card on a small phone, so the chart drew past its own edge before a
-    // measurement ever arrived.
-    const width = Math.max(160, container.clientWidth || container.getBoundingClientRect().width || 240);
+    // Not measured at all any more, which is the point.
+    //
+    // Every version of this that read the container failed the same way:
+    // when the card is on a hidden tab the read returns zero, the code
+    // falls through to a hard coded fallback wider than the card, and the
+    // chart is already drawn too wide before any observer can correct it.
+    // A viewBox has no such failure mode. The svg is given a fixed
+    // internal coordinate space and told to fill its parent, so the
+    // browser scales it to whatever room exists and it cannot, by
+    // construction, draw outside its own box.
+    const width = 320;
     const height = compact ? 52 : 68;
-    const margin = { top: 6, right: 14, bottom: 18, left: 14 };
+    const margin = { top: 6, right: 16, bottom: 18, left: 16 };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
     const svg = d3.select(svgRef.current);
-    svg.attr('width', width).attr('height', height);
+    svg
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .attr('width', '100%')
+      .attr('height', 'auto');
     svg.selectAll('*').remove();
 
     // Gradients
@@ -215,21 +224,7 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
         .attr('stroke', '#ffffff')
         .attr('stroke-width', 1.5);
     }
-  }, [data, compact, hoverIndex, containerWidth]);
-
-  // A width read once is a width that is wrong after a rotation, a tab
-  // switch that reveals a hidden card, or any layout change. Watch the
-  // container instead of trusting the first measurement.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((entries) => {
-      const w = Math.round(entries[0]?.contentRect.width ?? 0);
-      if (w > 0) setContainerWidth(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  }, [data, compact, hoverIndex]);
 
   const activePoint = hoverIndex !== null ? data[hoverIndex] : data[data.length - 1];
 
@@ -240,20 +235,20 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
       id="d3-volume-sparkline-card"
     >
       {/* Sparkline Top Insight & Legend */}
-      <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-        <div className="flex items-center gap-2">
-          <span className="text-[var(--text-tertiary)] uppercase tracking-wider text-[9px] font-semibold">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] font-mono mb-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+          <span className="text-[var(--text-tertiary)] uppercase tracking-wider text-[9px] font-semibold whitespace-nowrap">
             7D Trend:
           </span>
-          <span className="text-[var(--verdigris)] font-bold">
+          <span className="text-[var(--verdigris)] font-bold whitespace-nowrap">
             ${activePoint.cleared.toFixed(2)}M Cleared
           </span>
           <span className="text-[var(--text-tertiary)]">•</span>
-          <span className="text-[var(--refused-rust)] font-bold">
+          <span className="text-[var(--refused-rust)] font-bold whitespace-nowrap">
             ${activePoint.refused.toFixed(2)}M Refused
           </span>
         </div>
-        <span className="text-[9.5px] text-[var(--text-secondary)]">
+        <span className="text-[9.5px] text-[var(--text-secondary)] whitespace-nowrap shrink-0 ml-auto">
           {activePoint.day}
         </span>
       </div>
