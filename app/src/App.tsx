@@ -17,6 +17,7 @@ import {
   COMMUNITY_MANDATES,
 } from './data/initialData';
 import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
+import { loadChainSnapshot } from './lib/chain';
 
 export default function App() {
   // Theme state with local persistence
@@ -36,7 +37,9 @@ export default function App() {
   const [stats, setStats] = useState<EnforcerStats>(INITIAL_STATS);
   const [overnightRefusalCount, setOvernightRefusalCount] = useState(4);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(INITIAL_LEDGER_ENTRIES);
-  const [chartMarkers] = useState<ChartMarker[]>(INITIAL_CHART_MARKERS);
+  const [chartMarkers, setChartMarkers] = useState<ChartMarker[]>(INITIAL_CHART_MARKERS);
+  // null until we know, then true if the screen is showing real devnet decisions
+  const [isLive, setIsLive] = useState<boolean | null>(null);
   const [communityMandates] = useState<CommunityMandate[]>(COMMUNITY_MANDATES);
 
   // Modals (Intro page open initially by default for first-time experience)
@@ -44,6 +47,34 @@ export default function App() {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isTickDrawerOpen, setIsTickDrawerOpen] = useState(false);
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
+
+  // Pull the real verdict log off devnet. The sample data stays on screen if
+  // there is nothing on chain yet or the endpoint is unreachable, because a
+  // blank app is a worse answer than an illustrative one.
+  useEffect(() => {
+    let cancelled = false;
+    loadChainSnapshot()
+      .then((snap) => {
+        if (cancelled || !snap) {
+          if (!cancelled) setIsLive(false);
+          return;
+        }
+        setLedgerEntries(snap.entries);
+        setChartMarkers(snap.markers);
+        setStats(snap.stats);
+        if (snap.mandate?.text) setMandateSentence(snap.mandate.text);
+        setOvernightRefusalCount(
+          snap.entries.filter((e) => e.status === 'refused').length,
+        );
+        setIsLive(true);
+      })
+      .catch(() => {
+        if (!cancelled) setIsLive(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Sync theme with HTML root attribute and body, and persist in localStorage
   useEffect(() => {

@@ -1,0 +1,12 @@
+# Preview hosting for the Cleat app. A separate project from anything else on
+# this account, so a deploy here can never touch another site.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# A single page app: every path has to fall through to index.html or a refresh
+# on any tab returns a 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

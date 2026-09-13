@@ -13,3 +13,7 @@ scripts/.verdict-agent.json
 scripts/.gate-owner.json
 app/node_modules
 app/dist
+
+# Local Netlify folder
+.netlify
+app/.netlify
