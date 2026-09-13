@@ -28,6 +28,8 @@ pub enum CleatError {
     EmptyProposal,
     #[msg("The confidential gate aborted rather than returning a verdict.")]
     GateAborted,
+    #[msg("A trade has to say which way it goes.")]
+    BadSide,
     #[msg("A spending period has to be between an hour and a month.")]
     BadSpendPeriod,
     #[msg("Only the agent the owner named can spend this allowance.")]

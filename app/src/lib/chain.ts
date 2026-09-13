@@ -64,6 +64,8 @@ export interface Mandate {
   text: string;
   maxPositionBps: number;
   maxTradeBps: number;
+  /** The widest market the agent may trade into. Zero means unset. */
+  maxSpreadBps: number;
   adoptCount: number;
 }
 
@@ -76,7 +78,10 @@ const SECTORS = [
   "Consumer",
 ];
 
-/** 0 none, 1 position cap, 2 single trade cap, 3 denied asset, 4 stale, 5 ingested. */
+/**
+ * 0 none, 1 position cap, 2 single trade cap, 3 denied asset, 4 stale,
+ * 5 ingested, 6 the book was too wide.
+ */
 const REASONS = [
   "",
   'Triggered boundary: the position cap',
@@ -84,6 +89,7 @@ const REASONS = [
   "Triggered boundary: an asset the mandate refuses",
   "The mandate changed after the grant was issued",
   "The instruction arrived inside something the agent read",
+  "The book was wider than the mandate will trade into",
 ];
 
 const OUTCOME_TO_STATUS: EntryStatus[] = ["cleared", "trimmed", "refused"];
@@ -123,10 +129,11 @@ export function decodeMandate(data: Uint8Array): Mandate {
   o += 32; // text hash
   const maxPositionBps = b.readUInt16LE(o); o += 2;
   const maxTradeBps = b.readUInt16LE(o); o += 2;
+  const maxSpreadBps = b.readUInt16LE(o); o += 2;
   const deniedLen = b.readUInt32LE(o); o += 4 + deniedLen * 32;
   const hasParent = b.readUInt8(o); o += 1 + (hasParent ? 32 : 0);
   const adoptCount = b.readUInt32LE(o);
-  return { version, text, maxPositionBps, maxTradeBps, adoptCount };
+  return { version, text, maxPositionBps, maxTradeBps, maxSpreadBps, adoptCount };
 }
 
 const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%`;
@@ -162,7 +169,9 @@ export function verdictToLedgerEntry(
     action,
     cause: REASONS[v.reason] || "Inside every limit set",
     causeDetail:
-      v.outcome === 2 && v.reason === 5
+      v.outcome === 2 && v.reason === 6
+        ? "Every size check passed. The book where this would have landed was wider than the sentence allows, and a trade that clears every cap still executes badly into a market that thin."
+        : v.outcome === 2 && v.reason === 5
         ? "The proposal originated in content the agent ingested rather than in its own reasoning. Size was never the question."
         : `Decided against mandate version ${v.mandateVersion}. The sector and the share of the book are recorded; the holding is not.`,
     agentTrace: `Slot ${v.slot}. Asked ${pct(v.proposedBps)}, allowed ${pct(

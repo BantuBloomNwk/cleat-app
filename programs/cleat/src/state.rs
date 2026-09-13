@@ -32,6 +32,20 @@ pub struct Mandate {
     /// No single trade larger than this share of the portfolio.
     pub max_trade_bps: u16,
 
+    /// The widest market the agent may trade into, in basis points of
+    /// spread.
+    ///
+    /// Size was never the only way to lose money. A trade well inside every
+    /// size cap still executes badly if the book it lands in is thin, and
+    /// the book is thinnest exactly when the legacy exchange is shut and the
+    /// owner is asleep. Measured on the same venue in the same minute: one
+    /// name quoting at half a basis point across seventy eight levels, and
+    /// another at thirty two across eleven. Those are not the same market
+    /// and a mandate that cannot tell them apart is not enforcing much.
+    ///
+    /// Zero means the owner did not ask for one, and the check is skipped.
+    pub max_spread_bps: u16,
+
     /// Mints this mandate refuses. The English clause is resolved off chain and
     /// the resolution is recorded here, where it is enforceable.
     #[max_len(DENY_MAX)]

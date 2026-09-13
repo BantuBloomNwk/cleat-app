@@ -90,8 +90,27 @@ pub fn exec_propose_trade(
     category: u8,
     proposed_bps: u16,
     from_ingested_content: bool,
+    side: u8,
+    observed_spread_bps: u16,
 ) -> Result<()> {
+    // side is 0 to add to a position and 1 to reduce one, and it matters
+    // because the harm is not symmetric in the way a size cap assumes. A
+    // cap on how much may be bought is also a cap on how much may be sold
+    // at once, which is right at three in the morning in a thin book and
+    // wrong when the owner is trying to get out. So an exit runs to the
+    // position cap rather than the trade cap, and stays bound by everything
+    // else.
+    //
+    // observed_spread_bps is how wide the book is where this would land.
+    // It is public information the agent reads off the venue, so passing it
+    // in the clear costs no privacy. It is also the agent's own
+    // measurement, and the agent could lie about it, which is worth being
+    // plain about: this bounds an honest agent that would otherwise trade
+    // into an illiquid book, and it is not a defence against a hostile one.
+    // What defends against a hostile agent is the size caps, which it
+    // cannot influence at all.
     require!(proposed_bps > 0, CleatError::EmptyProposal);
+    require!(side <= 1, CleatError::BadSide);
 
     let vault = &ctx.accounts.vault;
     let mandate = &ctx.accounts.mandate;
@@ -122,9 +141,11 @@ pub fn exec_propose_trade(
         outcome = 2;
         reason = 1;
         allowed_bps = 0;
-    } else if proposed_bps > mandate.max_trade_bps {
+    } else if side == 0 && proposed_bps > mandate.max_trade_bps {
         // Inside the position cap but larger than one trade may be, so trim it
-        // to what a single trade is allowed to move.
+        // to what a single trade is allowed to move. Entries only: getting
+        // out of something should not be rationed by the cap that governs
+        // getting into it.
         outcome = 1;
         reason = 2;
         allowed_bps = mandate.max_trade_bps;
@@ -132,6 +153,19 @@ pub fn exec_propose_trade(
         outcome = 0;
         reason = 0;
         allowed_bps = proposed_bps;
+    }
+
+    // The book, which is the other way to lose money in a trade that passed
+    // every size check. Applied to both directions, because a thin book
+    // punishes an exit exactly as hard as an entry, and an owner who has
+    // asked not to trade into one did not mean only when buying.
+    if mandate.max_spread_bps > 0
+        && observed_spread_bps > mandate.max_spread_bps
+        && outcome != 2
+    {
+        outcome = 2;
+        reason = 6;
+        allowed_bps = 0;
     }
 
     // Anything that arrived through content the agent read is refused outright,

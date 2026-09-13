@@ -31,9 +31,17 @@ pub mod cleat {
         text: String,
         max_position_bps: u16,
         max_trade_bps: u16,
+        max_spread_bps: u16,
         denied: Vec<Pubkey>,
     ) -> Result<()> {
-        instructions::mandate::exec_create_mandate(ctx, text, max_position_bps, max_trade_bps, denied)
+        instructions::mandate::exec_create_mandate(
+            ctx,
+            text,
+            max_position_bps,
+            max_trade_bps,
+            max_spread_bps,
+            denied,
+        )
     }
 
     pub fn update_mandate(
@@ -41,9 +49,17 @@ pub mod cleat {
         text: String,
         max_position_bps: u16,
         max_trade_bps: u16,
+        max_spread_bps: u16,
         denied: Vec<Pubkey>,
     ) -> Result<()> {
-        instructions::mandate::exec_update_mandate(ctx, text, max_position_bps, max_trade_bps, denied)
+        instructions::mandate::exec_update_mandate(
+            ctx,
+            text,
+            max_position_bps,
+            max_trade_bps,
+            max_spread_bps,
+            denied,
+        )
     }
 
     pub fn adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()> {
@@ -71,13 +87,23 @@ pub mod cleat {
         instructions::verdict::exec_open_verdict_log(ctx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn propose_trade(
         ctx: Context<ProposeTrade>,
         category: u8,
         proposed_bps: u16,
         from_ingested_content: bool,
+        side: u8,
+        observed_spread_bps: u16,
     ) -> Result<()> {
-        instructions::verdict::exec_propose_trade(ctx, category, proposed_bps, from_ingested_content)
+        instructions::verdict::exec_propose_trade(
+            ctx,
+            category,
+            proposed_bps,
+            from_ingested_content,
+            side,
+            observed_spread_bps,
+        )
     }
 
     pub fn init_gate_comp_def(ctx: Context<InitGateCompDef>) -> Result<()> {

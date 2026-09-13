@@ -117,7 +117,8 @@ async function main() {
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, true), meta(SystemProgram.programId, false, false)],
-      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), vecPubkey([])]),
+      // 15% in one name, 5% in one trade, and nothing wider than 20 basis points
+      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), u16(20), vecPubkey([])]),
     })], [owner]);
     console.log("mandate created, position cap 15%, single trade cap 5%");
   }
@@ -154,21 +155,28 @@ async function main() {
     console.log("funded the agent so it can pay its own fees");
   }
 
-  const propose = async (label, category, bps, ingested) => {
+  const propose = async (label, category, bps, ingested, side = 0, spreadBps = 0) => {
     const t0 = performance.now();
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(agent.publicKey, true, true), meta(vault, false, false), meta(mandate, false, false), meta(log, false, true)],
-      data: Buffer.concat([disc("propose_trade"), u8(category), u16(bps), bool(ingested)]),
+      data: Buffer.concat([disc("propose_trade"), u8(category), u16(bps), bool(ingested), u8(side ?? 0), u16(spreadBps ?? 0)]),
     })], [agent]);
     console.log(`  ${label.padEnd(46)} ${String(Math.round(performance.now() - t0)).padStart(5)}ms`);
   };
 
-  console.log("\nthe agent proposes four things");
+  console.log("\nthe agent proposes six things");
   await propose("4% of the book in technology", 1, 400, false);
   await propose("12%, over the single trade cap", 1, 1200, false);
   await propose("40%, well past the position cap", 1, 4000, false);
   await propose("3%, but it came from a headline it read", 2, 300, true);
+  // The one that needed the book rather than the size. Well inside every
+  // cap, and into a market quoting thirty two basis points wide, which is
+  // a real reading taken off the venue on a Sunday with New York shut.
+  await propose("2% into a book 32 bps wide", 1, 200, false, 0, 32);
+  // And the same width on the way out, which the size caps would have
+  // waved through, because a cap on buying is not a cap on selling.
+  await propose("exiting 8% into that same book", 1, 800, false, 1, 32);
 
   // Read the log back the way the app would.
   const info = await base.getAccountInfo(log);

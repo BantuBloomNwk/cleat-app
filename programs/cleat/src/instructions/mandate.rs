@@ -5,7 +5,11 @@ use crate::constants::*;
 use crate::error::CleatError;
 use crate::state::Mandate;
 
-fn validate_caps(max_position_bps: u16, max_trade_bps: u16) -> Result<()> {
+fn validate_caps(max_position_bps: u16, max_trade_bps: u16, max_spread_bps: u16) -> Result<()> {
+    // Zero means the owner did not ask for a spread cap. Anything above the
+    // whole width of the market is not a cap either, so it is rejected
+    // rather than quietly stored.
+    require!(max_spread_bps <= BPS_DENOM, CleatError::CapsInconsistent);
     require!(
         max_position_bps > 0 && max_position_bps <= BPS_DENOM,
         CleatError::CapOutOfRange
@@ -40,11 +44,12 @@ pub fn exec_create_mandate(
     text: String,
     max_position_bps: u16,
     max_trade_bps: u16,
+    max_spread_bps: u16,
     denied: Vec<Pubkey>,
 ) -> Result<()> {
     require!(text.len() <= MANDATE_TEXT_MAX, CleatError::TextTooLong);
     require!(denied.len() <= DENY_MAX, CleatError::DenyListFull);
-    validate_caps(max_position_bps, max_trade_bps)?;
+    validate_caps(max_position_bps, max_trade_bps, max_spread_bps)?;
 
     let now = Clock::get()?.unix_timestamp;
     let m = &mut ctx.accounts.mandate;
@@ -53,6 +58,7 @@ pub fn exec_create_mandate(
     m.text_hash = hash(text.as_bytes()).to_bytes();
     m.text = text;
     m.max_position_bps = max_position_bps;
+    m.max_spread_bps = max_spread_bps;
     m.max_trade_bps = max_trade_bps;
     m.denied = denied;
     m.adopted_from = None;
@@ -87,17 +93,19 @@ pub fn exec_update_mandate(
     text: String,
     max_position_bps: u16,
     max_trade_bps: u16,
+    max_spread_bps: u16,
     denied: Vec<Pubkey>,
 ) -> Result<()> {
     require!(text.len() <= MANDATE_TEXT_MAX, CleatError::TextTooLong);
     require!(denied.len() <= DENY_MAX, CleatError::DenyListFull);
-    validate_caps(max_position_bps, max_trade_bps)?;
+    validate_caps(max_position_bps, max_trade_bps, max_spread_bps)?;
 
     let m = &mut ctx.accounts.mandate;
     m.version = m.version.saturating_add(1);
     m.text_hash = hash(text.as_bytes()).to_bytes();
     m.text = text;
     m.max_position_bps = max_position_bps;
+    m.max_spread_bps = max_spread_bps;
     m.max_trade_bps = max_trade_bps;
     m.denied = denied;
     m.updated_at = Clock::get()?.unix_timestamp;
