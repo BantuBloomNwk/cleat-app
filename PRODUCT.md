@@ -195,6 +195,45 @@ an authenticated owner. **Voice never places a trade.** Audio the agent hears is
 and ingestion is exactly the channel that emptied the Grok wallet. The line to use: you can
 speak your rules, and nothing the agent hears can change them.
 
+### Does paying per call remove the need for more than one model
+
+No, and it changes why we want them.
+
+The original reasons for a spread of models were the ordinary ones: privacy,
+resilience, cost. Two of those turn out not to apply here. Privacy barely does,
+because the agent is blind by construction: it reasons over prices, headlines and
+the mandate, and there is no holding in its prompt to leak. The one sensitive
+thing it ever sees is the sentence the client wrote, which is why mandate
+compilation is the step that should stay local and the only step that has to.
+Cost stops being an argument for a spread the moment payment is per call, because
+a second provider costs an account and a key and a contract, and under x402 it
+costs nothing at all: the agent pays whoever answers, from one capped wallet.
+
+What survives is the reason already written above, and it is the strongest one.
+**The model is swappable so that the boundary is obviously what is doing the
+work.** That is a claim you demonstrate by switching models mid demo and watching
+the same refusal land, and x402 is what makes switching free enough to actually
+do it on stage rather than describe it.
+
+So: many models reachable, one at a time, chosen by the client, paid for per call
+out of an allowance the client set. Not a committee of models voting, which would
+be cost dressed up as rigour.
+
+### What happens when the allowance runs out
+
+It stops proposing. That is the whole failure mode, and it is worth saying
+plainly because it is unusual.
+
+Refusal in this system is deterministic and on chain. The caps are in the mandate
+account, the check runs in the program, and none of it needs a model. Only the
+*proposal* side is intelligent. So an agent that cannot pay for inference, or
+whose allowance has lapsed, or that cannot reach a provider at all, degrades to
+silence. It does not degrade to guessing, and it cannot degrade to acting.
+
+**The failure mode of the spending cap is silence, not risk.** An agent that runs
+out of money stops having ideas, and the boundary that stops bad ideas was never
+the part that cost anything to run.
+
 ## Brand Personality
 
 Calm, confident, plainspoken. Three words: composed, candid, warm.

@@ -176,5 +176,36 @@ pub mod cleat {
         instructions::probe::exec_probe_b_callback(ctx, output)
     }
 
+    // ── What the agent may spend on itself ────────────────────────────
+    //
+    // Separate from the mandate on purpose. The mandate bounds what the
+    // agent may do with the client's money; this bounds what it may do
+    // with its own, and an agent that pays per call for its own inference
+    // needs both or it has only half a leash.
+    pub fn open_spend_account(
+        ctx: Context<OpenSpendAccount>,
+        agent: Pubkey,
+        ceiling_lamports: u64,
+        period_secs: i64,
+    ) -> Result<()> {
+        instructions::spend::exec_open_spend_account(ctx, agent, ceiling_lamports, period_secs)
+    }
+
+    pub fn set_spend_cap(
+        ctx: Context<SetSpendCap>,
+        ceiling_lamports: u64,
+        period_secs: i64,
+    ) -> Result<()> {
+        instructions::spend::exec_set_spend_cap(ctx, ceiling_lamports, period_secs)
+    }
+
+    pub fn fund_spend_account(ctx: Context<FundSpendAccount>, lamports: u64) -> Result<()> {
+        instructions::spend::exec_fund_spend_account(ctx, lamports)
+    }
+
+    pub fn pay_agent_cost(ctx: Context<PayAgentCost>, lamports: u64, purpose: u8) -> Result<()> {
+        instructions::spend::exec_pay_agent_cost(ctx, lamports, purpose)
+    }
+
 
 }

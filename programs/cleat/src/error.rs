@@ -28,4 +28,14 @@ pub enum CleatError {
     EmptyProposal,
     #[msg("The confidential gate aborted rather than returning a verdict.")]
     GateAborted,
+    #[msg("A spending period has to be between an hour and a month.")]
+    BadSpendPeriod,
+    #[msg("Only the agent the owner named can spend this allowance.")]
+    NotTheAgent,
+    #[msg("A payment of nothing is not a payment.")]
+    EmptyPayment,
+    #[msg("The agent's spending ceiling would be breached by this payment.")]
+    SpendCapBreached,
+    #[msg("The spending allowance has nothing left to pay from.")]
+    SpendAccountEmpty,
 }

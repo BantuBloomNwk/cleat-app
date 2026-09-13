@@ -40,3 +40,17 @@ pub const VERDICT_SEED: &[u8] = b"verdicts";
 /// scroll a week of activity without an indexer, bounded so the account cannot
 /// grow forever. Totals are kept separately and never roll over.
 pub const VERDICT_CAPACITY: usize = 16;
+
+#[constant]
+pub const SPEND_SEED: &[u8] = b"spend";
+
+/// The shortest window a spending allowance may be written over.
+///
+/// An allowance with a very short period is really an unlimited allowance
+/// wearing a small number, because it refills before anyone could notice it
+/// draining. An hour is the floor.
+pub const SPEND_PERIOD_MIN: i64 = 60 * 60;
+
+/// And the longest, so an allowance cannot be set once and forgotten for a
+/// year the way a permanent approval is.
+pub const SPEND_PERIOD_MAX: i64 = 60 * 60 * 24 * 31;

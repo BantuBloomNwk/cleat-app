@@ -65,7 +65,20 @@ const rpc = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8")
 
 const owner = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
   fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))));
-const connection = new Connection(rpc, "confirmed");
+// Throttled, because uploadCircuit fires its forty odd chunks as fast as
+// the event loop will let it and the endpoint answers with 429s until it
+// gives up. web3.js takes a custom fetch, so the limit goes there rather
+// than into a fork of the upload helper.
+let chain = Promise.resolve();
+const throttledFetch = (url, init) => {
+  const turn = chain.then(() => new Promise((r) => setTimeout(r, Number(process.env.RPC_GAP_MS || 260))));
+  chain = turn.catch(() => {});
+  return turn.then(() => fetch(url, init));
+};
+const connection = new Connection(rpc, {
+  commitment: "confirmed",
+  fetch: throttledFetch,
+});
 const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(owner), { commitment: "confirmed" });
 const arcium = new PublicKey(ARCIUM_ADDR);
 const mxe = getMXEAccAddress(PROGRAM_ID);
@@ -181,10 +194,11 @@ if (!mxePub) throw new Error("no MXE x25519 key");
 console.log("mxe key present\n");
 
 console.log("setting up:");
-const a = await setup("probe_a", "init_probe_a_comp_def");
-const b = await setup("probe_b", "init_probe_b_comp_def");
+const only = process.env.PROBE_ONLY;
+const a = only && only !== "a" ? null : await setup("probe_a", "init_probe_a_comp_def");
+const b = only && only !== "b" ? null : await setup("probe_b", "init_probe_b_comp_def");
 
 console.log("\nasking, with 12% already held and a 15% cap:");
-console.log(await run("probe_a", "queue_probe_a", a.compDef, mxePub, 1200, 0));
-console.log(await run("probe_b", "queue_probe_b", b.compDef, mxePub, 1200, 1500));
+if (a) console.log(await run("probe_a", "queue_probe_a", a.compDef, mxePub, 1200, 0));
+if (b) console.log(await run("probe_b", "queue_probe_b", b.compDef, mxePub, 1200, 1500));
 console.log("\nprobe_c is gate_breach_v2 and already answered: it aborts.");

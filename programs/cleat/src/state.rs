@@ -173,3 +173,65 @@ impl VerdictLog {
         self.head = ((self.head as usize + 1) % VERDICT_CAPACITY) as u8;
     }
 }
+
+/// What the agent is allowed to spend keeping itself alive.
+///
+/// The mandate says what the agent may do with the client's money. This says
+/// what it may do with its own, and the two are different questions that get
+/// answered in the same place for a reason.
+///
+/// An agent that proposes trades has running costs: inference, market data, the
+/// fee on its own transactions. Under x402 those are paid per call, which is
+/// the honest way to buy them, and it also means an agent with a wallet and a
+/// loop can spend without limit if nothing stops it. Open Wallet Standard will
+/// hold the key and refuse to sign against a policy, which is the right shape,
+/// but its policies are a local file: they can say which chain and until when,
+/// and a spend ceiling has to be written as a script the operator also controls.
+///
+/// A ceiling the operator controls is not a ceiling the client can rely on. So
+/// this account holds it instead, the client sets it, the agent cannot raise it,
+/// and the payment itself runs through this program, which means the limit is
+/// enforced by the chain rather than promised by a policy file.
+#[account]
+#[derive(InitSpace)]
+pub struct AgentSpend {
+    pub owner: Pubkey,
+
+    /// The wallet the agent signs its own payments with. It never holds the
+    /// client's assets and has no authority over the vault.
+    pub agent: Pubkey,
+
+    /// The most that may leave this account in one period.
+    pub ceiling_lamports: u64,
+
+    /// How long a period lasts. Bounded at both ends, see the constants.
+    pub period_secs: i64,
+
+    /// Spent so far in the current period.
+    pub spent_lamports: u64,
+
+    /// When the current period began. Rolls forward lazily, on the first
+    /// payment after it lapses, so nobody has to run a cron to reset it.
+    pub period_start: i64,
+
+    /// Lifetime totals, kept separately so they never roll over. The point of
+    /// a diary is that it does not forget.
+    pub lifetime_lamports: u64,
+    pub payments: u32,
+
+    /// Refused because the next payment would have breached the ceiling. This
+    /// is the number worth showing: it is the agent being stopped.
+    pub refusals: u32,
+
+    pub bump: u8,
+}
+
+impl AgentSpend {
+    /// What is left in the period, treating a lapsed period as already reset.
+    pub fn remaining(&self, now: i64) -> u64 {
+        if now >= self.period_start.saturating_add(self.period_secs) {
+            return self.ceiling_lamports;
+        }
+        self.ceiling_lamports.saturating_sub(self.spent_lamports)
+    }
+}
