@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ChartMarker } from '../types';
 import { tactile } from '../utils/haptics';
+import { useDialog } from '../utils/useDialog';
 
 interface DataInsightsModalProps {
   isOpen: boolean;
@@ -32,6 +33,9 @@ export const DataInsightsModal: React.FC<DataInsightsModalProps> = ({
   activeMandate = 'Moderate growth, nothing over fifteen percent in one name, no fossil fuels.',
 }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useDialog(isOpen && !!marker, onClose, panelRef);
 
   if (!isOpen || !marker) return null;
 
@@ -82,10 +86,8 @@ Autonomous Raw Instruction: ${marker.rawPayload || 'Program: JUP6LkbZbjS1jKKwapd
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3.5 bg-black/75 backdrop-blur-md animate-fadeIn"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="data-insights-title"
+      className="modal-backdrop animate-fadeIn"
+      role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           tactile.modalDismiss();
@@ -94,7 +96,12 @@ Autonomous Raw Instruction: ${marker.rawPayload || 'Program: JUP6LkbZbjS1jKKwapd
       }}
     >
       <div
-        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--card-surface)] border border-[var(--card-border)] shadow-2xl p-4 sm:p-5 flex flex-col gap-4 text-[var(--text-primary)]"
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="data-insights-title"
+        className="w-full max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--card-surface)] border border-[var(--card-border)] shadow-2xl p-4 sm:p-5 flex flex-col gap-4 text-[var(--text-primary)] outline-none"
         id="data-insights-modal-card"
       >
         {/* Modal Topbar Header */}

@@ -6,7 +6,7 @@
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
-    "@arcium-hq/client": "^0.14.1",
+    "@arcium-hq/client": "0.14.1",
     "@magicblock-labs/ephemeral-rollups-sdk": "^0.17.0",
     "@solana/web3.js": "^1.99.0"
   },

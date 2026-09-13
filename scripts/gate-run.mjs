@@ -187,20 +187,44 @@ async function main() {
     const queued = Math.round(performance.now() - t0);
 
     // Wait for the MPC network to answer and the callback to write it down.
-    let after = before, waited = 0;
-    while (waited < 90_000) {
+    //
+    // The computation account is watched alongside the log, because the two
+    // failures look identical from the log alone. A cluster that never got
+    // to the job leaves the account sitting there; a job that ran and came
+    // back a failure closes the account with nothing written. Reporting only
+    // "no verdict" told us which minute we were in and nothing else.
+    const WAIT_MS = Number(process.env.GATE_WAIT_MS || 300_000);
+    let after = before, waited = 0, compSeen = true, compGoneAt = null;
+    while (waited < WAIT_MS) {
       await sleep(2000); waited += 2000;
-      after = readLog((await connection.getAccountInfo(log)).data);
+      const [logInfo, compInfo] = await Promise.all([
+        connection.getAccountInfo(log),
+        connection.getAccountInfo(computation),
+      ]);
+      if (compSeen && !compInfo) { compSeen = false; compGoneAt = waited; }
+      after = readLog(logInfo.data);
       if (after.entries.length > before.entries.length ||
           after.cleared + after.clamped + after.refused > before.cleared + before.clamped + before.refused) break;
+      // Once the computation account is gone the answer is in, one way or
+      // the other. Give the callback a couple of slots and stop waiting.
+      if (!compSeen && waited > compGoneAt + 6000) break;
     }
     const total_ms = Math.round(performance.now() - t0);
-    const v = after.entries[after.entries.length - 1];
+    const v = after.entries.length > before.entries.length
+      ? after.entries[after.entries.length - 1]
+      : null;
     const words = ["cleared", "clamped", "refused"];
     console.log(`  ${label}`);
-    console.log(`    queued in ${queued}ms, decided in ${total_ms}ms`);
-    if (v) console.log(`    verdict: ${words[v.outcome]}  asked ${(v.proposed/100).toFixed(0)}%  allowed ${(v.allowed/100).toFixed(0)}%`);
-    else console.log(`    no verdict landed inside 90s`);
+    console.log(`    queued in ${queued}ms, waited ${Math.round(total_ms / 1000)}s`);
+    if (v) {
+      console.log(`    verdict: ${words[v.outcome]}  asked ${(v.proposed/100).toFixed(0)}%  allowed ${(v.allowed/100).toFixed(0)}%`);
+    } else if (!compSeen) {
+      console.log(`    the computation closed at ${Math.round(compGoneAt/1000)}s and wrote no verdict`);
+      console.log(`    computation ${computation.toBase58()}  tx ${sig.slice(0, 24)}…`);
+    } else {
+      console.log(`    the computation was still queued after ${Math.round(total_ms/1000)}s`);
+      console.log(`    computation ${computation.toBase58()}  tx ${sig.slice(0, 24)}…`);
+    }
     return v;
   };
 

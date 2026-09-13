@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { tactile } from '../utils/haptics';
+import { useDialog } from '../utils/useDialog';
 
 interface ExpandSheetProps {
   isOpen: boolean;
@@ -37,53 +38,8 @@ export const ExpandSheet: React.FC<ExpandSheetProps> = ({
   wide = false,
 }) => {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    restoreFocusRef.current = document.activeElement as HTMLElement | null;
-    const { overflow } = document.body.style;
-    document.body.style.overflow = 'hidden';
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        tactile.modalDismiss();
-        onClose();
-        return;
-      }
-      if (e.key !== 'Tab' || !panelRef.current) return;
-      // Keep tabbing inside the sheet. Without this the focus ring walks
-      // off into the page behind, which for a screen reader means the
-      // dialog was never really a dialog.
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKey, true);
-    // Focus the panel itself rather than the close button, so a screen
-    // reader announces the title instead of the word "close".
-    const t = window.setTimeout(() => panelRef.current?.focus(), 30);
-
-    return () => {
-      document.removeEventListener('keydown', onKey, true);
-      document.body.style.overflow = overflow;
-      window.clearTimeout(t);
-      restoreFocusRef.current?.focus?.();
-    };
-  }, [isOpen, onClose]);
+  useDialog(isOpen, onClose, panelRef);
 
   if (!isOpen) return null;
 

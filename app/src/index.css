@@ -1259,8 +1259,6 @@ body {
 
 /* MODAL OVERLAYS */
 .modal-backdrop {
-  position: fixed;
-  inset: 0;
   z-index: 250;
   background: rgba(12, 11, 10, 0.85);
   display: flex;
@@ -1285,8 +1283,6 @@ body {
 
 /* ONBOARDING & INTRO WALKTHROUGH OVERLAY */
 .onboarding-overlay {
-  position: fixed;
-  inset: 0;
   z-index: 300;
   background: rgba(12, 11, 10, 0.90);
   backdrop-filter: blur(28px);
@@ -1300,6 +1296,29 @@ body {
 [data-theme="light"] .onboarding-overlay {
   background: rgba(247, 245, 240, 0.94);
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Every overlay is bounded to the column the app lives in.
+
+   On a phone that is the whole screen, so nothing changes. On a
+   desktop the app is a 440px column down the middle of the monitor,
+   and an overlay that blacks out the other 840px is a different
+   product from the one underneath it. Fixed rather than absolute, so
+   an overlay stays with the viewport instead of stretching to the
+   scroll height of a long page.
+
+   The dim belongs to the app, not to the desktop.
+   ───────────────────────────────────────────────────────────── */
+.modal-backdrop,
+.onboarding-overlay,
+.expand-sheet-backdrop {
+  position: fixed;
+  inset: 0 auto 0 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 440px;
+}
+
 @keyframes fadeInModal {
   0% { opacity: 0; }
   100% { opacity: 1; }
@@ -1754,19 +1773,6 @@ h1, h2, h3, h4, h5, h6,
    ───────────────────────────────────────────────────────────── */
 
 .expand-sheet-backdrop {
-  /* Bounded to the same column the app itself lives in.
-     On a phone that is the whole screen anyway. On a desktop the app is a
-     440px column down the middle, and a sheet that blacks out the rest of
-     the monitor is not the same product. Fixed rather than absolute so it
-     stays with the viewport instead of with the scroll height of a very
-     long page. */
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 440px;
   background: oklch(0 0 0 / 0.62);
   backdrop-filter: blur(6px) saturate(1.15);
   -webkit-backdrop-filter: blur(6px) saturate(1.15);
