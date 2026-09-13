@@ -30,7 +30,11 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="flex flex-col justify-center min-w-0 leading-tight">
           {/* Precision Machined CLEAT. Wordmark with Geometric Clipping Paths */}
-          <div aria-label="CLEAT." className="inline-flex items-center">
+          {/* The document had no top level heading at all, so a screen reader
+              had no way to announce what this page is. The wordmark already
+              carries the accessible name, so promoting it costs nothing
+              visually and repairs the outline. */}
+          <h1 aria-label="Cleat" className="inline-flex items-center m-0 p-0 font-normal">
             <svg
               className="h-6 w-auto block max-w-full select-none"
               viewBox="0 0 114 24"
@@ -165,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
                 strokeWidth="0.5"
               />
             </svg>
-          </div>
+          </h1>
 
           <div className="flex items-center gap-1.5 mt-1 text-[10px] font-mono font-bold tracking-wider">
             <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">

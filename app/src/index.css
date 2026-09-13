@@ -1566,3 +1566,63 @@ body {
    the screen scrolls inside its own box. */
 html, body { overflow-x: hidden; }
 svg { max-width: 100%; }
+
+/* ─────────────────────────────────────────────────────────────
+   Audit corrections.
+   ───────────────────────────────────────────────────────────── */
+
+/* Keyboard users had almost nothing to go on: one focus rule in the
+   whole stylesheet. Every interactive thing now shows where it is,
+   in the accent, offset so it never sits on top of the label. */
+:where(button, a, [role="button"], [role="tab"], input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--verdigris);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* Touch targets. Several controls sat at 40px or at 7px of padding,
+   under the 44px floor this product committed to and under WCAG 2.5.8.
+   Padding rather than height, so nothing is stretched out of shape. */
+.dock-tab-btn,
+.timeframe-btn,
+.btn-mic,
+.btn-inject,
+.ledger-filter-pill,
+.mandate-util-btn,
+.mode-switch-pill {
+  min-height: 44px;
+}
+
+/* transition: all animates layout properties, which is what makes a
+   list feel like it is chewing. Restricted to the things that are
+   cheap to animate: paint and compositing, never geometry. */
+.dock-tab-btn,
+.timeframe-btn,
+.ledger-filter-pill,
+.mandate-util-btn,
+.mode-switch-pill,
+.chart-dot,
+.card,
+.glass-card,
+.ledger-entry {
+  transition-property: transform, opacity, color, background-color, border-color, box-shadow;
+}
+
+/* The app had exactly one breakpoint. These are the two that matter:
+   a small phone, and a user who has turned their text up. */
+@media (max-width: 380px) {
+  .timeframe-btn { font-size: 9.5px; letter-spacing: 0; }
+  .live-caps-row, .mandate-metadata-row { gap: 6px; }
+  .app-content { padding-inline: 14px; }
+}
+
+/* Respect a user who does not want movement. The app animates a fair
+   amount, including a breathing pulse that never stops. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
