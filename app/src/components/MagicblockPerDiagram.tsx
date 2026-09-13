@@ -153,11 +153,15 @@ export const MagicblockPerDiagram: React.FC = () => {
           </div>
         </div>
 
-        {/* Mode Selector */}
-        <div className="flex items-center gap-1.5 p-0.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] text-[11px] font-mono">
+        {/* Mode Selector.
+            A grid rather than a flex row, so each half of the track is the
+            same width and its label sits in the middle of it. Hugging
+            buttons in a full width track left both labels crowded against
+            the left edge with dead space after the second one. */}
+        <div className="grid grid-cols-2 gap-1.5 w-full p-0.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] text-[11px] font-mono">
           <button
             type="button"
-            className={`px-2.5 py-1 rounded-lg transition-all ${
+            className={`px-2 py-1.5 rounded-lg text-center whitespace-nowrap transition-all ${
               flowMode === 'intercept'
                 ? 'bg-[var(--refused-chip-bg)] text-[var(--refused-rust)] font-bold border border-[var(--refused-chip-border)]'
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
@@ -172,7 +176,7 @@ export const MagicblockPerDiagram: React.FC = () => {
           </button>
           <button
             type="button"
-            className={`px-2.5 py-1 rounded-lg transition-all ${
+            className={`px-2 py-1.5 rounded-lg text-center whitespace-nowrap transition-all ${
               flowMode === 'compliant'
                 ? 'bg-[var(--verdigris-chip-bg)] text-[var(--verdigris)] font-bold border border-[var(--verdigris-chip-border)]'
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
@@ -474,10 +478,10 @@ export const MagicblockPerDiagram: React.FC = () => {
         </svg>
 
         {/* Live Simulator Button */}
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--card-border-subtle)]">
-          <div className="flex items-center gap-1.5 text-[10.5px] font-mono text-[var(--text-tertiary)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--verdigris)] animate-pulse" />
-            <span>Active Step: {activeDetail.name}</span>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mt-2 pt-2 border-t border-[var(--card-border-subtle)]">
+          <div className="flex items-center gap-1.5 text-[10.5px] font-mono text-[var(--text-tertiary)] min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--verdigris)] animate-pulse shrink-0" />
+            <span className="truncate">{activeDetail.name}</span>
           </div>
 
           <button
@@ -504,15 +508,15 @@ export const MagicblockPerDiagram: React.FC = () => {
 
       {/* Selected Step Deep Dive Card */}
       <div className="p-3 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${activeDetail.status === 'blocked' ? 'bg-[var(--refused-rust)]' : activeDetail.status === 'cleared' ? 'bg-[var(--verdigris)]' : 'bg-[var(--ember)]'}`} />
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className={`w-2 h-2 rounded-full shrink-0 translate-y-[-1px] ${activeDetail.status === 'blocked' ? 'bg-[var(--refused-rust)]' : activeDetail.status === 'cleared' ? 'bg-[var(--verdigris)]' : 'bg-[var(--ember)]'}`} />
             <h5 className="text-[12.5px] font-bold text-[var(--text-primary)]">
               {activeDetail.name}
             </h5>
           </div>
-          <div className="flex items-center gap-2 font-mono text-[10.5px]">
-            <span className="text-[var(--text-tertiary)]">Latency:</span>
+          <div className="flex items-baseline gap-2 font-mono text-[10.5px] shrink-0">
+            <span className="text-[var(--text-tertiary)]">Latency</span>
             <span className="font-bold text-[var(--verdigris)]">{activeDetail.latency}</span>
           </div>
         </div>
@@ -521,7 +525,7 @@ export const MagicblockPerDiagram: React.FC = () => {
           {activeDetail.detail}
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1.5 border-t border-[var(--card-border-subtle)]/60 text-[10.5px] font-mono">
+        <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-[var(--card-border-subtle)]/60 text-[10.5px] font-mono">
           <div className="flex flex-col gap-0.5 bg-[var(--card-surface)] p-2 rounded-lg border border-[var(--card-border-subtle)]">
             <span className="text-[var(--text-tertiary)]">Privacy &amp; Attestation:</span>
             <span className="text-[var(--text-primary)] font-medium truncate">{activeDetail.privacy}</span>

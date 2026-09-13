@@ -1,4 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import {
+  loadSessions,
+  currentSession,
+  sessionLabel,
+  type MarketSession,
+} from '../lib/backpack';
 import emblemDark from '../assets/emblem-dark.jpg';
 import emblemLight from '../assets/emblem-light.jpg';
 
@@ -13,6 +19,36 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onOpenOnboarding,
 }) => {
+  // The real session, from the exchange's own calendar.
+  //
+  // It sits next to WATCHING and SEALED because those two say the agent is
+  // running and the holdings are shut; this says which market it is
+  // running against. A mandate that refuses to hold overnight is only a
+  // rule if something knows when overnight is, and this is the thing that
+  // knows.
+  const [sessions, setSessions] = useState<MarketSession[] | null>(null);
+  const [session, setSession] = useState<MarketSession | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    loadSessions().then((s) => {
+      if (live) setSessions(s);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessions) return;
+    const tick = () => setSession(currentSession(sessions));
+    tick();
+    // A session boundary is a minute-resolution event, so this is the
+    // slowest interval that still catches one as it happens.
+    const id = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(id);
+  }, [sessions]);
+
 
   return (
     <header className="app-header">
@@ -183,6 +219,23 @@ export const Header: React.FC<HeaderProps> = ({
               </svg>
               <span>SEALED</span>
             </span>
+            {sessions && (
+              <>
+                <span className="text-[var(--text-tertiary)]">•</span>
+                <span
+                  className={`inline-flex items-center gap-1 uppercase tracking-wide whitespace-nowrap ${
+                    session?.name === 'US_EQUITIES_OVERNIGHT'
+                      ? 'text-[var(--ember)]'
+                      : session
+                        ? 'text-[var(--text-secondary)]'
+                        : 'text-[var(--text-tertiary)]'
+                  }`}
+                  title={session ? session.description : 'US equities are closed'}
+                >
+                  {sessionLabel(session)}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>

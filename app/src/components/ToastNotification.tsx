@@ -30,7 +30,7 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-[var(--card-surface-raised)]/95 border border-[var(--verdigris-chip-border)] shadow-[0_12px_36px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 ease-out animate-fadeIn max-w-[92vw] sm:max-w-md pointer-events-auto"
+      className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-[var(--card-surface-raised)]/95 border border-[var(--verdigris-chip-border)] shadow-[0_12px_36px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 ease-out animate-fadeIn max-w-[min(92vw,408px)] pointer-events-auto"
       id="cleat-subtle-toast"
     >
       <div className="w-6 h-6 rounded-full bg-[var(--verdigris-chip-bg)] border border-[var(--verdigris)]/30 flex items-center justify-center shrink-0">
@@ -42,7 +42,7 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
           {message}
         </span>
         {subtext && (
-          <span className="text-[10.5px] font-mono text-[var(--text-tertiary)] truncate max-w-[240px] sm:max-w-[320px]">
+          <span className="text-[10.5px] font-mono text-[var(--text-tertiary)] truncate max-w-[240px]">
             {subtext}
           </span>
         )}

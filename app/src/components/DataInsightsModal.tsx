@@ -160,9 +160,12 @@ Autonomous Raw Instruction: ${marker.rawPayload || 'Program: JUP6LkbZbjS1jKKwapd
         </div>
 
         {/* Telemetry Strip: Exact Timestamp, Venue, Capital Preserved */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {/* Two columns, not three at sm. The sheet is bounded to the app's
+            440px column now, but sm: still keys off the window, so on a
+            desktop this cut a 400px sheet into three. */}
+        <div className="grid grid-cols-2 gap-2">
           {/* Exact Timestamp */}
-          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col col-span-2 sm:col-span-1">
+          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col col-span-2">
             <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] flex items-center gap-1">
               <Clock size={11} /> Exact Timestamp
             </span>

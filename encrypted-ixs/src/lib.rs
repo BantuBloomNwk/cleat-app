@@ -41,4 +41,41 @@ mod circuits {
         let breaches = (h.exposure_bps + effective_bps) > max_position_bps;
         breaches.reveal()
     }
+
+    // ── The probes ────────────────────────────────────────────────────
+    //
+    // gate_breach_v2 finalises and comes back a signed failure with no
+    // output bytes, every time. Everything around it is known good: the
+    // computation reaches the cluster, executes, finalises, and the
+    // callback is delivered. What is left is this circuit body, and
+    // guessing at it one deploy at a time costs fifteen minutes a guess.
+    //
+    // So four shapes go up together, each one step further from a circuit
+    // shape already proven on this cluster, and whichever is the first to
+    // fail is the answer:
+    //
+    //   a  secret against a constant
+    //   b  secret against a plaintext argument
+    //   c  secret plus a plaintext argument, against another  (= v2)
+    //   d  the same as c at u64 instead of u16
+    //
+    // The proven circuit compares two u64 secrets, so d separating from c
+    // would mean the width, and b separating from a would mean mixing a
+    // plaintext argument into the comparison at all.
+
+    /// Secret against a constant. Nothing public enters the comparison.
+    #[instruction]
+    pub fn probe_a(holdings: Enc<Shared, Holdings>) -> bool {
+        let h = holdings.to_arcis();
+        let over = h.exposure_bps > 0;
+        over.reveal()
+    }
+
+    /// Secret against a plaintext argument.
+    #[instruction]
+    pub fn probe_b(holdings: Enc<Shared, Holdings>, max_position_bps: u16) -> bool {
+        let h = holdings.to_arcis();
+        let over = h.exposure_bps > max_position_bps;
+        over.reveal()
+    }
 }

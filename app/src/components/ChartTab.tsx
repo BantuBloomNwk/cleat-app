@@ -701,28 +701,30 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               </p>
             </div>
 
-            {/* Trader Analytics Sub-Tabs */}
-            <div className="flex items-center gap-1.5 border-b border-[var(--card-border-subtle)] pb-2 font-mono text-[11px]">
+            {/* Trader Analytics Sub-Tabs.
+                Three equal columns. As a flex row the third label had no
+                room left and came out stacked three words high. */}
+            <div className="grid grid-cols-3 gap-1.5 border-b border-[var(--card-border-subtle)] pb-2 font-mono text-[10.5px]">
               <button
                 type="button"
-                className={`px-2.5 py-1 rounded-lg transition-colors ${traderDetailTab === 'telemetry' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
+                className={`px-1.5 py-1.5 rounded-lg text-center leading-tight transition-colors ${traderDetailTab === 'telemetry' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                 onClick={() => { setTraderDetailTab('telemetry'); tactile.selectionTap(); }}
               >
-                Trader Telemetry
+                Telemetry
               </button>
               <button
                 type="button"
-                className={`px-2.5 py-1 rounded-lg transition-colors ${traderDetailTab === 'counterfactual' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
+                className={`px-1.5 py-1.5 rounded-lg text-center leading-tight transition-colors ${traderDetailTab === 'counterfactual' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                 onClick={() => { setTraderDetailTab('counterfactual'); tactile.selectionTap(); }}
               >
-                Counterfactual PnL
+                Counterfactual
               </button>
               <button
                 type="button"
-                className={`px-2.5 py-1 rounded-lg transition-colors ${traderDetailTab === 'proof' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
+                className={`px-1.5 py-1.5 rounded-lg text-center leading-tight transition-colors ${traderDetailTab === 'proof' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                 onClick={() => { setTraderDetailTab('proof'); tactile.selectionTap(); }}
               >
-                PER &amp; MPC Proof
+                PER Proof
               </button>
             </div>
 
@@ -945,19 +947,29 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           </span>
         </div>
 
-        {/* Volume Metric Cards & 7D D3 Sparkline Graph */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {/* Total Volume */}
-          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-between">
-            <div>
-              <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+        {/* Volume Metric Cards & 7D D3 Sparkline Graph.
+        
+            No viewport breakpoints. They were the bug: sm: and lg: key off
+            the window, but this app is a 440px column at every window size,
+            so on a desktop lg:grid-cols-4 fired and cut the row into four
+            86px tiles with a chart in one of them. The column never
+            changes width, so the layout should not ask the window about
+            it.
+        
+            Headline, then the pair that compares, then the trend, each
+            given the width its content actually needs. */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* Total Volume, the headline, across the row */}
+          <div className="col-span-2 p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <div className="flex items-baseline gap-2.5 min-w-0">
+              <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] whitespace-nowrap">
                 Total Volume
               </span>
-              <div className="text-[15px] font-mono font-extrabold text-[var(--text-primary)] mt-0.5">
+              <span className="text-[17px] font-mono font-extrabold text-[var(--text-primary)]">
                 {currentVolume.totalFormatted}
-              </div>
+              </span>
             </div>
-            <span className="text-[10px] text-[var(--text-secondary)] mt-0.5">
+            <span className="text-[10px] text-[var(--text-secondary)] whitespace-nowrap">
               {currentVolume.txCount.toLocaleString()} transactions
             </span>
           </div>
@@ -1003,7 +1015,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           </div>
 
           {/* 7-Day High-Density D3 Sparkline Graph */}
-          <div className="p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-center min-w-0 overflow-hidden">
+          <div className="col-span-2 p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-center min-w-0 overflow-hidden">
             <D3VolumeSparkline
               compact={true}
               action={

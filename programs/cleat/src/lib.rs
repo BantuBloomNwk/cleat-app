@@ -117,4 +117,64 @@ pub mod cleat {
     pub fn release_vault(ctx: Context<ReleaseVault>) -> Result<()> {
         instructions::per::exec_release_vault(ctx)
     }
+
+    // ── The probes ────────────────────────────────────────────────────
+    // Temporary. They exist to find out why gate_breach_v2 comes back a
+    // signed failure, and they go once it does not.
+
+    pub fn init_probe_a_comp_def(ctx: Context<InitProbeACompDef>) -> Result<()> {
+        instructions::probe::exec_init_probe_a(ctx)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn queue_probe_a(
+        ctx: Context<ProbeAQueue>,
+        computation_offset: u64,
+        exposure_ct: [u8; 32],
+        pubkey: [u8; 32],
+        nonce: u128,
+        a: u64,
+        b: u64,
+    ) -> Result<()> {
+        instructions::probe::exec_queue_probe_a(
+            ctx, computation_offset, exposure_ct, pubkey, nonce, a, b,
+        )
+    }
+
+    #[arcium_callback(encrypted_ix = "probe_a")]
+    pub fn probe_a_callback(
+        ctx: Context<ProbeACallback>,
+        output: SignedComputationOutputs<ProbeAOutput>,
+    ) -> Result<()> {
+        instructions::probe::exec_probe_a_callback(ctx, output)
+    }
+
+    pub fn init_probe_b_comp_def(ctx: Context<InitProbeBCompDef>) -> Result<()> {
+        instructions::probe::exec_init_probe_b(ctx)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn queue_probe_b(
+        ctx: Context<ProbeBQueue>,
+        computation_offset: u64,
+        exposure_ct: [u8; 32],
+        pubkey: [u8; 32],
+        nonce: u128,
+        a: u64,
+        b: u64,
+    ) -> Result<()> {
+        instructions::probe::exec_queue_probe_b(
+            ctx, computation_offset, exposure_ct, pubkey, nonce, a, b,
+        )
+    }
+
+    #[arcium_callback(encrypted_ix = "probe_b")]
+    pub fn probe_b_callback(
+        ctx: Context<ProbeBCallback>,
+        output: SignedComputationOutputs<ProbeBOutput>,
+    ) -> Result<()> {
+        instructions::probe::exec_probe_b_callback(ctx, output)
+    }
+
+
 }

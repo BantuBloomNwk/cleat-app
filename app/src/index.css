@@ -121,28 +121,37 @@ body {
   object-position: center center;
   transition: opacity 0.35s ease;
 }
+/* The wallpapers carry the only colour on the page that is not a status,
+   so they were being wasted: a heavy veil over a dimmed image left two
+   grey rectangles. Both are brought up here, the light one further,
+   because a pale image under a heavier veil had almost nothing left.
+
+   The cards are 94 to 98 percent opaque, so this changes what sits
+   around them and almost nothing of what sits behind their text. */
 .wallpaper-dark {
-  opacity: 0.95;
-  filter: brightness(0.72) contrast(1.08) saturate(1.15);
+  opacity: 1;
+  filter: brightness(0.92) contrast(1.16) saturate(1.45);
 }
 .wallpaper-light {
   opacity: 0;
-  filter: brightness(1.02) saturate(1.04);
+  filter: brightness(0.99) contrast(1.14) saturate(1.6);
 }
 [data-theme="light"] .wallpaper-dark {
   opacity: 0;
 }
 [data-theme="light"] .wallpaper-light {
-  opacity: 0.85;
+  opacity: 1;
 }
 
+/* The veil holds the middle of the screen open so the wordmark and the
+   dock read against it, and lets the colour come back at the edges. */
 .wallpaper-veil {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 12%, rgba(12, 11, 10, 0.2) 0%, rgba(12, 11, 10, 0.82) 75%);
+  background: radial-gradient(circle at 50% 12%, rgba(12, 11, 10, 0.08) 0%, rgba(12, 11, 10, 0.62) 78%);
 }
 [data-theme="light"] .wallpaper-veil {
-  background: radial-gradient(circle at 50% 15%, rgba(247, 245, 240, 0.3) 0%, rgba(247, 245, 240, 0.88) 75%);
+  background: radial-gradient(circle at 50% 15%, rgba(247, 245, 240, 0.10) 0%, rgba(247, 245, 240, 0.66) 78%);
 }
 
 .app-shell {
@@ -311,6 +320,27 @@ body {
   background: radial-gradient(circle at 50% -20%, rgba(78, 194, 165, 0.18) 0%, rgba(232, 141, 67, 0.09) 50%, transparent 80%);
   pointer-events: none;
   z-index: -1;
+}
+
+/* The label and the card's actions, on one line.
+   
+   This class is used by four cards and had no rule at all, so it was a
+   plain block: the kicker took its own line and the action group took the
+   next one, which is why the copy and share buttons floated under the
+   label instead of sitting beside it. */
+.card-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 10px;
+  row-gap: 6px;
+  width: 100%;
+}
+.card-topbar > .meta-kicker {
+  /* The label holds the line; the actions wrap under it if they must. */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .meta-kicker {
@@ -518,13 +548,25 @@ body {
 }
 
 /* SECTION ROW HEADERS */
+/* A section header is a name and some meta about it, and the name is the
+   part that must not break. Without wrap the two fought over one line and
+   both lost: "Overnight Decision Ledger" came out as "Overnight" over
+   "Decision Ledger", the count chip as "4" over "items", and the hint as
+   "Tap item to inspect" over "agent trace". Wrapping lets the meta drop
+   to its own line instead, which costs one line and reads correctly. */
 .section-row-header {
   display: flex !important;
-  align-items: center !important;
+  flex-wrap: wrap;
+  align-items: baseline !important;
   justify-content: space-between !important;
+  column-gap: 12px;
+  row-gap: 3px;
   padding: 4px 2px;
   margin-top: 6px;
   margin-bottom: 2px;
+}
+.section-row-header > * {
+  min-width: 0;
 }
 
 .section-heading {
@@ -534,6 +576,9 @@ body {
   color: var(--text-primary) !important;
   letter-spacing: -0.01em !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  /* These are names. A name that breaks across two lines reads as two
+     things, and every one of them fits the column on its own line. */
+  white-space: nowrap;
 }
 
 [data-theme="light"] .section-heading {
@@ -546,26 +591,28 @@ body {
   font-size: 11px !important;
   color: var(--text-tertiary) !important;
   letter-spacing: 0.01em !important;
+  white-space: nowrap;
 }
 
-/* DEFENSIVE CONTAINMENT FOR DRAWERS AND MODALS */
+/* The tick drawer is a .modal-backdrop and only differs from one in its
+   depth and its dim, so that is all it sets now.
+   
+   It used to restate the whole rule, including `inset: 0 !important`. That
+   beat the shared rule's left: 50% while leaving its translateX(-50%) in
+   place, so the drawer was shifted half its own width off the left edge of
+   the screen and opened out of view on every device. */
 .chart-drawer-modal,
 #chartTickDrawer {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 350 !important;
-  background: rgba(12, 11, 10, 0.88) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 20px !important;
+  z-index: 350;
+  background: rgba(12, 11, 10, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 20px;
 }
 
 [data-theme="light"] .chart-drawer-modal,
 [data-theme="light"] #chartTickDrawer {
-  background: rgba(247, 245, 240, 0.88) !important;
+  background: rgba(247, 245, 240, 0.88);
 }
 
 .chart-drawer-card {
