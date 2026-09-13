@@ -1,4 +1,5 @@
 import { ExpandSheet, ExpandButton } from './ExpandSheet';
+import { LiveInstrument } from './LiveInstrument';
 import React, { useState, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
 import { TIMEFRAME_CONFIGS, INITIAL_SOCIAL_TRADE_MESSAGES } from '../data/initialData';
@@ -40,6 +41,17 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   const [isCopiedAlert, setIsCopiedAlert] = useState(false);
   // which card has been opened for a closer look, if any
   const [expanded, setExpanded] = useState<null | 'volume' | 'trend' | 'chart'>(null);
+  // Defaults to a spot tokenized share rather than a perpetual, and the
+  // reason is legal rather than aesthetic.
+  //
+  // A perpetual on a single name is a cash settled derivative with no
+  // share behind it, which makes it a security based swap, which US rules
+  // keep away from retail entirely. The spot token is the actual
+  // entitlement, it is the thing that can sit in a wallet without anyone's
+  // permission, and it is the one our framing survives on. Perps stay in
+  // the picker because they are where the liquidity is, and they are
+  // labelled.
+  const [instrument, setInstrument] = useState('MU.US_USDC');
   const [traderDetailTab, setTraderDetailTab] = useState<'telemetry' | 'counterfactual' | 'proof'>('telemetry');
   const [copiedProof, setCopiedProof] = useState(false);
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
@@ -203,20 +215,15 @@ export const ChartTab: React.FC<ChartTabProps> = ({
       {/* Section Header */}
       <div className="section-row-header">
         <h2 className="section-heading text-[16px] font-bold">Protection Geometry</h2>
-        <span className="section-hint text-[11px]">Simulated Wave &amp; Refusal Mesh</span>
+        <span className="section-hint text-[11px]">Live market, marked refusals</span>
       </div>
 
       <div className="glass-card flex flex-col gap-3" id="protection-geometry-card">
         {/* Card Topbar */}
         <div className="card-topbar">
-          <div>
-            <div className="font-bold text-[15px] text-[var(--text-primary)]">
-              Synthetic Bound Token (SBT)
-            </div>
-            <div id="chartNetReturnText" className="font-mono text-[12px] text-[var(--text-secondary)] mt-0.5">
-              {currentConfig.netReturnText}
-            </div>
-          </div>
+          {/* The real instrument, priced by the venue the agent trades
+              on, replacing a token that did not exist. */}
+          <LiveInstrument symbol={instrument} onSelect={setInstrument} />
           <div className="flex gap-1.5 items-center">
             <button
               id="perspectiveToggleBtn"

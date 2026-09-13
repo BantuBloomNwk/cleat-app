@@ -202,3 +202,120 @@ export function clampToStep(qty: number, session: SecuritySession): number {
   if (clean < min) return 0;
   return Math.min(clean, max);
 }
+
+/** One hourly candle, as the venue reports it. */
+export interface Kline {
+  start: string;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+  quoteVolume: string;
+  trades: string;
+}
+
+export async function loadKlines(
+  symbol: string,
+  interval = "1h",
+): Promise<Kline[] | null> {
+  if (!base) return null;
+  try {
+    const res = await fetch(
+      `${base}?path=klines&symbol=${encodeURIComponent(symbol)}&interval=${interval}`,
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as Kline[];
+  } catch {
+    return null;
+  }
+}
+
+export interface Depth {
+  bids: [string, string][];
+  asks: [string, string][];
+}
+
+export async function loadDepth(symbol: string): Promise<Depth | null> {
+  if (!base) return null;
+  try {
+    const res = await fetch(
+      `${base}?path=depth&symbol=${encodeURIComponent(symbol)}`,
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as Depth;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How wide the book is, and how much sits near the touch.
+ *
+ * This is the number a mandate should be sizing against when the New York
+ * exchanges are shut. On the Sunday this was written, the same venue was
+ * quoting NVDA's perpetual at half a basis point across seventy-eight
+ * levels and Micron's spot at thirty-five basis points across twelve. An
+ * agent that treats those two as the same market is the agent this whole
+ * product exists to bound.
+ *
+ * Backpack returns bids ascending, so the best bid is the last of them.
+ */
+export function bookQuality(d: Depth | null): {
+  spreadBps: number;
+  nearDepthUsd: number;
+  levels: number;
+} | null {
+  if (!d || d.bids.length === 0 || d.asks.length === 0) return null;
+  const bestBid = Number(d.bids[d.bids.length - 1][0]);
+  const bestAsk = Number(d.asks[0][0]);
+  if (!Number.isFinite(bestBid) || bestBid <= 0) return null;
+  const nearDepthUsd = d.bids
+    .slice(-10)
+    .reduce((a, [px, qty]) => a + Number(px) * Number(qty), 0);
+  return {
+    spreadBps: ((bestAsk - bestBid) / bestBid) * 10_000,
+    nearDepthUsd,
+    levels: Math.min(d.bids.length, d.asks.length),
+  };
+}
+
+/** Wide enough that size is the thing that will hurt you. */
+export const isThin = (q: ReturnType<typeof bookQuality>) =>
+  !!q && (q.spreadBps > 15 || q.levels < 15);
+
+/**
+ * Which of the three clocks a symbol trades on.
+ *
+ * They are not the same market wearing different names, and a mandate that
+ * treats them as one is under specified:
+ *
+ *   rfq    the broker quoting against real share inventory. Open only in
+ *          New York's session, and the only leg the session calendar
+ *          actually gates.
+ *   clob   the venue's own book, spot and perpetual. Never closes, and
+ *          still behind the venue's account, so it is always open and
+ *          never permissionless.
+ *   chain  the token itself, once withdrawn. Trades on any Solana venue
+ *          that lists it, needs nothing but a wallet, and has no circuit
+ *          breaker of any kind.
+ *
+ * Only the last of those is permissionless, which is the distinction the
+ * phrase "24/7" hides.
+ */
+export type Venue = "rfq" | "clob" | "chain";
+
+export function venueOf(symbol: string): Venue {
+  if (symbol.endsWith("_RFQ")) return "rfq";
+  return "clob";
+}
+
+/**
+ * A perpetual is not a share.
+ *
+ * No entitlement, no redemption, cash settled against a single name, which
+ * makes it a security based swap rather than a security. It matters for
+ * what the product may say about itself, so it is a function rather than a
+ * comment.
+ */
+export const isEntitlement = (symbol: string) => !isPerp(symbol);

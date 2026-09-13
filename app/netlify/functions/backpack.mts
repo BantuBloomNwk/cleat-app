@@ -12,6 +12,8 @@
 //   market-holidays   the closures, including overnight eves
 //   markets           which of those actually have a market, spot or perp
 //   tickers           what every one of them is trading at, right now
+//   klines            real candles, so the chart plots a real price
+//   depth             the book, so a mandate can size against how thin it is
 //
 // A browser cannot call them directly because the API sends no CORS
 // header, so it calls this. Nothing here is authenticated, nothing here
@@ -26,6 +28,7 @@
 
 const UPSTREAM = "https://api.backpack.exchange/api/v1";
 
+// Paths that take no parameters.
 const ALLOWED = new Set([
   "securities",
   "market-sessions",
@@ -34,21 +37,60 @@ const ALLOWED = new Set([
   "tickers",
 ]);
 
+// Paths that take a symbol, and the shape a symbol is allowed to have.
+// Anchored and narrow on purpose: the symbol goes into an upstream URL, so
+// it is validated rather than trusted.
+const SYMBOL_PATHS = new Set(["klines", "depth", "ticker"]);
+const SYMBOL = /^[A-Z0-9]{1,12}(\.[A-Z]{1,4})?_[A-Z0-9]{1,8}(_PERP)?$/;
+const INTERVAL = new Set(["1m", "5m", "15m", "1h", "4h", "1d", "1w"]);
+
 export default async (req: Request) => {
   const url = new URL(req.url);
   const which = url.searchParams.get("path") ?? "securities";
 
   // An allowlist rather than a passthrough. A proxy that forwards whatever
   // path it is handed is an open relay wearing this project's domain.
-  if (!ALLOWED.has(which)) {
+  const takesSymbol = SYMBOL_PATHS.has(which);
+  if (!ALLOWED.has(which) && !takesSymbol) {
     return new Response(JSON.stringify({ error: "unknown path" }), {
       status: 400,
       headers: { "content-type": "application/json" },
     });
   }
 
+  const query = new URLSearchParams();
+  if (takesSymbol) {
+    const symbol = url.searchParams.get("symbol") ?? "";
+    if (!SYMBOL.test(symbol)) {
+      return new Response(JSON.stringify({ error: "bad symbol" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    query.set("symbol", symbol);
+
+    if (which === "klines") {
+      const interval = url.searchParams.get("interval") ?? "1h";
+      if (!INTERVAL.has(interval)) {
+        return new Response(JSON.stringify({ error: "bad interval" }), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      query.set("interval", interval);
+      // The window is computed here rather than accepted, so the caller
+      // cannot ask the upstream for an unbounded range.
+      const hours = interval === "1d" || interval === "1w" ? 24 * 90 : 24 * 7;
+      query.set(
+        "startTime",
+        String(Math.floor(Date.now() / 1000) - hours * 3600),
+      );
+    }
+  }
+
+  const qs = query.toString();
   try {
-    const res = await fetch(`${UPSTREAM}/${which}`, {
+    const res = await fetch(`${UPSTREAM}/${which}${qs ? `?${qs}` : ""}`, {
       headers: { accept: "application/json" },
     });
     if (!res.ok) {
@@ -65,10 +107,14 @@ export default async (req: Request) => {
         // The universe and the calendar change on the order of days, so
         // this is cached hard at the edge. It keeps the page fast and
         // keeps us from leaning on someone else's public endpoint.
+        // Prices move, the calendar does not, and a book moves fastest of
+        // all. Three different caches rather than one compromise.
         "cache-control":
-          which === "tickers"
-            ? "public, max-age=15, s-maxage=30"
-            : "public, max-age=900, s-maxage=3600",
+          which === "depth"
+            ? "public, max-age=5, s-maxage=10"
+            : which === "tickers" || which === "ticker" || which === "klines"
+              ? "public, max-age=15, s-maxage=30"
+              : "public, max-age=900, s-maxage=3600",
       },
     });
   } catch {
