@@ -7,7 +7,11 @@ import {
   symbolTicker,
   isPerp,
   isEntitlement,
+  loadSessions,
+  currentSession,
+  sessionLabel,
   type Ticker,
+  type MarketSession,
 } from '../lib/backpack';
 import { tactile } from '../utils/haptics';
 
@@ -33,6 +37,7 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
   const [tickers, setTickers] = useState<Ticker[] | null>(null);
   const [book, setBook] = useState<ReturnType<typeof bookQuality>>(null);
   const [picking, setPicking] = useState(false);
+  const [sessions, setSessions] = useState<MarketSession[] | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -42,6 +47,14 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
     return () => {
       live = false;
       window.clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    let live = true;
+    loadSessions().then((x) => live && setSessions(x));
+    return () => {
+      live = false;
     };
   }, []);
 
@@ -84,8 +97,17 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
     );
   }
 
+  const session = currentSession(sessions);
+
   return (
     <div className="flex flex-col gap-1 min-w-0">
+      {/* Say what this number is. It was a ticker and a price with nothing
+          around them, which reads as decoration rather than as the thing
+          the agent is working against. */}
+      <div className="flex items-center gap-1.5 text-[9.5px] font-mono uppercase tracking-[0.09em] text-[var(--text-tertiary)]">
+        <span className="whitespace-nowrap">Agent is working against</span>
+        <span className="text-[var(--verdigris)] whitespace-nowrap">tap to change</span>
+      </div>
       <button
         type="button"
         onClick={() => {
@@ -141,6 +163,22 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
         >
           venue book
         </span>
+        {/* New York's session belongs here, next to the instrument it
+            applies to, rather than in a global header. It is context for
+            this one name, and for most of our users it is the least
+            relevant clock on the page. */}
+        {sessions && (
+          <span
+            className="whitespace-nowrap"
+            title={
+              session
+                ? `The listing exchange is in its ${sessionLabel(session).toLowerCase()} session.`
+                : 'The listing exchange is shut. This market is not, which is the point.'
+            }
+          >
+            listing exchange {session ? sessionLabel(session).toLowerCase() : 'shut'}
+          </span>
+        )}
         {book && (
           <span
             className={`whitespace-nowrap ${thin ? 'text-[var(--ember)] font-bold' : ''}`}

@@ -222,12 +222,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Four items now, and at 320px they do not fit one line. Wrapping
               beats truncating here: every one of them is a state someone
               needs to be able to read. */}
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1 text-[10px] font-mono font-bold tracking-wider">
+          <div className="status-strip mt-1 text-[10px] font-mono font-bold tracking-wider">
             <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
               <span className="pulse-dot" />
               <span>WATCHING</span>
             </span>
-            <span className="text-[var(--text-tertiary)]">•</span>
             <span className="inline-flex items-center gap-1 text-[var(--verdigris)] font-extrabold uppercase tracking-wide">
               <svg className="w-2.5 h-2.5 stroke-current fill-none stroke-[2.6]" viewBox="0 0 24 24">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -240,34 +239,13 @@ export const Header: React.FC<HeaderProps> = ({
                 decides whether the agent can act, and it is always open.
                 New York's session is context, not a gate. */}
             {live && (
-              <>
-                <span className="text-[var(--text-tertiary)]">•</span>
-                <span
-                  className="inline-flex items-center gap-1 uppercase tracking-wide whitespace-nowrap text-[var(--verdigris)]"
-                  title={`${live.markets} tokenized markets quoting, ${live.trades.toLocaleString()} trades in the last 24 hours`}
+              <span
+                  className="inline-flex items-center gap-1.5 uppercase tracking-wide whitespace-nowrap text-[var(--verdigris)]"
+                  title={`${live.markets} tokenized markets quoting right now, ${live.trades.toLocaleString()} trades in the last 24 hours. They do not keep any exchange's hours.`}
                 >
-                  24/7 LIVE
-                </span>
-              </>
-            )}
-            {sessions && (
-              <>
-                <span className="text-[var(--text-tertiary)]">•</span>
-                <span
-                  className={`inline-flex items-center gap-1 uppercase tracking-wide whitespace-nowrap ${
-                    session?.name === 'US_EQUITIES_OVERNIGHT'
-                      ? 'text-[var(--ember)]'
-                      : 'text-[var(--text-tertiary)]'
-                  }`}
-                  title={
-                    session
-                      ? session.description
-                      : 'The New York exchanges are shut. The tokenized market is not.'
-                  }
-                >
-                  {sessionLabel(session)}
-                </span>
-              </>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--verdigris)] shrink-0" />
+                  <span>24/7 LIVE</span>
+              </span>
             )}
           </div>
         </div>

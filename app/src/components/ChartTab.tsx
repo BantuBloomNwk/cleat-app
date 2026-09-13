@@ -1,5 +1,6 @@
 import { ExpandSheet, ExpandButton } from './ExpandSheet';
 import { LiveInstrument } from './LiveInstrument';
+import { useTilt3D } from '../utils/useTilt3D';
 import React, { useState, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
 import { TIMEFRAME_CONFIGS, INITIAL_SOCIAL_TRADE_MESSAGES } from '../data/initialData';
@@ -52,6 +53,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   // the picker because they are where the liquidity is, and they are
   // labelled.
   const [instrument, setInstrument] = useState('MU.US_USDC');
+  const tilt = useTilt3D(is3DActive);
   const [traderDetailTab, setTraderDetailTab] = useState<'telemetry' | 'counterfactual' | 'proof'>('telemetry');
   const [copiedProof, setCopiedProof] = useState(false);
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
@@ -256,14 +258,34 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           ))}
         </div>
 
-        {/* 3D Wrapper Box with Interactive Direct Touch / Mouse Scrubbing */}
+        {/* The plot, and in 3D mode something you can actually turn.
+            The scrubbing gestures stay with the svg, marked data-no-tilt,
+            so reading a day and turning the panel do not fight. */}
         <div
+          ref={tilt.ref}
           id="chartWrapper3D"
-          className={`chart-wrapper-3d ${is3DActive ? 'perspective-active' : ''}`}
+          className={`chart-wrapper-3d ${is3DActive ? 'perspective-active' : ''} ${
+            tilt.isDragging ? 'is-turning' : ''
+          }`}
+          role={is3DActive ? 'application' : undefined}
+          aria-label={is3DActive ? 'Three dimensional chart. Drag or use the arrow keys to turn it, Escape to reset.' : undefined}
+          tabIndex={is3DActive ? 0 : undefined}
+          onPointerDown={tilt.onPointerDown}
+          onPointerMove={tilt.onPointerMove}
+          onPointerUp={tilt.onPointerUp}
+          onPointerCancel={tilt.onPointerUp}
+          onKeyDown={tilt.onKeyDown}
+          onDoubleClick={tilt.reset}
         >
+          {is3DActive && (
+            <div className="tilt-hint" aria-hidden="true">
+              drag to turn · double tap to reset
+            </div>
+          )}
           <svg
             ref={svgRef}
             id="chartSvgBox"
+            data-no-tilt
             aria-label="Interactive simulated wave price chart"
             className="chart-canvas-box"
             viewBox="0 0 360 185"

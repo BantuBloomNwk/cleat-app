@@ -979,9 +979,57 @@ body {
   transform: perspective(700px) translateZ(0);
   transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease;
 }
+/* Turning is driven from javascript, which writes the transform straight
+   onto the element, so this must not declare one of its own or it would
+   fight every pointer move. It sets the room the turn happens in and the
+   shadow that makes it read as a panel above a surface. */
 .chart-wrapper-3d.perspective-active {
-  transform: perspective(600px) rotateX(16deg) scale(0.98);
+  transform-style: preserve-3d;
   box-shadow: 0 28px 56px -12px rgba(0, 0, 0, 0.65);
+  cursor: grab;
+  touch-action: none;
+  /* Only the resting settle is animated. While a finger is down the
+     transform has to track it exactly, which is what is-turning turns off. */
+  transition: box-shadow 0.35s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.chart-wrapper-3d.is-turning {
+  cursor: grabbing;
+  transition: none;
+}
+.chart-wrapper-3d.perspective-active:focus-visible {
+  outline: 2px solid var(--verdigris);
+  outline-offset: 3px;
+}
+
+/* The layers lift apart as it turns, so rotating shows structure instead
+   of skewing one flat picture. --tilt-depth runs 0 to 1 with the lean. */
+.chart-wrapper-3d.perspective-active .chart-canvas-box {
+  transform: translateZ(calc(var(--tilt-depth, 0) * 26px));
+  transform-style: preserve-3d;
+}
+.chart-wrapper-3d.perspective-active .radar-ring {
+  transform: translateZ(calc(var(--tilt-depth, 0) * -22px));
+  opacity: calc(0.6 - var(--tilt-depth, 0) * 0.25);
+}
+
+.tilt-hint {
+  position: absolute;
+  left: 10px;
+  bottom: 6px;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-wrapper-3d,
+  .chart-wrapper-3d.perspective-active {
+    transition: none;
+  }
 }
 .chart-canvas-box {
   width: 100%;
@@ -1894,4 +1942,31 @@ h1, h2, h3, h4, h5, h6,
 
 @media (prefers-reduced-motion: reduce) {
   .expand-sheet-backdrop, .expand-sheet-panel { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   The status strip under the wordmark.
+
+   Separators used to be their own elements, which meant a wrapped
+   line could end on a lone dot with nothing after it. They are drawn
+   between siblings now, so a dot only ever appears where there is
+   something on both sides of it.
+   ───────────────────────────────────────────────────────────── */
+.status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 1px;
+  min-width: 0;
+}
+/* No separators at all, in the end.
+   
+   As elements they orphaned at the end of a wrapped line. As ::before
+   pseudo elements they orphaned at the start of one instead, because css
+   cannot tell which item begins a wrapped row. Every item here already
+   carries its own mark, a pulse dot, a padlock, or its own colour, so the
+   dots were never doing work that spacing could not do. */
+.status-strip {
+  column-gap: 12px;
 }
