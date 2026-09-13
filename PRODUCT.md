@@ -250,6 +250,56 @@ All four rejected explicitly by the founder:
 4. **Publish the measured numbers.** Circuit cost, verdict latency, the attested rollup's
    seal and read times. Most entries assert performance; almost none show it.
 
+## The instruments are real, and so is the calendar
+
+Backpack Securities is a registered US broker dealer issuing tokenized
+equities on Solana, and in September 2026 its CEO opened mint and redeem to
+any developer building stocks on Solana. Backpack and Sunrise are the two
+outlets actually bringing equities onto this chain, so building against
+them is the difference between a demo with invented tickers and something a
+person could use.
+
+Four of their endpoints need no key and no account, and they are wired in:
+
+- `securities` is the tradable universe, about eleven hundred names, each
+  with a cusip and, per session, the minimum quantity and the step size the
+  venue will accept.
+- `market-sessions` is the four real US equity sessions with their hours in
+  New York: pre-market 04:00 to 09:30, regular 09:30 to 16:00, after hours
+  16:00 to 20:00, overnight 20:00 to 04:00.
+- `market-holidays` is the closures, including the overnight eves that shut
+  early.
+- `markets` says which of those names actually have a market, and whether
+  it is spot or perpetual.
+
+This is not decoration, and it repairs a specific weakness. **A mandate that
+says "never hold overnight" was a sentence the app could store and not
+enforce**, because nothing in it knew when overnight was. Now something
+does, and it is the exchange's own definition rather than a number we
+picked. The same applies to the clamp: a cap expressed as a share of the
+book has to come out as a quantity the venue will take, so it has to land
+on a real step size. A cap that produces 3.14159 shares of something quoted
+in whole shares was described, not enforced.
+
+It also settles the tickers question. They are real names now, with real
+cusips, fetched at runtime.
+
+### Minting and redeeming, and why it is not in the browser
+
+The public docs and the official Rust client carry no mint or redeem route.
+What they carry is the flow underneath it: a security entitlement is
+tokenized by **withdrawing it to Solana**, and redeemed by **depositing it
+back**, through an account Backpack has onboarded. So "one API call" is
+real but it is an authenticated, KYC'd call, signed with a client's own
+credentials.
+
+That means it can never run in a page, and the split is the same one this
+whole product is built on: public market structure in the client, anything
+bearing a client's credentials on a server acting with their consent. When
+Cleat custodies, it is this path, and the framing does not change: a
+self-directed account with an automated order-entry assistant, bounded by a
+policy the client wrote.
+
 ## Accessibility & Inclusion
 
 Assumed default, flagged for correction: WCAG 2.2 AA. Never colour alone to convey
