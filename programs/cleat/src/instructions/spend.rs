@@ -23,19 +23,22 @@ use anchor_lang::system_program;
 
 use crate::constants::*;
 use crate::error::CleatError;
-use crate::state::{AgentSpend, Vault};
+use crate::state::AgentSpend;
 
+/// Note what this does not require: a vault.
+///
+/// It did at first, as a way of saying "you have an account here before you
+/// give an agent an allowance". That coupling was wrong and it failed in the
+/// most inconvenient way possible. A vault delegated to the ephemeral rollup
+/// is owned by the delegation program rather than by this one, so the
+/// constraint rejected it, which meant a client could not open or change a
+/// spending allowance exactly while their agent was working. The allowance is
+/// about the agent's own money and has nothing to do with the vault, so it
+/// no longer asks about it.
 #[derive(Accounts)]
 pub struct OpenSpendAccount<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
-
-    #[account(
-        seeds = [VAULT_SEED, owner.key().as_ref()],
-        bump = vault.bump,
-        has_one = owner @ CleatError::NotOwner,
-    )]
-    pub vault: Box<Account<'info, Vault>>,
 
     #[account(
         init,

@@ -39,13 +39,27 @@ mod circuits {
     /// decided it is never revealed to anyone, including this program and
     /// whoever runs the agent.
     #[instruction]
-    pub fn gate_breach_v3(
+    pub fn gate_breach_v4(
         exposure_bps: Enc<Shared, u64>,
         effective_bps: u64,
         max_position_bps: u64,
-    ) -> bool {
+    ) -> (Enc<Shared, u64>, bool) {
         let held = exposure_bps.to_arcis();
-        let breaches = (held + effective_bps) > max_position_bps;
-        breaches.reveal()
+        let next = held + effective_bps;
+        let breaches = next > max_position_bps;
+
+        // The exposure the client would be left holding, sealed straight
+        // back to their own key. A refused trade leaves it where it was.
+        //
+        // This exists for two reasons and the smaller one is the useful
+        // one: the caller gets their position back updated without ever
+        // having decrypted it. The larger one is that the previous version
+        // returned a bare bool, never touched the caller's key, and the
+        // compiler said so: "the value of input exposure_bps.owner.public_key
+        // is unused or could be optimized out". The program passes that key
+        // as an argument on every call. A circuit that has optimized it
+        // away is not the circuit the program is calling.
+        let updated = if breaches { held } else { next };
+        (exposure_bps.owner.from_arcis(updated), breaches.reveal())
     }
 }

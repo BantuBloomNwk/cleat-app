@@ -49,8 +49,6 @@ function persisted(name) {
 }
 const agent = persisted("agent-wallet");
 
-const [vault] = PublicKey.findProgramAddressSync(
-  [Buffer.from("vault"), owner.publicKey.toBuffer()], PROGRAM_ID);
 const [spend] = PublicKey.findProgramAddressSync(
   [Buffer.from("spend"), owner.publicKey.toBuffer()], PROGRAM_ID);
 
@@ -91,7 +89,6 @@ if (!(await connection.getAccountInfo(spend))) {
     programId: PROGRAM_ID,
     keys: [
       meta(owner.publicKey, true, true),
-      meta(vault, false, false),
       meta(spend, false, true),
       meta(SystemProgram.programId, false, false),
     ],
