@@ -32,7 +32,7 @@ import {
 } from "@arcium-hq/client";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CIRCUIT = "gate_breach_v2";
+const CIRCUIT = "gate_breach_v3";
 const LUT_PROGRAM_ID = new PublicKey("AddressLookupTab1e1111111111111111111111111");
 
 const IDL = JSON.parse(
@@ -55,7 +55,21 @@ async function main() {
   const owner = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))),
   );
-  const connection = new Connection(baseRpc(), "confirmed");
+  // Throttled. uploadCircuit fires its chunks as fast as the event loop
+  // allows and the endpoint answers 429 until it gives up, which is what
+  // stalled this for an hour the first time.
+  let chain = Promise.resolve();
+  const throttledFetch = (url, init) => {
+    const turn = chain.then(
+      () => new Promise((r) => setTimeout(r, Number(process.env.RPC_GAP_MS || 260))),
+    );
+    chain = turn.catch(() => {});
+    return turn.then(() => fetch(url, init));
+  };
+  const connection = new Connection(baseRpc(), {
+    commitment: "confirmed",
+    fetch: throttledFetch,
+  });
   const provider = new anchor.AnchorProvider(
     connection,
     new anchor.Wallet(owner),

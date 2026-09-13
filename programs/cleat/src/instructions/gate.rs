@@ -11,9 +11,9 @@ use crate::constants::*;
 use crate::error::CleatError;
 use crate::state::{Mandate, Vault, Verdict, VerdictLog};
 
-pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v2");
+pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v3");
 
-#[init_computation_definition_accounts("gate_breach_v2", payer)]
+#[init_computation_definition_accounts("gate_breach_v3", payer)]
 #[derive(Accounts)]
 pub struct InitGateCompDef<'info> {
     #[account(mut)]
@@ -41,7 +41,7 @@ pub struct InitGateCompDef<'info> {
 /// The caps travel in the clear because they are already public on the mandate,
 /// and sending them as plaintext keeps them out of the expensive part of the
 /// circuit.
-#[queue_computation_accounts("gate_breach_v2", payer)]
+#[queue_computation_accounts("gate_breach_v3", payer)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct GateTrade<'info> {
@@ -93,9 +93,9 @@ pub struct GateTrade<'info> {
     pub arcium_program: Program<'info, Arcium>,
 }
 
-#[callback_accounts("gate_breach_v2")]
+#[callback_accounts("gate_breach_v3")]
 #[derive(Accounts)]
-pub struct GateBreachV2Callback<'info> {
+pub struct GateBreachV3Callback<'info> {
     pub arcium_program: Program<'info, Arcium>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_BREACH))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
@@ -174,16 +174,16 @@ pub fn exec_gate_trade(
     let args = ArgBuilder::new()
         .x25519_pubkey(pubkey)
         .plaintext_u128(nonce)
-        .encrypted_u16(exposure_ct)
-        .plaintext_u16(effective_bps)
-        .plaintext_u16(max_position_bps)
+        .encrypted_u64(exposure_ct)
+        .plaintext_u64(effective_bps as u64)
+        .plaintext_u64(max_position_bps as u64)
         .build();
 
     queue_computation(
         ctx.accounts,
         computation_offset,
         args,
-        vec![GateBreachV2Callback::callback_ix(
+        vec![GateBreachV3Callback::callback_ix(
             computation_offset,
             &ctx.accounts.mxe_account,
             &[CallbackAccount {
@@ -204,8 +204,8 @@ pub fn exec_gate_trade(
 /// what was parked before the question was asked, which is why the log carries
 /// the pending fields at all.
 pub fn exec_gate_callback(
-    ctx: Context<GateBreachV2Callback>,
-    output: SignedComputationOutputs<GateBreachV2Output>,
+    ctx: Context<GateBreachV3Callback>,
+    output: SignedComputationOutputs<GateBreachV3Output>,
 ) -> Result<()> {
     // verify_output_raw, not verify_output, and the difference is the whole
     // reason every computation came back as an abort.

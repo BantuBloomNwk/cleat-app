@@ -24,7 +24,7 @@ import {
 } from "@arcium-hq/client";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CIRCUIT = "gate_breach_v2";
+const CIRCUIT = "gate_breach_v3";
 const CLUSTER = 456; // the devnet cluster this MXE was initialised on
 
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
@@ -143,7 +143,7 @@ async function main() {
     const nonce = crypto.randomBytes(16);
     // one secret now: the exposure as a share of the book. The circuit needs
     // nothing else, because the caps are public on the mandate.
-    const ct = cipher.encrypt([BigInt(exposureBps)], nonce);
+    const ct = cipher.encrypt([BigInt(exposureBps)], nonce); // one u64, bare
 
     const compOffset = crypto.randomBytes(8).readBigUInt64LE(0) >> 1n;
     const computation = getComputationAccAddress(CLUSTER, new anchor.BN(compOffset.toString()));
