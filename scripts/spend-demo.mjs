@@ -15,6 +15,7 @@ import {
   Connection, Keypair, PublicKey, SystemProgram,
   Transaction, TransactionInstruction, sendAndConfirmTransaction,
 } from "@solana/web3.js";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
@@ -29,8 +30,7 @@ const u8b = (n) => Buffer.from([n]);
 const meta = (pubkey, isSigner, isWritable) => ({ pubkey, isSigner, isWritable });
 const SOL = 1_000_000_000;
 
-const rpc = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8")
-  .split("\n").find((l) => l.startsWith("SOLANA_RPC_URL=")).slice(15).trim();
+const rpc = baseRpc();
 // Throttled, because a deploy running against the same endpoint will
 // rate limit anything else that talks to it.
 let chain = Promise.resolve();

@@ -30,6 +30,7 @@ import {
   ARCIUM_ADDR,
   ARCIUM_IDL,
 } from "@arcium-hq/client";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const CIRCUIT = "gate_breach_v5";
@@ -45,11 +46,6 @@ const disc = (name) => {
 };
 const meta = (pubkey, isSigner, isWritable) => ({ pubkey, isSigner, isWritable });
 
-function baseRpc() {
-  const env = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8");
-  const line = env.split("\n").find((l) => l.startsWith("SOLANA_RPC_URL="));
-  return line.slice("SOLANA_RPC_URL=".length).trim();
-}
 
 async function main() {
   const owner = Keypair.fromSecretKey(

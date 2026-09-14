@@ -25,6 +25,7 @@ import {
   getArciumSignerAccAddress, getLookupTableAddress, ARCIUM_ADDR, ARCIUM_IDL,
   uploadCircuit, buildFinalizeCompDefTx,
 } from "@arcium-hq/client";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const CIRCUIT = "control_init_pool";
@@ -48,8 +49,7 @@ async function retry(fn, attempts = 5) {
   throw last;
 }
 
-const rpc = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8")
-  .split("\n").find((l) => l.startsWith("SOLANA_RPC_URL=")).slice(15).trim();
+const rpc = baseRpc();
 
 let chain = Promise.resolve();
 const throttled = (url, init) => {

@@ -39,6 +39,7 @@ import {
   ConnectionMagicRouter,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import nacl from "tweetnacl";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
@@ -94,13 +95,6 @@ function ownerKeypair() {
   return { owner, funder };
 }
 
-function baseRpc() {
-  // Never the public endpoint. It drops the delegation transactions.
-  const env = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8");
-  const line = env.split("\n").find((l) => l.startsWith("SOLANA_RPC_URL="));
-  if (!line) throw new Error("no SOLANA_RPC_URL to read");
-  return line.slice("SOLANA_RPC_URL=".length).trim();
-}
 
 // The rollup will only let a DELEGATED account pay its fees, because an
 // undelegated base account is not reachable from inside the ER. Delegating the

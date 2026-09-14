@@ -9,7 +9,7 @@ use crate::{ArciumSignerAccount, ID, ID_CONST};
 
 use crate::constants::*;
 use crate::error::CleatError;
-use crate::state::{Mandate, Vault, Verdict, VerdictLog};
+use crate::state::{Mandate, Pending, Vault, Verdict, VerdictLog};
 
 pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v5");
 
@@ -83,6 +83,20 @@ pub struct GateTrade<'info> {
     pub computation_account: UncheckedAccount<'info>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_BREACH))]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
+
+    /// Where this particular question waits for its answer.
+    ///
+    /// Seeded by the computation, not by the owner, so two proposals in flight
+    /// cannot land in the same slot and a callback cannot be aimed at a log it
+    /// has nothing to do with. Closed when the answer arrives.
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + Pending::INIT_SPACE,
+        seeds = [PENDING_SEED, computation_account.key().as_ref()],
+        bump,
+    )]
+    pub pending: Box<Account<'info, Pending>>,
     #[account(mut, address = derive_cluster_pda!(mxe_account))]
     pub cluster_account: Box<Account<'info, Cluster>>,
     #[account(mut, address = ARCIUM_FEE_POOL_ACCOUNT_ADDRESS)]
@@ -108,9 +122,35 @@ pub struct GateBreachV5Callback<'info> {
     #[account(address = ::arcium_anchor::solana_instructions_sysvar::ID)]
     /// CHECK: checked by the account constraint.
     pub instructions_sysvar: UncheckedAccount<'info>,
-    /// The log the verdict lands in, passed through as an extra callback account.
-    #[account(mut)]
+    /// The question this is the answer to.
+    ///
+    /// Everything below is derived from what is written here rather than from
+    /// what the caller passed, which is the only reason the accounts on a
+    /// callback can be trusted at all. Arcium validates that a genuine
+    /// `callback_computation` immediately precedes this instruction and does
+    /// not look at the accounts that follow it, so an unconstrained account on
+    /// a callback is an account any stranger may choose.
+    #[account(
+        mut,
+        seeds = [PENDING_SEED, computation_account.key().as_ref()],
+        bump = pending.bump,
+    )]
+    pub pending: Box<Account<'info, Pending>>,
+
+    /// The log the verdict lands in, pinned to the owner who asked.
+    #[account(mut, seeds = [VERDICT_SEED, pending.owner.as_ref()], bump = log.bump)]
     pub log: Box<Account<'info, VerdictLog>>,
+
+    /// Read again on the way out, because the network takes seconds to answer
+    /// and the owner can edit their mandate inside that window. An answer
+    /// computed against a sentence that is no longer in force is recorded as a
+    /// refusal rather than applied.
+    #[account(seeds = [MANDATE_SEED, pending.owner.as_ref()], bump = mandate.bump)]
+    pub mandate: Box<Account<'info, Mandate>>,
+
+    /// CHECK: rent destination, pinned to whoever paid for the pending account.
+    #[account(mut, address = pending.payer)]
+    pub payer: UncheckedAccount<'info>,
 }
 
 #[event]
@@ -126,6 +166,7 @@ pub fn exec_init_gate_comp_def(ctx: Context<InitGateCompDef>) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn exec_gate_trade(
     ctx: Context<GateTrade>,
     computation_offset: u64,
@@ -134,8 +175,20 @@ pub fn exec_gate_trade(
     nonce: u128,
     category: u8,
     proposed_bps: u16,
+    side: u8,
+    mint: Pubkey,
 ) -> Result<()> {
     require!(proposed_bps > 0, CleatError::EmptyProposal);
+    require!(
+        (category as usize) < CATEGORY_COUNT,
+        CleatError::BadCategory
+    );
+    // The circuit adds the proposed size to the held exposure, which is right
+    // for an entry and backwards for an exit. Rather than let an exit be
+    // judged as though it were a purchase, the confidential path takes entries
+    // only and exits go through propose_trade, where the arithmetic is public
+    // and correct. Widening this means a second circuit, not a flag.
+    require!(side == 0, CleatError::ExitNotGated);
 
     let now = Clock::get()?.unix_timestamp;
     let signer = ctx.accounts.payer.key();
@@ -144,30 +197,90 @@ pub fn exec_gate_trade(
         require!(vault.agent_is_live(now), CleatError::AgentNotLive);
         require_keys_eq!(signer, vault.agent, CleatError::NotOwner);
     }
+    require!(!ctx.accounts.mandate.halted, CleatError::Halted);
     require!(
         vault.mandate_version == ctx.accounts.mandate.version,
         CleatError::StaleMandate
     );
 
-    // Park what the callback will need. It receives the circuit's answer and
-    // nothing else, so the question has to be recorded before it is asked.
-    let clamp_to = ctx.accounts.mandate.max_trade_bps;
-    let max_position_bps = ctx.accounts.mandate.max_position_bps;
-    {
-        let log = &mut ctx.accounts.log;
-        log.pending_offset = computation_offset;
-        log.pending_category = category;
-        log.pending_bps = proposed_bps;
-        log.pending_clamp_bps = clamp_to;
+    // The exposure the circuit is asked about has to be the one the owner
+    // published, not one the caller made up. Without this the encrypted input
+    // was simply an argument, and an agent that wanted a trade cleared could
+    // seal a small number to its own key and hand that over instead. The
+    // handle moves only under the owner's signature, in set_position_handle.
+    require!(
+        exposure_ct == vault.position_handle,
+        CleatError::ExposureNotBound
+    );
+
+    // Things the mandate refuses outright, decided in public because they are
+    // public. A deny list is a list of mints on an account anyone can read, so
+    // asking the network about one would spend a computation to learn
+    // something already on chain.
+    require!(
+        !ctx.accounts.mandate.denied.contains(&mint),
+        CleatError::DeniedAsset
+    );
+
+    let mandate = &ctx.accounts.mandate;
+    let clamp_to = mandate.max_trade_bps;
+    let max_position_bps = mandate.max_position_bps;
+
+    // What is still free in this sector after everything already cleared.
+    // The circuit checks the owner's true holding against the same ceiling;
+    // this checks what this program has let through. They are two independent
+    // bounds on the same number and the tighter one wins, which is the right
+    // way round.
+    let headroom = ctx.accounts.log.headroom(category, max_position_bps);
+    require!(headroom > 0, CleatError::SectorCapBreached);
+
+    // Trimming is a comparison between public numbers, so it happens here
+    // rather than inside the computation. Only the trimmed size goes to the
+    // network, which is cheaper and says less.
+    let mut effective_bps = proposed_bps;
+    let mut clamp_reason = 0u8;
+    if effective_bps > clamp_to {
+        effective_bps = clamp_to;
+        clamp_reason = 2;
     }
+    if effective_bps > headroom {
+        effective_bps = headroom;
+        clamp_reason = 7;
+    }
+
+    // The other ceiling, in money rather than in percent, because a percentage
+    // cap alone misbehaves when the book is small. Nothing here is taken on
+    // the agent's word: the size comes from the vault's own deposited total
+    // and the cap comes from a field only the owner writes.
+    if vault.agent_max_trade > 0 && signer != vault.owner {
+        let notional = (vault.deposited as u128)
+            .saturating_mul(effective_bps as u128)
+            / BPS_DENOM as u128;
+        require!(
+            notional <= vault.agent_max_trade as u128,
+            CleatError::HardCeilingBreached
+        );
+    }
+
+    {
+        let p = &mut ctx.accounts.pending;
+        p.owner = vault.owner;
+        p.payer = signer;
+        p.mandate_version = mandate.version;
+        p.category = category;
+        p.proposed_bps = proposed_bps;
+        p.effective_bps = effective_bps;
+        p.clamp_reason = clamp_reason;
+        p.side = side;
+        p.bump = ctx.bumps.pending;
+    }
+
+    let pending_key = ctx.accounts.pending.key();
     let log_key = ctx.accounts.log.key();
+    let mandate_key = ctx.accounts.mandate.key();
+    let payer_key = signer;
 
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
-
-    // Trimming to the single trade cap is a comparison between two public
-    // numbers, so it happens here rather than inside the computation. Only the
-    // trimmed size goes to the network, which is both cheaper and less to say.
-    let effective_bps = if proposed_bps > clamp_to { clamp_to } else { proposed_bps };
 
     // Argument order has to match the circuit exactly. An Enc<Shared, T>
     // expands to the sender's x25519 key, the nonce, then one entry per field.
@@ -186,10 +299,16 @@ pub fn exec_gate_trade(
         vec![GateBreachV5Callback::callback_ix(
             computation_offset,
             &ctx.accounts.mxe_account,
-            &[CallbackAccount {
-                pubkey: log_key,
-                is_writable: true,
-            }],
+            // Order matters twice over. It has to match the field order on
+            // GateBreachV5Callback, and every one of these is constrained
+            // there, because the node will pass along whatever is named here
+            // and nothing downstream re-derives it for us.
+            &[
+                CallbackAccount { pubkey: pending_key, is_writable: true },
+                CallbackAccount { pubkey: log_key, is_writable: true },
+                CallbackAccount { pubkey: mandate_key, is_writable: false },
+                CallbackAccount { pubkey: payer_key, is_writable: true },
+            ],
         )?],
         1,
         0,
@@ -200,9 +319,9 @@ pub fn exec_gate_trade(
 
 /// What the gate decided, written down.
 ///
-/// The computation returned one number. Everything else in the entry comes from
-/// what was parked before the question was asked, which is why the log carries
-/// the pending fields at all.
+/// The computation returns one bit. Everything else in the entry comes off the
+/// pending account this computation created, which is why the question has to
+/// be parked before it is asked.
 pub fn exec_gate_callback(
     ctx: Context<GateBreachV5Callback>,
     output: SignedComputationOutputs<GateBreachV5Output>,
@@ -227,44 +346,62 @@ pub fn exec_gate_callback(
         Ok(b) => b,
         Err(_) => return Err(CleatError::GateAborted.into()),
     };
-    // The output is now an MXE sealed copy, a caller sealed copy, then the
-    // bit. The bool is still the last byte and everything in front of it is
-    // ciphertext this program cannot read and has no business reading.
+    // The output is an MXE sealed copy, a caller sealed copy, then the bit. The
+    // bool is still the last byte and everything in front of it is ciphertext
+    // this program cannot read and has no business reading.
     let breaches = *bytes.last().ok_or(CleatError::GateAborted)? != 0;
 
-    let log = &mut ctx.accounts.log;
-    let proposed_bps = log.pending_bps;
-    let clamp_to = log.pending_clamp_bps;
-    let category = log.pending_category;
-    let vault_key = log.vault;
+    let proposed_bps = ctx.accounts.pending.proposed_bps;
+    let effective_bps = ctx.accounts.pending.effective_bps;
+    let category = ctx.accounts.pending.category;
+    let side = ctx.accounts.pending.side;
+    let asked_version = ctx.accounts.pending.mandate_version;
+    let clamp_reason = ctx.accounts.pending.clamp_reason;
 
-    // Everything except the breach was always public, so it is decided here.
-    let clamped = proposed_bps > clamp_to;
-    let outcome = if breaches { 2u8 } else if clamped { 1u8 } else { 0u8 };
-    let allowed_bps = if breaches {
-        0
-    } else if clamped {
-        clamp_to
+    // The network takes seconds. An owner who tightened their mandate inside
+    // that window should not have an answer computed against the old one
+    // applied to them, so a version that has moved is a refusal rather than a
+    // silently stale clearance.
+    let stale = ctx.accounts.mandate.version != asked_version;
+
+    let (outcome, reason, allowed_bps) = if ctx.accounts.mandate.halted {
+        // Thrown while the network was still thinking. The answer arrives and
+        // is recorded, and it is recorded as a refusal, because a halt that
+        // only applied to proposals not yet sent would leave a window exactly
+        // as long as a computation takes.
+        (2u8, 9u8, 0u16)
+    } else if stale {
+        (2u8, 4u8, 0u16)
+    } else if breaches {
+        (2u8, 1u8, 0u16)
+    } else if effective_bps < proposed_bps {
+        (1u8, clamp_reason, effective_bps)
     } else {
-        proposed_bps
-    };
-    let reason = match outcome {
-        0 => 0u8,
-        1 => 2u8,
-        _ => 1u8,
+        (0u8, 0u8, effective_bps)
     };
 
-    log.push(Verdict {
-        slot: Clock::get()?.slot,
-        mandate_version: 0,
-        category,
-        proposed_bps,
-        allowed_bps,
-        outcome,
-        reason,
-    });
-    log.pending_offset = 0;
-    log.pending_bps = 0;
+    let vault_key = ctx.accounts.log.vault;
+    {
+        let log = &mut ctx.accounts.log;
+        log.push(Verdict {
+            slot: Clock::get()?.slot,
+            mandate_version: asked_version,
+            category,
+            proposed_bps,
+            allowed_bps,
+            outcome,
+            reason,
+        });
+        if outcome != 2 {
+            log.apply_exposure(category, side, allowed_bps);
+        }
+    }
+
+    // The question has been answered, so the space it was parked in goes back
+    // to whoever paid for it.
+    ctx.accounts
+        .pending
+        .close(ctx.accounts.payer.to_account_info())?;
 
     emit!(GateDecided {
         vault: vault_key,

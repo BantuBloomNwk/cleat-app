@@ -55,6 +55,7 @@ pub fn exec_create_mandate(
     let m = &mut ctx.accounts.mandate;
     m.owner = ctx.accounts.owner.key();
     m.version = 1;
+    m.halted = false;
     m.text_hash = hash(text.as_bytes()).to_bytes();
     m.text = text;
     m.max_position_bps = max_position_bps;
@@ -157,10 +158,16 @@ pub fn exec_adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()
     let child = &mut ctx.accounts.child;
     child.owner = ctx.accounts.adopter.key();
     child.version = 1;
+    child.halted = false;
     child.text_hash = hash(text.as_bytes()).to_bytes();
     child.text = text;
     child.max_position_bps = parent.max_position_bps;
     child.max_trade_bps = parent.max_trade_bps;
+    // The spread cap came later than the other two and was not being carried
+    // across, so every adopted mandate quietly arrived without one. Zero means
+    // the owner did not ask for a spread cap, which is not what someone
+    // adopting a mandate that has one is agreeing to.
+    child.max_spread_bps = parent.max_spread_bps;
     child.denied = parent.denied.clone();
     child.adopted_from = Some(parent.key());
     child.adopt_count = 0;
@@ -172,6 +179,48 @@ pub fn exec_adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()
         parent: parent.key(),
         child: child.key(),
         adopter: ctx.accounts.adopter.key(),
+    });
+    Ok(())
+}
+
+#[event]
+pub struct Halted {
+    pub mandate: Pubkey,
+    pub halted: bool,
+    pub at: i64,
+}
+
+/// Stop everything, or start it again.
+///
+/// The one control that is always reachable. Revoking an agent writes to the
+/// vault, and a vault delegated to the ephemeral rollup is not the program's to
+/// write on base, so that path depends on the rollup answering. A mandate is
+/// never delegated, so this one does not.
+///
+/// It does not bump the version, because halting is not an edit to the policy
+/// and an agent should not be able to tell the two apart by watching a counter.
+/// Nothing is lost while halted: the caps, the text, the deny list and the
+/// verdict history all stay exactly as they were, and lifting it puts the same
+/// sentence back in force.
+#[derive(Accounts)]
+pub struct SetHalted<'info> {
+    pub owner: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        bump = mandate.bump,
+        has_one = owner @ CleatError::NotOwner
+    )]
+    pub mandate: Account<'info, Mandate>,
+}
+
+pub fn exec_set_halted(ctx: Context<SetHalted>, halted: bool) -> Result<()> {
+    let at = Clock::get()?.unix_timestamp;
+    ctx.accounts.mandate.halted = halted;
+    emit!(Halted {
+        mandate: ctx.accounts.mandate.key(),
+        halted,
+        at,
     });
     Ok(())
 }

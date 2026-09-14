@@ -20,6 +20,7 @@ import {
 } from './data/initialData';
 import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
 import { loadChainSnapshot } from './lib/chain';
+import type { Mandate, SectorExposure } from './lib/chain';
 
 export default function App() {
   // Theme state with local persistence
@@ -43,6 +44,11 @@ export default function App() {
   // null until we know, then true if the screen is showing real devnet decisions
   const [isLive, setIsLive] = useState<boolean | null>(null);
   const [communityMandates] = useState<CommunityMandate[]>(COMMUNITY_MANDATES);
+  // What has actually been cleared into each sector, read off chain. Empty
+  // until the snapshot lands, which is the honest resting state: no sector has
+  // anything in it until the log says so.
+  const [sectorExposure, setSectorExposure] = useState<SectorExposure[]>([]);
+  const [chainMandate, setChainMandate] = useState<Mandate | null>(null);
 
   // Modals (Intro page open initially by default for first-time experience)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(true);
@@ -64,6 +70,8 @@ export default function App() {
         setLedgerEntries(snap.entries);
         setChartMarkers(snap.markers);
         setStats(snap.stats);
+        setSectorExposure(snap.exposure);
+        setChainMandate(snap.mandate);
         if (snap.mandate?.text) setMandateSentence(snap.mandate.text);
         setOvernightRefusalCount(
           snap.entries.filter((e) => e.status === 'refused').length,
@@ -289,6 +297,8 @@ export default function App() {
             <MandatesTab
               mandates={communityMandates}
               onAdoptMandate={handleAdoptCommunityMandate}
+              exposure={sectorExposure}
+              chainMandate={chainMandate}
             />
           )}
 

@@ -44,6 +44,7 @@ import {
   getClockAccAddress, getArciumSignerAccAddress, ARCIUM_ADDR,
   uploadCircuit, buildFinalizeCompDefTx,
 } from "@arcium-hq/client";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const CLUSTER = 456;
@@ -60,8 +61,7 @@ const u64b = (n) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n)); 
 const meta = (pubkey, isSigner, isWritable) => ({ pubkey, isSigner, isWritable });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const rpc = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8")
-  .split("\n").find((l) => l.startsWith("SOLANA_RPC_URL=")).slice(15).trim();
+const rpc = baseRpc();
 
 const owner = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
   fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))));

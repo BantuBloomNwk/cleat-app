@@ -40,4 +40,20 @@ pub enum CleatError {
     SpendCapBreached,
     #[msg("The spending allowance has nothing left to pay from.")]
     SpendAccountEmpty,
+    #[msg("That sector is not one this mandate can account for.")]
+    BadCategory,
+    #[msg("The mandate refuses this asset by name.")]
+    DeniedAsset,
+    #[msg("This sector is already at the position cap, so there is nothing left to clear.")]
+    SectorCapBreached,
+    #[msg("This trade is larger than the hard ceiling the owner set on the agent.")]
+    HardCeilingBreached,
+    #[msg("The sealed exposure is not the one this vault published.")]
+    ExposureNotBound,
+    #[msg("The confidential gate judges entries. An exit goes through propose_trade.")]
+    ExitNotGated,
+    #[msg("This log is already on the current layout.")]
+    LogAlreadyMigrated,
+    #[msg("The owner has halted this mandate. Nothing proposes until they lift it.")]
+    Halted,
 }

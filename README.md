@@ -35,11 +35,19 @@ Swap the model and the boundary holds. That is the demo.
 ## The four pieces
 
 **Your sentence, compiled.** The mandate lives in an account you own. It carries
-the text, a hash of the text as you signed it, and the caps the program actually
-enforces: the most that may sit in one name, the most a single trade may be. The
-agent has no write path to it. Every edit bumps a version, and a proposal checked
+the text, a hash of the text as you signed it, the assets it rules out by name,
+and the caps the program actually enforces: the most that may sit in one sector,
+the most a single trade may be, the widest book it may trade into. The agent has
+no write path to any of it. Every edit bumps a version, and a proposal checked
 against a stale version is refused on sight, so nothing the agent reads can talk
 your rules into changing.
+
+It also carries a switch that stops everything. That lives on the mandate rather
+than on the vault for a specific reason: a vault handed to the rollup for
+execution is not yours to write to on the main chain until it comes back, so a
+kill switch kept there would need the rollup to be answering. A mandate is never
+handed anywhere. One transaction, always available, and a computation already
+running when you throw it comes back refused.
 
 **The gate.** When the agent proposes a trade, your current exposure goes to
 Arcium's MPC network encrypted to your own key. The circuit adds the proposed
@@ -53,21 +61,46 @@ Intel TDX enclave, which answers an attestation query. Measured on devnet: 1.8
 seconds to verify attestation, 36 millisecond median from submit to confirm.
 
 **The diary.** Every decision lands in a ring buffer on chain: the sector, the
-size as a share of the book, the outcome, the reason, the slot. No ticker, no
-amount, no resulting position. That is the deliberate part. It means the record
+size as a share of the book, the outcome, the reason, the slot. Alongside it,
+one running total per sector, which is what makes a position cap a position cap
+rather than a cap on one trade at a time. No ticker, no amount, no resulting
+position. That is the deliberate part. It means the record
 of what your agent was stopped from doing is public and checkable, while what you
 own stays yours. It is also the one screen with nothing private on it, which is
 why it is the home screen and the thing people can share.
 
 ## What is real right now
 
-The devnet log for the demo owner holds four decisions: one cleared, one
-trimmed, two refused. One of the refusals is the interesting one. It was not
-refused for being too large. It was refused because the instruction to make it
-arrived inside something the agent had read, and a proposal that originates in
-ingested content is refused regardless of size. That is the failure mode that
-emptied other people's wallets, and here it is a recorded outcome with its own
-reason code.
+The devnet log for the demo owner holds fourteen decisions: four cleared, two
+trimmed, eight refused. Between them they exercise every reason the program has
+except one, and the missing one is the easy case where a mandate was edited
+after the grant was issued.
+
+Three of them are worth pointing at.
+
+One was refused because the instruction to make it arrived inside something the
+agent had read. A proposal that originates in ingested content is refused
+regardless of size. That is the failure mode that emptied other people's
+wallets, and here it is a recorded outcome with its own reason code.
+
+One was refused for naming Exxon. The mandate says no fossil fuels, which the
+program cannot read, so the clause is resolved off chain into a list of mints
+and the list is what gets enforced. The mints are real ones, live on Solana
+today, so a reader can go and check.
+
+Four near the end are each well inside every cap on their own, and the last two
+are stopped by what came before them. Two percent goes through, then another
+two, then three is trimmed to the two percent of room that is left, and the one
+after that is refused because there is no room at all. Nothing about those four
+is large. What stops them is the running total, and until this week there was
+not one, so all four would have cleared and the book would have sat at twenty
+percent under a sentence that says fifteen.
+
+The owner appears twice in the middle of the run. Once to lower what a single
+trade may cost in cash, after which a proposal unchanged in percentage terms is
+refused. Once to halt the mandate outright, after which nothing proposes at all
+until they lift it. Both are one transaction, both need their signature, and
+neither is available to the agent.
 
 The app reads that log directly off devnet. Nothing on the diary screen is
 seeded.
@@ -159,6 +192,9 @@ node scripts/gate-setup.mjs
 
 # two proposals identical from outside, differing only in a holding nobody sees
 node scripts/gate-run.mjs
+
+# fourteen proposals through the public policy engine, every reason it has
+node scripts/verdicts.mjs
 
 # the spending ceiling, demonstrated
 node scripts/spend-demo.mjs

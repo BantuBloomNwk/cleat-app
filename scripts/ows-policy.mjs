@@ -23,6 +23,7 @@
 
 import fs from "node:fs";
 import { Connection, PublicKey } from "@solana/web3.js";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const SPEND_SEED = Buffer.from("spend");
@@ -86,15 +87,12 @@ const main = async () => {
     return deny("the payment amount was not legible, so it was not signed");
   }
 
-  const rpcUrl =
-    process.env.CLEAT_RPC ||
-    fs
-      .readFileSync("~/Ilowa/Ilowa/server/.env", "utf8")
-      .split("\n")
-      .find((l) => l.startsWith("SOLANA_RPC_URL="))
-      ?.slice("SOLANA_RPC_URL=".length)
-      .trim();
-  if (!rpcUrl) return deny("no rpc endpoint, so the ceiling could not be read");
+  let rpcUrl;
+  try {
+    rpcUrl = baseRpc();
+  } catch {
+    return deny("no rpc endpoint, so the ceiling could not be read");
+  }
 
   const [spendPda] = PublicKey.findProgramAddressSync(
     [SPEND_SEED, new PublicKey(owner).toBuffer()],

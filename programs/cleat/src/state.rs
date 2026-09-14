@@ -17,6 +17,22 @@ pub struct Mandate {
     /// cannot act on it, and nothing an agent ingests can move this number.
     pub version: u16,
 
+    /// Everything stops.
+    ///
+    /// This lives on the mandate rather than on the vault, and that is the
+    /// whole point of it. Revoking an agent writes to the vault, and a vault
+    /// delegated to the ephemeral rollup is owned by the delegation program on
+    /// base, so the revocation cannot execute there at all. The kill switch
+    /// would then depend on the rollup being reachable, which is exactly the
+    /// condition under which somebody wants a kill switch.
+    ///
+    /// A mandate is never delegated. One transaction from the owner, on the
+    /// account the owner has always held, and every path that proposes anything
+    /// reads it: the public engine, the confidential gate on the way in, and the
+    /// gate's callback on the way out, so a computation already in flight when
+    /// the switch is thrown comes back refused rather than cleared.
+    pub halted: bool,
+
     /// The sentence itself, so the social surface can render it without a
     /// server in the loop.
     #[max_len(MANDATE_TEXT_MAX)]
@@ -133,7 +149,10 @@ pub struct Verdict {
     /// 0 cleared, 1 clamped, 2 refused.
     pub outcome: u8,
     /// 0 none, 1 position cap, 2 single trade cap, 3 denied asset,
-    /// 4 stale mandate, 5 instruction arrived inside content the agent read.
+    /// 4 stale mandate, 5 instruction arrived inside content the agent read,
+    /// 6 the book was wider than the mandate allows, 7 the sector is already
+    /// at its cap, 8 past the hard ceiling the owner set on the agent,
+    /// 9 the owner halted everything.
     pub reason: u8,
 }
 
@@ -157,18 +176,22 @@ pub struct VerdictLog {
     #[max_len(VERDICT_CAPACITY)]
     pub entries: Vec<Verdict>,
 
-    /// The proposal currently out with the confidential gate.
+    /// What has been cleared into each sector so far, in basis points.
     ///
-    /// A callback only receives the circuit's output, so the context it needs
-    /// has to be parked somewhere first. Keeping it on the log rather than in a
-    /// separate per computation account costs one account instead of two and
-    /// means a stalled computation leaves nothing behind to garbage collect.
-    pub pending_offset: u64,
-    pub pending_category: u8,
-    pub pending_bps: u16,
-    /// The single trade cap as it read when the question was asked, so a clamped
-    /// verdict can be written down without the callback needing the mandate.
-    pub pending_clamp_bps: u16,
+    /// Without this the position cap was not a position cap. Every proposal
+    /// was judged on its own size against the ceiling, so ten cleared trades
+    /// at four percent each sat at forty percent under a mandate that says
+    /// fifteen, and every one of them was recorded as cleared. A cap that
+    /// only ever sees one trade at a time is a trade cap wearing the wrong
+    /// name.
+    ///
+    /// Public, and that is consistent rather than careless: the verdict log
+    /// already publishes the sector and the size of every decision, so the
+    /// running total says nothing the entries do not already say together.
+    /// What stays private is the holding itself, which lives encrypted and
+    /// is what the confidential gate exists to check.
+    pub exposure_bps: [u16; CATEGORY_COUNT],
+
     pub bump: u8,
 }
 
@@ -185,6 +208,33 @@ impl VerdictLog {
             self.entries[self.head as usize] = v;
         }
         self.head = ((self.head as usize + 1) % VERDICT_CAPACITY) as u8;
+    }
+
+    /// How much room is left in a sector under the mandate's ceiling.
+    ///
+    /// An out of range sector has no room at all rather than unlimited room,
+    /// which is the right way round for a number that decides whether a trade
+    /// goes through.
+    pub fn headroom(&self, category: u8, cap_bps: u16) -> u16 {
+        let i = category as usize;
+        if i >= CATEGORY_COUNT {
+            return 0;
+        }
+        cap_bps.saturating_sub(self.exposure_bps[i])
+    }
+
+    /// Move a decision that went through into the running total. Entries add to
+    /// a sector, exits take away from it.
+    pub fn apply_exposure(&mut self, category: u8, side: u8, bps: u16) {
+        let i = category as usize;
+        if i >= CATEGORY_COUNT {
+            return;
+        }
+        self.exposure_bps[i] = if side == 0 {
+            self.exposure_bps[i].saturating_add(bps)
+        } else {
+            self.exposure_bps[i].saturating_sub(bps)
+        };
     }
 }
 
@@ -248,4 +298,57 @@ impl AgentSpend {
         }
         self.ceiling_lamports.saturating_sub(self.spent_lamports)
     }
+}
+
+/// One question, parked while the network answers it.
+///
+/// This used to be four fields on the VerdictLog, shared by every computation
+/// that owner had outstanding. That was wrong twice over.
+///
+/// First, it let anyone write into anyone's log. A callback receives the
+/// circuit's output and nothing else, so ours read the context back off
+/// whatever log account it was handed, and the accounts a callback is handed
+/// are not constrained by Arcium: the macro checks that a genuine
+/// `callback_computation` immediately precedes the callback and says nothing
+/// about which accounts follow it. So a stranger could run a cheap computation
+/// against their own vault, name somebody else's log, and push a verdict into a
+/// record they have nothing to do with, evicting a real refusal from a sixteen
+/// entry ring. The public record of what an agent was stopped from doing is the
+/// thing this product sells, and it was writable by anybody.
+///
+/// Second, one shared slot cannot hold two questions. Two proposals in flight
+/// at once meant the second overwrote the first's context, and whichever
+/// callback landed first wrote a verdict pairing one computation's answer with
+/// the other's size and sector.
+///
+/// Seeding this by the computation account fixes both. The address derives from
+/// a computation that already exists, the owner is recorded when the question is
+/// asked, and the callback derives the log from the owner written here rather
+/// than trusting the account it was passed.
+#[account]
+#[derive(InitSpace)]
+pub struct Pending {
+    /// Whose question this is. The callback trusts this and nothing else.
+    pub owner: Pubkey,
+    /// Who paid for the parking space, and who gets the rent back when the
+    /// answer lands.
+    pub payer: Pubkey,
+    /// The mandate version as it read when the question was asked, so a mandate
+    /// edited while the network was thinking cannot have its answer recorded
+    /// against a version that is no longer in force.
+    pub mandate_version: u16,
+    /// Sector, not instrument. Bounds checked on the way in.
+    pub category: u8,
+    /// What the agent asked for.
+    pub proposed_bps: u16,
+    /// What the public caps already trimmed it to before it was sent. The
+    /// circuit was asked about this number, so the callback writes a clamp
+    /// whenever it came out below what was asked.
+    pub effective_bps: u16,
+    /// Which cap did the trimming, so the entry says why rather than guessing.
+    /// 0 nothing trimmed, 2 the single trade cap, 7 the sector already full.
+    pub clamp_reason: u8,
+    /// 0 to add to a position, 1 to reduce one.
+    pub side: u8,
+    pub bump: u8,
 }

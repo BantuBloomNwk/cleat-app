@@ -62,6 +62,10 @@ pub mod cleat {
         )
     }
 
+    pub fn set_halted(ctx: Context<SetHalted>, halted: bool) -> Result<()> {
+        instructions::mandate::exec_set_halted(ctx, halted)
+    }
+
     pub fn adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()> {
         instructions::mandate::exec_adopt_mandate(ctx, text)
     }
@@ -83,8 +87,23 @@ pub mod cleat {
         instructions::vault::exec_revoke_agent(ctx)
     }
 
+    pub fn set_book_size(ctx: Context<SetBookSize>, quote_units: u64) -> Result<()> {
+        instructions::vault::exec_set_book_size(ctx, quote_units)
+    }
+
+    pub fn set_position_handle(
+        ctx: Context<SetPositionHandle>,
+        handle: [u8; 32],
+    ) -> Result<()> {
+        instructions::vault::exec_set_position_handle(ctx, handle)
+    }
+
     pub fn open_verdict_log(ctx: Context<OpenVerdictLog>) -> Result<()> {
         instructions::verdict::exec_open_verdict_log(ctx)
+    }
+
+    pub fn migrate_verdict_log(ctx: Context<MigrateVerdictLog>) -> Result<()> {
+        instructions::verdict::exec_migrate_verdict_log(ctx)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -95,6 +114,7 @@ pub mod cleat {
         from_ingested_content: bool,
         side: u8,
         observed_spread_bps: u16,
+        mint: Pubkey,
     ) -> Result<()> {
         instructions::verdict::exec_propose_trade(
             ctx,
@@ -103,6 +123,7 @@ pub mod cleat {
             from_ingested_content,
             side,
             observed_spread_bps,
+            mint,
         )
     }
 
@@ -110,6 +131,7 @@ pub mod cleat {
         instructions::gate::exec_init_gate_comp_def(ctx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn gate_trade(
         ctx: Context<GateTrade>,
         computation_offset: u64,
@@ -118,9 +140,19 @@ pub mod cleat {
         nonce: u128,
         category: u8,
         proposed_bps: u16,
+        side: u8,
+        mint: Pubkey,
     ) -> Result<()> {
         instructions::gate::exec_gate_trade(
-            ctx, computation_offset, exposure_ct, pubkey, nonce, category, proposed_bps,
+            ctx,
+            computation_offset,
+            exposure_ct,
+            pubkey,
+            nonce,
+            category,
+            proposed_bps,
+            side,
+            mint,
         )
     }
 

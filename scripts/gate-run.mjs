@@ -22,8 +22,12 @@ import {
   getComputationAccAddress, getClusterAccAddress, getFeePoolAccAddress,
   getClockAccAddress, getArciumSignerAccAddress, ARCIUM_ADDR,
 } from "@arcium-hq/client";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
+// NVDAx, Backed's wrapper of Nvidia, live on mainnet today. Named so the
+// mandate's deny list has something real to be checked against.
+const MINT = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
 const CIRCUIT = "gate_breach_v5";
 const CLUSTER = 456; // the devnet cluster this MXE was initialised on
 
@@ -47,10 +51,6 @@ function persisted(name) {
   const p = new URL(`./.${name}.json`, import.meta.url);
   try { return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(p, "utf8")))); }
   catch { const kp = Keypair.generate(); fs.writeFileSync(p, JSON.stringify(Array.from(kp.secretKey))); return kp; }
-}
-function baseRpc() {
-  const env = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8");
-  return env.split("\n").find((l) => l.startsWith("SOLANA_RPC_URL=")).slice("SOLANA_RPC_URL=".length).trim();
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -77,7 +77,7 @@ function readLog(data) {
 async function main() {
   const funder = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
     fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))));
-  const owner = persisted("gate-owner");
+  const owner = persisted("gate-owner-v2");
   const connection = new Connection(baseRpc(), "confirmed");
   const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(owner), { commitment: "confirmed" });
 
@@ -147,6 +147,11 @@ async function main() {
 
     const compOffset = crypto.randomBytes(8).readBigUInt64LE(0) >> 1n;
     const computation = getComputationAccAddress(CLUSTER, new anchor.BN(compOffset.toString()));
+    // Seeded by the computation rather than by the owner, so two questions in
+    // flight cannot share a slot and a callback cannot be aimed at somebody
+    // else's log. The callback derives everything else from what is in here.
+    const [pending] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pending"), computation.toBuffer()], PROGRAM_ID);
 
     const before = readLog((await connection.getAccountInfo(log)).data);
 
@@ -166,6 +171,7 @@ async function main() {
         meta(getExecutingPoolAccAddress(CLUSTER), false, true),
         meta(computation, false, true),
         meta(compDef, false, false),
+        meta(pending, false, true),
         meta(getClusterAccAddress(CLUSTER), false, true),
         meta(getFeePoolAccAddress(), false, true),
         meta(getClockAccAddress(), false, true),
@@ -176,7 +182,7 @@ async function main() {
         disc("gate_trade"), u64(compOffset),
         Buffer.from(ct[0]),
         Buffer.from(pub), u128(nonce),
-        u8b(category), u16(proposedBps),
+        u8b(category), u16(proposedBps), u8b(0), MINT.toBuffer(),
       ]),
     })], [owner], true);
     } catch (err) {

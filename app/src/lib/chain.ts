@@ -17,7 +17,7 @@ export const PROGRAM_ID = new PublicKey(
 
 /** A devnet owner whose verdict log holds real decisions, for the preview. */
 export const DEMO_OWNER = new PublicKey(
-  "8QXJYpb7gKV99DuSjDX7FCyUgj73qxhQ9px5cQLTiCMc",
+  "EHqr2HAhgBLXqMVJhJXeDrvvi3XoaogtLqSct4sN8udr",
 );
 
 /** In the browser we go through the proxy so the upstream key stays server side. */
@@ -30,15 +30,79 @@ export const connection = new Connection(
   "confirmed",
 );
 
+/**
+ * Reading account bytes without Node's Buffer.
+ *
+ * `Buffer` is not a browser global. It was being used here anyway, which
+ * worked for exactly as long as something else in the bundle happened to
+ * define it, and when that stopped the whole chain read threw and the app fell
+ * back to sample data with nothing on screen to say so. A DataView needs no
+ * polyfill and cannot quietly disappear.
+ */
+const seed = (s: string) => new TextEncoder().encode(s);
+
+class Cursor {
+  private view: DataView;
+  private bytes: Uint8Array;
+  o = 0;
+
+  constructor(data: Uint8Array) {
+    this.bytes = data;
+    this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  }
+
+  get length() {
+    return this.bytes.length;
+  }
+
+  u8(at = this.o, advance = true) {
+    const v = this.view.getUint8(at);
+    if (advance && at === this.o) this.o += 1;
+    return v;
+  }
+
+  u16(at = this.o, advance = true) {
+    const v = this.view.getUint16(at, true);
+    if (advance && at === this.o) this.o += 2;
+    return v;
+  }
+
+  u32(at = this.o, advance = true) {
+    const v = this.view.getUint32(at, true);
+    if (advance && at === this.o) this.o += 4;
+    return v;
+  }
+
+  u64(at = this.o, advance = true) {
+    const v = this.view.getBigUint64(at, true);
+    if (advance && at === this.o) this.o += 8;
+    return v;
+  }
+
+  slice(n: number) {
+    const v = this.bytes.subarray(this.o, this.o + n);
+    this.o += n;
+    return v;
+  }
+
+  utf8(n: number) {
+    return new TextDecoder().decode(this.slice(n));
+  }
+
+  skip(n: number) {
+    this.o += n;
+  }
+}
+
 export const mandatePda = (owner: PublicKey) =>
   PublicKey.findProgramAddressSync(
-    [Buffer.from("mandate"), owner.toBuffer()],
+    [seed("mandate"), owner.toBuffer()],
     PROGRAM_ID,
   )[0];
 
 export const verdictLogPda = (owner: PublicKey) =>
   PublicKey.findProgramAddressSync(
-    [Buffer.from("verdicts"), owner.toBuffer()],
+    [seed("verdicts"), owner.toBuffer()],
     PROGRAM_ID,
   )[0];
 
@@ -57,15 +121,21 @@ export interface VerdictLog {
   clamped: number;
   refused: number;
   entries: Verdict[];
+  /** What has been cleared into each sector so far, in basis points. */
+  exposureBps: number[];
 }
 
 export interface Mandate {
   version: number;
+  /** The owner stopped everything. Nothing proposes until they lift it. */
+  halted: boolean;
   text: string;
   maxPositionBps: number;
   maxTradeBps: number;
   /** The widest market the agent may trade into. Zero means unset. */
   maxSpreadBps: number;
+  /** Mints the sentence rules out, resolved off chain and enforced on it. */
+  denied: string[];
   adoptCount: number;
 }
 
@@ -80,76 +150,109 @@ const SECTORS = [
 
 /**
  * 0 none, 1 position cap, 2 single trade cap, 3 denied asset, 4 stale,
- * 5 ingested, 6 the book was too wide.
+ * 5 ingested, 6 the book was too wide, 7 the sector is already at its cap,
+ * 8 past the hard ceiling the owner set on the agent.
  */
 const REASONS = [
   "",
-  'Triggered boundary: the position cap',
-  'Triggered boundary: the single trade cap',
+  "Triggered boundary: the position cap",
+  "Triggered boundary: the single trade cap",
   "Triggered boundary: an asset the mandate refuses",
   "The mandate changed after the grant was issued",
   "The instruction arrived inside something the agent read",
   "The book was wider than the mandate will trade into",
+  "Triggered boundary: this sector is already at its cap",
+  "Triggered boundary: the agent's hard ceiling in cash",
+  "The owner halted the mandate",
 ];
 
 const OUTCOME_TO_STATUS: EntryStatus[] = ["cleared", "trimmed", "refused"];
 const OUTCOME_LABEL = ["Cleared", "Trimmed", "Refused"];
 
 export function decodeVerdictLog(data: Uint8Array): VerdictLog {
-  const b = Buffer.from(data);
-  let o = 8 + 32 + 32; // discriminator, owner, vault
-  o += 1; // head
-  const cleared = b.readUInt32LE(o); o += 4;
-  const clamped = b.readUInt32LE(o); o += 4;
-  const refused = b.readUInt32LE(o); o += 4;
-  const count = b.readUInt32LE(o); o += 4;
+  const c = new Cursor(data);
+  c.skip(8 + 32 + 32); // discriminator, owner, vault
+  c.skip(1); // head
+  const cleared = c.u32();
+  const clamped = c.u32();
+  const refused = c.u32();
+  const count = c.u32();
 
   const entries: Verdict[] = [];
   for (let i = 0; i < count; i++) {
     entries.push({
-      slot: b.readBigUInt64LE(o),
-      mandateVersion: b.readUInt16LE(o + 8),
-      category: b.readUInt8(o + 10),
-      proposedBps: b.readUInt16LE(o + 11),
-      allowedBps: b.readUInt16LE(o + 13),
-      outcome: b.readUInt8(o + 15),
-      reason: b.readUInt8(o + 16),
+      slot: c.u64(),
+      mandateVersion: c.u16(),
+      category: c.u8(),
+      proposedBps: c.u16(),
+      allowedBps: c.u16(),
+      outcome: c.u8(),
+      reason: c.u8(),
     });
-    o += 17;
   }
-  return { cleared, clamped, refused, entries };
+
+  // Sector totals sit straight after the entries, so where they start depends
+  // on how many verdicts are in the log. Older accounts were written before
+  // these existed and are read as zero rather than as an error, because during
+  // an upgrade both layouts are on chain at once and a reader that assumes the
+  // newer one turns every older account into garbage. Garbage is worse than an
+  // absence, because it looks like data.
+  const exposureBps: number[] = [];
+  for (let i = 0; i < SECTORS.length; i++) {
+    exposureBps.push(c.o + 2 <= c.length ? c.u16() : 0);
+  }
+
+  return { cleared, clamped, refused, entries, exposureBps };
 }
 
 export function decodeMandate(data: Uint8Array): Mandate {
-  const b = Buffer.from(data);
-  let o = 8 + 32; // discriminator, owner
-  const version = b.readUInt16LE(o); o += 2;
-  const textLen = b.readUInt32LE(o); o += 4;
-  const text = b.subarray(o, o + textLen).toString("utf8"); o += textLen;
-  o += 32; // text hash
-  const maxPositionBps = b.readUInt16LE(o); o += 2;
-  const maxTradeBps = b.readUInt16LE(o); o += 2;
-
-  // The spread cap was added after the first accounts were written, so this
-  // reads both layouts. During an upgrade the two sit on chain together
-  // until every owner has touched their mandate, and a reader that assumes
-  // the newer one turns every older account into garbage rather than into
-  // an error, which is worse because garbage looks like data.
+  // Three layouts have existed and the difference is not visible by parsing.
   //
-  // Anchor allocates the whole max_len up front, so the two cannot be told
-  // apart by parsing: both walk to a plausible end through the padding.
-  // What does tell them apart is the allocation itself. One extra u16 makes
-  // the newer account exactly two bytes larger, and that is unambiguous.
+  // The spread cap arrived after the first accounts were written, and the halt
+  // flag after that. During an upgrade all of them sit on chain at once, and a
+  // reader that assumes the newest turns every older account into garbage
+  // rather than into an error. Garbage is the worse failure, because it looks
+  // like data: an account read one field out of step reported an adoption count
+  // of two point seven billion and nothing about the screen said anything was
+  // wrong.
+  //
+  // Anchor allocates the whole max_len up front, so parsing cannot tell them
+  // apart; both walk to a plausible end through the padding. The allocation
+  // itself can. Each field added makes the account exactly that much larger.
   const WITHOUT_SPREAD = 676;
-  const hasSpread = b.length >= WITHOUT_SPREAD + 2;
+  const hasSpread = data.length >= WITHOUT_SPREAD + 2;
+  const hasHalt = data.length >= WITHOUT_SPREAD + 3;
 
-  const maxSpreadBps = hasSpread ? b.readUInt16LE(o) : 0;
-  if (hasSpread) o += 2;
+  const c = new Cursor(data);
+  c.skip(8 + 32); // discriminator, owner
+  const version = c.u16();
+  const halted = hasHalt ? c.u8() === 1 : false;
+  const textLen = c.u32();
+  const text = c.utf8(textLen);
+  c.skip(32); // text hash
+  const maxPositionBps = c.u16();
+  const maxTradeBps = c.u16();
+  const maxSpreadBps = hasSpread ? c.u16() : 0;
 
-  const deniedLen = b.readUInt32LE(o); o += 4 + deniedLen * 32;
-  const hasParent = b.readUInt8(o); o += 1 + (hasParent ? 32 : 0);
-  const adoptCount = b.readUInt32LE(o);
-  return { version, text, maxPositionBps, maxTradeBps, maxSpreadBps, adoptCount };
+  const deniedLen = c.u32();
+  const denied: string[] = [];
+  for (let i = 0; i < deniedLen; i++) {
+    denied.push(new PublicKey(c.slice(32)).toBase58());
+  }
+  const hasParent = c.u8();
+  if (hasParent) c.skip(32);
+  const adoptCount = c.u32();
+
+  return {
+    version,
+    halted,
+    text,
+    maxPositionBps,
+    maxTradeBps,
+    maxSpreadBps,
+    denied,
+    adoptCount,
+  };
 }
 
 const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%`;
@@ -222,11 +325,19 @@ export function verdictToChartMarker(
   };
 }
 
+export interface SectorExposure {
+  sector: string;
+  bps: number;
+  capBps: number;
+}
+
 export interface ChainSnapshot {
   mandate: Mandate | null;
   stats: EnforcerStats;
   entries: LedgerEntry[];
   markers: ChartMarker[];
+  /** Sectors that have something in them, against the cap they run to. */
+  exposure: SectorExposure[];
 }
 
 /**
@@ -248,21 +359,35 @@ export async function loadChainSnapshot(
 
     const log = decodeVerdictLog(logInfo.data);
     if (log.entries.length === 0) return null;
+    const mandate = mandateInfo ? decodeMandate(mandateInfo.data) : null;
 
     const slot = BigInt(latestSlot);
     // newest first, the way a diary reads
     const ordered = [...log.entries].reverse();
 
     return {
-      mandate: mandateInfo ? decodeMandate(mandateInfo.data) : null,
+      mandate,
       stats: { cleared: log.cleared, trimmed: log.clamped, refused: log.refused },
       entries: ordered.map((v, i) => verdictToLedgerEntry(v, i, slot)),
       markers: log.entries.map((v, i) =>
         verdictToChartMarker(v, i, log.entries.length),
       ),
+      // Only the sectors with something in them. An empty one is not a fact
+      // worth a row, and the list is short enough to read at a glance.
+      exposure: log.exposureBps
+        .map((bps, i) => ({
+          sector: SECTORS[i] ?? "Unspecified",
+          bps,
+          capBps: mandate?.maxPositionBps ?? 0,
+        }))
+        .filter((e) => e.bps > 0),
     };
-  } catch {
-    // An unreachable endpoint should degrade to the sample data, not a blank app.
+  } catch (err) {
+    // An unreachable endpoint should degrade to the sample data, not a blank
+    // app. It should not degrade silently, though: a screen that quietly falls
+    // back to samples looks exactly like a screen that is working, and the
+    // whole claim of this one is that what it shows came off the chain.
+    console.warn("chain snapshot unavailable, showing sample data", err);
     return null;
   }
 }

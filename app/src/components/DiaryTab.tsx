@@ -23,9 +23,9 @@ const PERIOD_CONFIGS = {
     badge: null as string | null, // see overnightBadge below
     headingSuffix: 'overnight trade refusals',
     description:
-      'Your overnight boundaries held solid. While you slept, the agent attempted automated portfolio rebalances; your plain English mandate halted all 3 without balance leakage.',
+      'Your overnight boundaries held solid. While you slept, the agent attempted automated portfolio rebalances and your plain English mandate stopped every one of them, without a balance moving.',
     stats: [
-      { label: '3 Blocked', value: '$1,330 USDC', type: 'refused' },
+      { label: 'Blocked', value: '$1,330 USDC', type: 'refused' },
       { label: 'Latency', value: '14ms Kernel Abort', type: 'cleared' },
       { label: 'Sleep Protection', value: '100% Unbreached', type: 'cleared' },
     ],
@@ -461,8 +461,15 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
             <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--refused-rust)] font-bold">
               {currentPeriodConfig.badge ?? overnightBadge ?? 'Overnight session'}
             </span>
-            <span className="text-[10.5px] font-mono text-[var(--text-tertiary)]">
-              Enforcer Engine v2.4
+            <span className="flex items-center gap-2">
+              <span className="text-[10.5px] font-mono text-[var(--text-tertiary)]">
+                Enforcer Engine v2.4
+              </span>
+              {/* The count is read off the chain. The dollar figures are not,
+                  because the program deliberately records no amounts, and a
+                  card that mixes the two without saying so is the thing this
+                  badge exists to prevent. */}
+              <DataOrigin origin="sample" />
             </span>
           </div>
 

@@ -6,14 +6,13 @@ node_modules
 test-ledger
 .yarn
 .surfpool
-scripts/.session-payer.json
-scripts/.fresh-owner.json
-scripts/.verdict-owner.json
-scripts/.verdict-agent.json
-scripts/.gate-owner.json
+# Every keypair a script persists. One pattern rather than a list that has to
+# be remembered each time a script gains an owner.
+scripts/.*.json
 app/node_modules
 app/dist
 
 # Local Netlify folder
 .netlify
 app/.netlify
+.env

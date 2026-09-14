@@ -54,3 +54,11 @@ pub const SPEND_PERIOD_MIN: i64 = 60 * 60;
 /// And the longest, so an allowance cannot be set once and forgotten for a
 /// year the way a permanent approval is.
 pub const SPEND_PERIOD_MAX: i64 = 60 * 60 * 24 * 31;
+
+#[constant]
+pub const PENDING_SEED: &[u8] = b"pending";
+
+/// How many sectors a proposal can name, counting the unspecified one at zero.
+/// A proposal naming anything past this has no room under any cap, which is the
+/// safe way for an out of range number to fail.
+pub const CATEGORY_COUNT: usize = 6;

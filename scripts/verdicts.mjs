@@ -21,6 +21,7 @@ import {
   TransactionInstruction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
+import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 
@@ -60,14 +61,22 @@ function persisted(name) {
   }
 }
 
-function baseRpc() {
-  const env = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8");
-  const line = env.split("\n").find((l) => l.startsWith("SOLANA_RPC_URL="));
-  if (!line) throw new Error("no SOLANA_RPC_URL to read");
-  return line.slice("SOLANA_RPC_URL=".length).trim();
-}
 
 const SECTORS = ["unspecified", "technology", "energy", "healthcare", "financials", "consumer"];
+
+// What "no fossil fuels" resolves to.
+//
+// The program cannot read English, so the clause is resolved off chain into a
+// list of mints and the list is what gets enforced. These two are real, live on
+// Solana mainnet today, and they are Exxon and Chevron wrapped by Backed. The
+// point of naming them rather than inventing an address is that a reader can go
+// and look.
+const DENIED = [
+  new PublicKey("XsaHND8sHyfMfsWPj6kSdd5VwvCayZvjYgKmmcNL5qh"), // XOMx, Exxon
+  new PublicKey("XsNNMt7WTNA2sV3jrb1NNfNgapxRF5i4i6GcnTRRHts"), // CVXx, Chevron
+];
+// A technology name, so the ordinary proposals have something to name.
+const NVDAX = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
 const OUTCOME = ["cleared", "clamped", "refused"];
 const REASON = [
   "",
@@ -76,14 +85,18 @@ const REASON = [
   "asset the mandate refuses",
   "mandate changed since the grant",
   "instruction came from something it read",
+  "book wider than the mandate will trade into",
+  "sector already at its cap",
+  "past the agent's hard ceiling in cash",
+  "the owner halted the mandate",
 ];
 
 async function main() {
   const funder = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))),
   );
-  const owner = persisted("verdict-owner");
-  const agent = persisted("verdict-agent");
+  const owner = persisted("demo-owner");
+  const agent = persisted("demo-agent");
   const base = new Connection(baseRpc(), "confirmed");
 
   const [mandate] = PublicKey.findProgramAddressSync(
@@ -118,7 +131,7 @@ async function main() {
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, true), meta(SystemProgram.programId, false, false)],
       // 15% in one name, 5% in one trade, and nothing wider than 20 basis points
-      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), u16(20), vecPubkey([])]),
+      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), u16(20), vecPubkey(DENIED)]),
     })], [owner]);
     console.log("mandate created, position cap 15%, single trade cap 5%");
   }
@@ -132,12 +145,25 @@ async function main() {
     console.log("vault opened");
   }
 
+  // A hundred thousand dollars of book, and a cash ceiling of two and a half
+  // thousand on any one trade. Two limits of different kinds on purpose: a
+  // percentage cap alone misbehaves when the book is small, and a cash cap
+  // alone misbehaves when it is large.
+  const BOOK = 100_000_000_000; // 100,000.000000 in six decimal quote units
+  const CEILING = 5_000_000_000; // 5,000.000000, which is what a 5% trade costs
+
+  await send([new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [meta(owner.publicKey, true, false), meta(vault, false, true)],
+    data: Buffer.concat([disc("set_book_size"), u64(BOOK)]),
+  })], [owner]);
+
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
-    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(250_000_000)]),
+    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(CEILING)]),
   })], [owner]);
-  console.log("agent granted for one hour");
+  console.log("agent granted for one hour, book 100,000, cash ceiling 5,000 a trade");
 
   if (!(await base.getAccountInfo(log))) {
     await send([new TransactionInstruction({
@@ -155,17 +181,20 @@ async function main() {
     console.log("funded the agent so it can pay its own fees");
   }
 
-  const propose = async (label, category, bps, ingested, side = 0, spreadBps = 0) => {
+  const propose = async (label, category, bps, ingested, side = 0, spreadBps = 0, mint = null) => {
     const t0 = performance.now();
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(agent.publicKey, true, true), meta(vault, false, false), meta(mandate, false, false), meta(log, false, true)],
-      data: Buffer.concat([disc("propose_trade"), u8(category), u16(bps), bool(ingested), u8(side ?? 0), u16(spreadBps ?? 0)]),
+      data: Buffer.concat([
+        disc("propose_trade"), u8(category), u16(bps), bool(ingested),
+        u8(side ?? 0), u16(spreadBps ?? 0), (mint ?? NVDAX).toBuffer(),
+      ]),
     })], [agent]);
     console.log(`  ${label.padEnd(46)} ${String(Math.round(performance.now() - t0)).padStart(5)}ms`);
   };
 
-  console.log("\nthe agent proposes six things");
+  console.log("\nthe agent proposes fourteen things");
   await propose("4% of the book in technology", 1, 400, false);
   await propose("12%, over the single trade cap", 1, 1200, false);
   await propose("40%, well past the position cap", 1, 4000, false);
@@ -177,6 +206,62 @@ async function main() {
   // And the same width on the way out, which the size caps would have
   // waved through, because a cap on buying is not a cap on selling.
   await propose("exiting 8% into that same book", 1, 800, false, 1, 32);
+  // The English clause, enforced. Size never enters into it.
+  await propose("5% of Exxon, which the sentence rules out", 2, 500, false, 0, 0, DENIED[0]);
+
+  // The owner changes their mind, which is the point of holding the key.
+  //
+  // Nothing about the mandate moves and nothing about the agent moves. The
+  // owner simply lowers what one trade may cost in cash, from five thousand to
+  // two and a half, and the next proposal is refused for a reason no percentage
+  // cap could have expressed. That is why there are two ceilings of different
+  // kinds rather than one.
+  await send([new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
+    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(2_500_000_000)]),
+  })], [owner]);
+  console.log("  the owner lowers the cash ceiling to 2,500 a trade");
+
+  await propose("3% of technology, now $3,000 a trade", 1, 300, false);
+
+  // The part a single trade cap cannot do.
+  //
+  // Technology already stands at 9% from the two that went through above. Each
+  // of these is inside the 5% single trade cap and inside the 15% position cap
+  // on its own, and it is the running total that stops them. Without one, all
+  // four would clear and the book would sit at 17% under a sentence that says
+  // fifteen.
+  await propose("2% more of technology, taking it to 11%", 1, 200, false);
+  await propose("2% more, taking it to 13%", 1, 200, false);
+  await propose("3% more, with only 2% of room left", 1, 300, false);
+  await propose("2% again, with the sector now full", 1, 200, false);
+
+  // The kill switch, which is the one control that is always reachable.
+  //
+  // Revoking the agent writes to the vault, and a vault delegated to the
+  // ephemeral rollup is owned by the delegation program on base, so that path
+  // needs the rollup to answer. This one does not: a mandate is never
+  // delegated, so a single transaction from the owner stops everything
+  // regardless of what the rollup is doing.
+  await send([new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [meta(owner.publicKey, true, false), meta(mandate, false, true)],
+    data: Buffer.concat([disc("set_halted"), bool(true)]),
+  })], [owner]);
+  console.log("  the owner halts the mandate");
+
+  await propose("1% of technology, well inside every cap", 1, 100, false);
+
+  await send([new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [meta(owner.publicKey, true, false), meta(mandate, false, true)],
+    data: Buffer.concat([disc("set_halted"), bool(false)]),
+  })], [owner]);
+  console.log("  the owner lifts the halt");
+
+  // A different sector, because technology has been full since the fill above.
+  await propose("1% of healthcare, with the halt lifted", 3, 100, false);
 
   // Read the log back the way the app would.
   const info = await base.getAccountInfo(log);
@@ -210,6 +295,13 @@ async function main() {
     const why = r.reason ? `, ${REASON[r.reason]}` : "";
     console.log(`  asked for ${asked.padStart(3)} of ${SECTORS[r.category] || "?"}`.padEnd(40) + `${got}${why}`);
   }
+  const exposure = [];
+  for (let i = 0; i < SECTORS.length; i++) { exposure.push(d.readUInt16LE(o)); o += 2; }
+  console.log("\nwhere the book stands now, by sector, with no holding revealed");
+  exposure.forEach((bps, i) => {
+    if (bps > 0) console.log(`  ${SECTORS[i].padEnd(14)} ${(bps / 100).toFixed(2)}% of a 15.00% cap`);
+  });
+
   console.log(`\nring buffer head at ${head}, capacity 16`);
 }
 

@@ -123,3 +123,64 @@ pub fn exec_revoke_agent(ctx: Context<RevokeAgent>) -> Result<()> {
     v.agent_max_trade = 0;
     Ok(())
 }
+
+/// Publish the handle to the encrypted position set.
+///
+/// The gate compares the sealed exposure it is handed against this field and
+/// refuses anything else, which is what stops an agent from sealing a
+/// flattering number to its own key and asking the network about that instead.
+/// So the handle has to move, and only the owner may move it: they decrypt the
+/// copy the circuit sealed back to them, satisfy themselves it is right, and
+/// write it here under their own signature.
+///
+/// Nothing readable passes through this instruction. The handle is ciphertext
+/// on the way in, ciphertext at rest, and the program has no key for it.
+#[derive(Accounts)]
+pub struct SetPositionHandle<'info> {
+    pub owner: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner @ CleatError::NotOwner
+    )]
+    pub vault: Account<'info, Vault>,
+}
+
+pub fn exec_set_position_handle(
+    ctx: Context<SetPositionHandle>,
+    handle: [u8; 32],
+) -> Result<()> {
+    ctx.accounts.vault.position_handle = handle;
+    Ok(())
+}
+
+/// State the size of the book the percentages are percentages of.
+///
+/// The mandate is written in basis points, and basis points of nothing are
+/// nothing. Until the vault custodies the assets itself, the owner declares
+/// what the book is worth, which is what turns the agent's cash ceiling from a
+/// number in an account into a bound that actually fires. Owner only: an agent
+/// that could restate the size of the book could clear any trade it liked by
+/// calling the book enormous.
+///
+/// This is a declaration rather than a deposit and the field is public, which
+/// is deliberate. The pool total being visible is not the same as the split
+/// inside it being visible, and it is the split that the confidential gate
+/// exists to protect.
+#[derive(Accounts)]
+pub struct SetBookSize<'info> {
+    pub owner: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner @ CleatError::NotOwner
+    )]
+    pub vault: Account<'info, Vault>,
+}
+
+pub fn exec_set_book_size(ctx: Context<SetBookSize>, quote_units: u64) -> Result<()> {
+    ctx.accounts.vault.deposited = quote_units;
+    Ok(())
+}

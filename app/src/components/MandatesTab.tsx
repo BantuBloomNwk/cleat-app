@@ -2,16 +2,23 @@ import React, { useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
 import { CommunityMandate } from '../types';
+import type { Mandate, SectorExposure } from '../lib/chain';
 import { tactile } from '../utils/haptics';
 
 interface MandatesTabProps {
   mandates: CommunityMandate[];
   onAdoptMandate: (sentence: string) => void;
+  /** Sectors with something cleared into them, read off the devnet log. */
+  exposure: SectorExposure[];
+  /** The mandate that log answers to, or null before the read lands. */
+  chainMandate: Mandate | null;
 }
 
 export const MandatesTab: React.FC<MandatesTabProps> = ({
   mandates,
   onAdoptMandate,
+  exposure,
+  chainMandate,
 }) => {
   const [adoptedId, setAdoptedId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -134,6 +141,92 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
           )}
         </button>
       </div>
+
+      {exposure.length > 0 && (
+        <article className="glass-card" id="sector-standing">
+          <div className="card-topbar">
+            <span className="meta-kicker">Where the book stands</span>
+            <DataOrigin origin="chain" />
+          </div>
+          <p className="text-[11.5px] leading-[1.5] text-[var(--text-secondary)] mb-3">
+            What has been cleared into each sector, against the ceiling the
+            sentence sets. This is the running total that makes a position cap a
+            position cap. It counts decisions, never holdings.
+          </p>
+          <div className="flex flex-col gap-2.5">
+            {exposure.map((e) => {
+              const full = e.capBps > 0 && e.bps >= e.capBps;
+              const width = e.capBps > 0
+                ? Math.min(100, (e.bps / e.capBps) * 100)
+                : 0;
+              return (
+                <div key={e.sector} className="flex flex-col gap-1">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[12px] font-medium text-[var(--text-primary)]">
+                      {e.sector}
+                    </span>
+                    <span
+                      className="text-[11px] font-mono tabular-nums"
+                      style={{
+                        color: full
+                          ? 'var(--refused-rust)'
+                          : 'var(--text-secondary)',
+                      }}
+                    >
+                      {(e.bps / 100).toFixed(2)}% of {(e.capBps / 100).toFixed(2)}%
+                    </span>
+                  </div>
+                  <div
+                    className="h-[5px] rounded-full overflow-hidden bg-[var(--card-surface)] border border-[var(--card-border-subtle)]"
+                    role="meter"
+                    aria-valuenow={e.bps}
+                    aria-valuemin={0}
+                    aria-valuemax={e.capBps}
+                    aria-label={`${e.sector} exposure`}
+                  >
+                    <div
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{
+                        width: `${width}%`,
+                        background: full
+                          ? 'var(--refused-rust)'
+                          : 'var(--verdigris)',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {chainMandate && chainMandate.denied.length > 0 && (
+            <div className="mt-3.5 pt-3 border-t border-[var(--card-border-subtle)]">
+              <span className="text-[10.5px] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+                Ruled out by name
+              </span>
+              <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)] mt-1">
+                The sentence says no fossil fuels. A program cannot read that, so
+                the clause resolves off chain into {chainMandate.denied.length}{' '}
+                mints and the list is what gets enforced.
+              </p>
+              <div className="flex flex-col gap-1 mt-2">
+                {chainMandate.denied.map((mint) => (
+                  <code
+                    key={mint}
+                    className="text-[10px] font-mono text-[var(--text-tertiary)] break-all"
+                  >
+                    {mint}
+                  </code>
+                ))}
+              </div>
+            </div>
+          )}
+          {chainMandate?.halted && (
+            <p className="mt-3 text-[11.5px] font-medium text-[var(--text-primary)]">
+              This mandate is halted. Nothing proposes until the owner lifts it.
+            </p>
+          )}
+        </article>
+      )}
 
       <div className="flex flex-col gap-3.5">
         {mandates.map((m) => {
