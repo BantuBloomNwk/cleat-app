@@ -15,10 +15,24 @@
 # Headers.
 #
 # The policy is as tight as it is because of how the app is built rather
-# than by effort: every external call goes through a function on this
-# origin, so the only third party the browser ever reaches is Google's
-# font host. Market data, chain reads and the issuer comparison are all
-# proxied, which means connect-src can be 'self' alone.
+# than by effort: market data, chain reads and the issuer comparison all
+# go through a function on this origin.
+#
+# connect-src is the one place that had to widen, and the reason is worth
+# stating because it looks like a weakening and is the opposite. A client
+# who brings their own model key must have the browser call that provider
+# directly. Routing it through our proxy would mean their key and their
+# prompts passing through our servers, which is exactly what bringing your
+# own key is meant to avoid. So the three provider origins are listed, and
+# a local model is allowed on loopback, where nothing leaves the machine
+# at all.
+#
+# What that costs: script injection that already had execution could
+# exfiltrate to one of four named hosts instead of none. What it buys: we
+# never hold a client's provider credential. Given script-src is 'self'
+# with no inline escape hatch, the first is a small delta on an attack
+# that has already won, and the second is a property we cannot get any
+# other way.
 #
 # The build emits no inline script and no inline style block, so
 # script-src needs no escape hatch. style-src does need unsafe-inline,
@@ -41,7 +55,12 @@
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com data:;
       img-src 'self' data: blob:;
-      connect-src 'self';
+      connect-src 'self'
+        https://api.anthropic.com
+        https://api.openai.com
+        https://generativelanguage.googleapis.com
+        http://localhost:11434
+        http://127.0.0.1:11434;
       manifest-src 'self';
       worker-src 'self' blob:;
       media-src 'self' blob:;
