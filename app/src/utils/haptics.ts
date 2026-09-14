@@ -52,12 +52,21 @@ class TactileFeedbackEngine {
   // Hardware vibration on supported mobile devices (PWA / Android / iOS webkit)
   vibrate(pattern: number | number[]) {
     if (!this.vibrationEnabled) return;
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate(pattern);
-      } catch {
-        // Ignore vibration errors if blocked by browser policy
-      }
+    if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
+
+    // Vibration needs a real user gesture behind it. Calling it without one
+    // does nothing and prints a warning for every attempt, which turns a
+    // console into a wall of noise for anyone who opens one. Ask first
+    // where the browser will tell us, and stay quiet where it will not.
+    const activation = (navigator as Navigator & {
+      userActivation?: { hasBeenActive: boolean };
+    }).userActivation;
+    if (activation && !activation.hasBeenActive) return;
+
+    try {
+      navigator.vibrate(pattern);
+    } catch {
+      // Blocked by policy, which is not worth saying anything about.
     }
   }
 
