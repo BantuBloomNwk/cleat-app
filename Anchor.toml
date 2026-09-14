@@ -9,6 +9,7 @@ skip-lint = false
 cleat = "2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL"
 
 [programs.devnet]
+listing = "37ueS3JcgaPyhAjW3Aj43dytLWq66UZHQ3Z4KEz6jrGg"
 cleat = "2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL"
 
 [provider]

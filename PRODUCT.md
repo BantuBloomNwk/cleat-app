@@ -234,6 +234,66 @@ silence. It does not degrade to guessing, and it cannot degrade to acting.
 out of money stops having ideas, and the boundary that stops bad ideas was never
 the part that cost anything to run.
 
+## The supply side, and why we build it rather than wait for it
+
+Every tokenized equity live on Solana today is an American name. That is not a
+law of nature, it is a gap, and checking it properly turned up something better:
+**no tokenized blue chip or index exists on any chain for any emerging market**.
+Not the Nikkei, the Hang Seng, the STI or the KLCI. Not the JSE, the NGX, the EGX
+or Tadawul. Not the ASX or the NZX. One project, xNG, is promising Nigerian
+listings and is still a waitlist with no working pipe.
+
+So the field is open, and waiting on someone else's API is the weaker position.
+An issuance pipe without policy enforcement is a commodity. Enforcement without
+supply is what we have now. **Owning both is the position**, and we already have
+the harder half built.
+
+### The regions, and why more than one
+
+Not one region. The markets that have been left out of this are the same ones
+this company exists to serve, and they are not in one time zone:
+
+- **APAC**, including Australia and New Zealand. Singapore first for licensing,
+  because DigiFT already holds the full stack there, then Hong Kong and Japan.
+- **Africa**, where the NGX and the JSE are the obvious first listings and where
+  the audience is already assembled on our exact rails.
+- **MENA**, where Tadawul and the DFM sit behind the same wall as everyone else.
+
+Concentrating on one region would be easier to explain and worse to own. A pipe
+that only works in one jurisdiction is a local broker with extra steps. A pipe
+whose attestation signer is pluggable works anywhere a licensed partner exists,
+and the regions above are where nobody has bothered to build one.
+
+### What we build now, without a licence
+
+Every issuer does the same thing underneath, and Ondo's version is the one worth
+copying because of one detail: **the attestation signer does not have to be us**.
+A licensed entity holds the real shares and signs an attestation; the program
+verifies that signature before it will mint. Swap the signer and the same pipe
+serves a different market.
+
+That means the software is buildable today and the licence is a separate,
+slower track. What can be demonstrated now is the whole mechanism with a stand
+in signer, which is real infrastructure rather than a mock, because the only
+thing missing is whose key signs.
+
+### On the licence, honestly
+
+Singapore first, not Malaysia, and that is worth saying plainly since it is not
+where the founder sits. Malaysia's Securities Commission has an on point
+tokenized securities framework that has been in unfinished consultation since
+mid 2025. Singapore has operators holding the full licence stack today. Home
+base and licensing jurisdiction do not have to be the same place, and pretending
+otherwise would cost a year.
+
+### And why this is a distribution argument, not only a moat
+
+The reason to build the pipe is not that it is defensible. It is that it is the
+only way to have anything to trade. A person in Lagos, Kuala Lumpur, Cairo or
+Auckland cannot currently hold their own market on chain at all, which means
+there is no product for them to have found product market fit with. Supply comes
+first, and whoever supplies it owns the distribution that follows.
+
 ## Brand Personality
 
 Calm, confident, plainspoken. Three words: composed, candid, warm.
