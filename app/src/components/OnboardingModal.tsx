@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tactile } from '../utils/haptics';
+import { useWallet } from '../hooks/useWallet';
+import { hasWallet } from '../lib/passkey';
 import emblemDark from '../assets/emblem-dark.png';
 import emblemLight from '../assets/emblem-light.png';
 
@@ -22,25 +24,43 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   initialSentence,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [passkeyLabel, setPasskeyLabel] = useState('Authenticate with Passkey');
   const [mandateText, setMandateText] = useState(initialSentence);
+  const wallet = useWallet();
+
+  // Whether a wallet already exists is read once, when the sheet opens, so
+  // the button does not change its mind under the user's finger mid flow.
+  const [existed] = useState(() => hasWallet());
 
   if (!isOpen) return null;
 
-  const handleSimulatePasskey = () => {
+  const isVerifying = wallet.state.status === 'unlocking';
+  const ready = wallet.state.status === 'ready';
+
+  /**
+   * One wallet, ever.
+   *
+   * Creating a second passkey wallet would strand whatever the first one
+   * holds behind a credential the app has stopped pointing at, which is
+   * the same way round as losing a seed phrase and worse because it looks
+   * like success. So if this browser already knows about a wallet the only
+   * thing this button does is unlock it, and creating is not reachable
+   * from here at all.
+   */
+  const handlePasskey = async () => {
     tactile.mandateAction();
-    setIsVerifying(true);
-    setPasskeyLabel('Scanning Biometrics...');
-    setTimeout(() => {
-      setPasskeyLabel('Passkey Verified ✓');
+    const kp = existed ? await wallet.unlock() : await wallet.create();
+    if (kp) {
       tactile.selectionTap();
-      setTimeout(() => {
-        setIsVerifying(false);
-        setStep(3);
-      }, 500);
-    }, 800);
+      setStep(3);
+    }
   };
+
+  const passkeyLabel = (() => {
+    if (isVerifying) return existed ? 'Waiting for you…' : 'Creating your vault…';
+    if (ready) return 'Verified';
+    if (wallet.state.status === 'error') return 'Try again';
+    return existed ? 'Unlock with Face ID' : 'Create with Face ID';
+  })();
 
   const handleSeal = () => {
     tactile.mandateAction();
@@ -61,7 +81,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         <div className="onboarding-step-indicators">
           <div className="flex flex-col">
             <span className="font-mono text-[9.5px] font-bold text-[var(--verdigris)] tracking-widest uppercase mb-1">
-              Intro Walkthrough • Step {step} of 3
+              {existed ? "Unlock" : "Set up"} • Step {step} of 3
             </span>
             <div className="onboarding-step-dots">
               <button
@@ -126,7 +146,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 onClose();
               }}
             >
-              Skip to Diary →
+              Look around first
             </button>
           </div>
         </div>
@@ -159,7 +179,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 setStep(2);
               }}
             >
-              <span>Continue to Passkey Setup</span>
+              <span>{existed ? 'Unlock your vault' : 'Set up your vault'}</span>
               <svg className="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
@@ -182,20 +202,54 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               Sign In with Passkey
             </h3>
             <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-5 max-w-[310px]">
-              Biometric passkey verified on device hardware. <strong className="text-[var(--text-primary)]">No password, no seed phrase.</strong>
+              {existed
+                ? 'Your vault is already set up on this device. Your face opens it.'
+                : 'Your face makes the key, and the key never leaves your device.'}{' '}
+              <strong className="text-[var(--text-primary)]">
+                No password, no seed phrase, nothing to write down.
+              </strong>
             </p>
+
+            {wallet.state.status === 'unsupported' && (
+              <p className="text-[11.5px] text-[var(--ember)] leading-relaxed mb-4 max-w-[310px]">
+                {wallet.state.reason}
+              </p>
+            )}
+            {wallet.state.status === 'error' && (
+              <p className="text-[11.5px] text-[var(--refused-rust)] leading-relaxed mb-4 max-w-[310px]">
+                {wallet.state.message}
+              </p>
+            )}
             <button
               id="btn-passkey-verify"
               type="button"
-              disabled={isVerifying}
+              disabled={isVerifying || wallet.state.status === 'unsupported'}
               className="btn-passkey-auth w-full"
-              onClick={handleSimulatePasskey}
+              onClick={handlePasskey}
             >
               <svg className="w-[18px] h-[18px] stroke-2 fill-none stroke-current" viewBox="0 0 24 24">
                 <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z" />
               </svg>
               <span>{passkeyLabel}</span>
             </button>
+
+            {/* The recovery path, for a device that has never seen this app.
+                Nothing local is consulted: the platform offers whatever Cleat
+                passkeys the user has and the same wallet comes back. */}
+            {!existed && (
+              <button
+                type="button"
+                disabled={isVerifying}
+                className="font-mono text-[11px] text-[var(--verdigris)] mt-3 hover:underline"
+                onClick={async () => {
+                  tactile.selectionTap();
+                  const kp = await wallet.restore();
+                  if (kp) setStep(3);
+                }}
+              >
+                I already have a Cleat vault
+              </button>
+            )}
 
             <button
               type="button"
@@ -205,7 +259,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 setStep(1);
               }}
             >
-              ← Back to Overview
+              Back to overview
             </button>
           </div>
         )}
@@ -220,6 +274,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               <p className="text-[11.5px] text-[var(--text-tertiary)]">
                 Direct boundaries enforced on Solana via PER &amp; MPC (Magicblock &amp; Arcium).
               </p>
+              {/* Which vault this is about to be sealed to. Showing the
+                  address here rather than after is the point: the sentence
+                  and the key it binds to should be on screen together. */}
+              {wallet.state.status === 'ready' && (
+                <p className="font-mono text-[10px] text-[var(--verdigris)] mt-1.5 break-all">
+                  Sealing to {wallet.state.address.toBase58().slice(0, 8)}…
+                  {wallet.state.address.toBase58().slice(-6)}
+                </p>
+              )}
             </div>
             <div className="tactile-paper-sheet">
               <textarea
