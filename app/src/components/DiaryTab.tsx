@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Copy, Check, Share2, ShieldCheck, Cpu } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
+import { DataOrigin } from './DataOrigin';
 import { loadSessions, type MarketSession } from '../lib/backpack';
 import { ToastNotification } from './ToastNotification';
 import { MagicblockPerDiagram } from './MagicblockPerDiagram';
@@ -521,7 +522,10 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
             {filteredEntries.length} items
           </span>
         </div>
-        <span className="section-hint text-[11px]">Tap item to inspect agent trace</span>
+        <span className="flex items-center gap-2">
+          <span className="section-hint text-[11px]">Tap item to inspect agent trace</span>
+          <DataOrigin origin="chain" />
+        </span>
       </div>
 
       {/* Pill-Based Filter Bar: All | Refused | Trimmed | Cleared */}
@@ -621,7 +625,10 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
       {/* Interactive Simulation / Test Mandate Section */}
       <div className="section-row-header mt-2">
         <h3 className="section-heading text-[16px] font-bold">Test Mandate</h3>
-        <span className="section-hint text-[11px]">Inject market headlines to test boundaries</span>
+        <span className="flex items-center gap-2">
+          <span className="section-hint text-[11px]">Inject market headlines to test boundaries</span>
+          <DataOrigin origin="sample" />
+        </span>
       </div>
 
       <div className="poison-box glass-card flex flex-col gap-3.5 w-full" id="test-mandate-card">

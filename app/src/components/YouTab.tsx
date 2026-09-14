@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DataOrigin } from './DataOrigin';
 import { Vibrate, VibrateOff, ShieldCheck, Sparkles } from 'lucide-react';
 import { EnforcerStats } from '../types';
 import { tactile } from '../utils/haptics';
@@ -36,7 +37,10 @@ export const YouTab: React.FC<YouTabProps> = ({
     <section className="tab-screen active flex flex-col gap-3.5 w-full pb-12" id="view-you">
       <div className="section-row-header">
         <h2 className="section-heading text-[16px] font-bold">Your Enforcer Profile</h2>
-        <span className="section-hint text-[11px]">Cryptographic Identity</span>
+        <span className="flex items-center gap-2">
+          <span className="section-hint text-[11px]">Cryptographic Identity</span>
+          <DataOrigin origin="sample" />
+        </span>
       </div>
 
       {/* 3 Metric Summary Boxes */}

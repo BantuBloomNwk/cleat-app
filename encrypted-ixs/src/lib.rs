@@ -76,4 +76,32 @@ mod circuits {
             breaches.reveal(),
         )
     }
+
+    // ── The control ───────────────────────────────────────────────────
+    //
+    // This is not ours. It is Ilowa's init_pool_state_v4, copied byte for
+    // byte, and it runs today on this same devnet cluster 456 under a
+    // different MXE.
+    //
+    // Five of our circuits have now aborted. They differ from each other in
+    // the width of the number, struct against bare, the arithmetic, whether
+    // a bool or a tuple comes back, whether the caller's key is used, and
+    // whether anything is sealed to the MXE. Every one died the same way,
+    // which is a strong hint that the thing being varied is not the thing
+    // that is wrong.
+    //
+    // So stop varying it. This circuit is known to work. If it works here
+    // too, the fault is somewhere in our circuit after all and the bisect
+    // continues. If it aborts here, the fault is in this MXE or this
+    // program and no amount of rewriting the gate was ever going to fix it.
+    // Either answer is worth more than a sixth guess.
+    pub struct PoolState {
+        yes: u64,
+        no: u64,
+    }
+
+    #[instruction]
+    pub fn control_init_pool() -> Enc<Mxe, PoolState> {
+        Mxe::get().from_arcis(PoolState { yes: 0, no: 0 })
+    }
 }

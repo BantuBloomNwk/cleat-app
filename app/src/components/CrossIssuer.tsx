@@ -7,6 +7,7 @@ import {
   type IssuerQuote,
 } from '../lib/issuers';
 import { tactile } from '../utils/haptics';
+import { DataOrigin } from './DataOrigin';
 
 /**
  * The same company, from everyone who has tokenized it.
@@ -73,7 +74,10 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
         <h3 className="section-heading text-[16px] font-bold">
           {ticker}, three ways
         </h3>
-        <span className="section-hint text-[11px]">Same ticker, different instrument</span>
+        <span className="flex items-center gap-2">
+          <span className="section-hint text-[11px]">Same ticker, different instrument</span>
+          <DataOrigin origin="venue" />
+        </span>
       </div>
 
       <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">

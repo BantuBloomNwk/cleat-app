@@ -144,6 +144,26 @@ pub mod cleat {
         instructions::per::exec_release_vault(ctx)
     }
 
+
+    // ── The control ───────────────────────────────────────────────────
+    // A circuit known to work on this cluster, deployed here to find out
+    // whether the fault is our circuit or this MXE. Goes once answered.
+    pub fn init_control_comp_def(ctx: Context<InitControlCompDef>) -> Result<()> {
+        instructions::control::exec_init_control_comp_def(ctx)
+    }
+
+    pub fn queue_control(ctx: Context<ControlQueue>, computation_offset: u64) -> Result<()> {
+        instructions::control::exec_queue_control(ctx, computation_offset)
+    }
+
+    #[arcium_callback(encrypted_ix = "control_init_pool")]
+    pub fn control_init_pool_callback(
+        ctx: Context<ControlInitPoolCallback>,
+        output: SignedComputationOutputs<ControlInitPoolOutput>,
+    ) -> Result<()> {
+        instructions::control::exec_control_callback(ctx, output)
+    }
+
     // ── What the agent may spend on itself ────────────────────────────
     //
     // Separate from the mandate on purpose. The mandate bounds what the

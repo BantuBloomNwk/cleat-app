@@ -1,6 +1,7 @@
 import { ExpandSheet, ExpandButton } from './ExpandSheet';
 import { LiveInstrument } from './LiveInstrument';
 import { CrossIssuer } from './CrossIssuer';
+import { DataOrigin } from './DataOrigin';
 import { useTilt3D } from '../utils/useTilt3D';
 import { symbolTicker, loadTickers, loadDepth, bookQuality } from '../lib/backpack';
 import React, { useState, useEffect, useRef } from 'react';
@@ -242,7 +243,10 @@ export const ChartTab: React.FC<ChartTabProps> = ({
       {/* Section Header */}
       <div className="section-row-header">
         <h2 className="section-heading text-[16px] font-bold">Protection Geometry</h2>
-        <span className="section-hint text-[11px]">Live market, marked refusals</span>
+        <span className="flex items-center gap-2">
+          <span className="section-hint text-[11px]">Live price, sample refusals</span>
+          <DataOrigin origin="venue" />
+        </span>
       </div>
 
       <div className="glass-card flex flex-col gap-3" id="protection-geometry-card">

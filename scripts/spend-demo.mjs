@@ -31,7 +31,20 @@ const SOL = 1_000_000_000;
 
 const rpc = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8")
   .split("\n").find((l) => l.startsWith("SOLANA_RPC_URL=")).slice(15).trim();
-const connection = new Connection(rpc, "confirmed");
+// Throttled, because a deploy running against the same endpoint will
+// rate limit anything else that talks to it.
+let chain = Promise.resolve();
+const throttledFetch = (url, init) => {
+  const turn = chain.then(
+    () => new Promise((r) => setTimeout(r, Number(process.env.RPC_GAP_MS || 200))),
+  );
+  chain = turn.catch(() => {});
+  return turn.then(() => fetch(url, init));
+};
+const connection = new Connection(rpc, {
+  commitment: "confirmed",
+  fetch: throttledFetch,
+});
 
 const owner = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
   fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))));

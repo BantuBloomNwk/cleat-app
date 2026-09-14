@@ -2114,3 +2114,53 @@ h1, h2, h3, h4, h5, h6,
   .flip-digit.is-turning { animation: none; }
   .ticker-auto::after { animation: none; opacity: 0; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Where a number came from.
+
+   Quiet by default, because this is a footnote rather than a
+   headline, and the live one gets the accent because that is the
+   claim worth making.
+   ───────────────────────────────────────────────────────────── */
+.data-origin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: var(--pill-radius);
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface-raised);
+}
+.data-origin-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.data-origin.is-live {
+  color: var(--verdigris);
+  border-color: var(--verdigris-chip-border);
+}
+.data-origin.is-live .data-origin-pip {
+  background: var(--verdigris);
+  animation: originPulse 2.4s ease-in-out infinite;
+}
+.data-origin.is-sample {
+  color: var(--text-tertiary);
+}
+.data-origin.is-sample .data-origin-pip {
+  background: var(--text-tertiary);
+}
+
+@keyframes originPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .data-origin.is-live .data-origin-pip { animation: none; }
+}

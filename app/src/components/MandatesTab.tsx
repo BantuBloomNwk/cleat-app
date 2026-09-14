@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DataOrigin } from './DataOrigin';
 import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
 import { CommunityMandate } from '../types';
 import { tactile } from '../utils/haptics';
@@ -99,7 +100,10 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
       <div className="section-row-header flex-wrap gap-2">
         <div>
           <h2 className="section-heading text-[16px] font-bold">Mandate Exchange</h2>
-          <span className="section-hint text-[11px]">Sentences, never positions</span>
+          <span className="flex items-center gap-2">
+            <span className="section-hint text-[11px]">Sentences, never positions</span>
+            <DataOrigin origin="sample" />
+          </span>
         </div>
 
         {/* Enforcer-Aesthetic Export History Button */}
