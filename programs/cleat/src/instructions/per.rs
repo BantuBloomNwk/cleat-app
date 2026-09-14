@@ -60,13 +60,23 @@ pub fn exec_delegate_vault(ctx: Context<DelegateVault>) -> Result<()> {
 /// here are what let the reader be the owner instead.
 #[derive(Accounts)]
 pub struct SealVault<'info> {
+    /// The owner, and not merely whoever is paying the fee.
+    ///
+    /// This took any signer at first, on the reasoning that sealing is the
+    /// safe direction and the caller cannot add themselves to the member
+    /// list or change a flag, both of which are true. What is also true is
+    /// that the vault sponsors its own permission account, so a stranger
+    /// could spend somebody else's lamports on a state change they did not
+    /// ask for. Small, but there is no reason to allow it and no cost to
+    /// forbidding it.
     #[account(mut)]
-    pub payer: Signer<'info>,
+    pub owner: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [VAULT_SEED, vault.owner.as_ref()],
-        bump = vault.bump
+        seeds = [VAULT_SEED, owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner @ CleatError::NotOwner,
     )]
     pub vault: Account<'info, Vault>,
 

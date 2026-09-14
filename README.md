@@ -174,6 +174,10 @@ The app:
 cd app && npm install && npm run dev
 ```
 
+`SECURITY.md` says what this program can do when it misbehaves, what has
+been checked, and what has not, including the things that are known and
+accepted rather than hidden.
+
 `TOOLCHAIN.md` is worth reading before touching the Arcium side. It records five
 theories that were wrong and the cheap evidence that would have settled it on
 day one.
