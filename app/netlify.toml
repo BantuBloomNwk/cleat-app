@@ -10,3 +10,87 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# ─────────────────────────────────────────────────────────────────────
+# Headers.
+#
+# The policy is as tight as it is because of how the app is built rather
+# than by effort: every external call goes through a function on this
+# origin, so the only third party the browser ever reaches is Google's
+# font host. Market data, chain reads and the issuer comparison are all
+# proxied, which means connect-src can be 'self' alone.
+#
+# The build emits no inline script and no inline style block, so
+# script-src needs no escape hatch. style-src does need unsafe-inline,
+# and that is worth being precise about rather than waving at: React
+# writes style attributes for anything set with style={{ }}, and a style
+# attribute is inline style. Removing it would mean a nonce per render,
+# which CSP cannot express for attributes at all. The exposure from
+# inline style is layout, not execution.
+# ─────────────────────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = """
+      default-src 'self';
+      base-uri 'none';
+      object-src 'none';
+      frame-ancestors 'none';
+      form-action 'self';
+      script-src 'self';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: blob:;
+      connect-src 'self';
+      manifest-src 'self';
+      worker-src 'self' blob:;
+      media-src 'self' blob:;
+      upgrade-insecure-requests
+    """
+
+    # Belt as well as braces. frame-ancestors above is the modern control
+    # and this is the one older browsers actually obey.
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+
+    # Send the origin to other sites and the full path only to ourselves,
+    # so an outbound link cannot carry which mandate someone was reading.
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # Everything off except the three things this app genuinely does: a
+    # passkey, a microphone for speaking a mandate, and the payment
+    # handler is explicitly not one of them.
+    Permissions-Policy = """
+      accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(),
+      camera=(), display-capture=(), document-domain=(), encrypted-media=(),
+      fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(),
+      hid=(), idle-detection=(), local-fonts=(), magnetometer=(),
+      microphone=(self), midi=(), payment=(), picture-in-picture=(),
+      publickey-credentials-create=(self), publickey-credentials-get=(self),
+      screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()
+    """
+
+    # Keep this origin out of other people's process and out of their
+    # reach. The app embeds nothing cross origin, so neither costs us
+    # anything.
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Resource-Policy = "same-origin"
+
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+
+    # Netlify announces itself on every response. There is no reason to
+    # tell a scanner which stack to look up.
+    X-Powered-By = ""
+
+# The hashed assets never change under their own name, so they can be
+# cached hard. index.html must not be, or a deploy takes an hour to reach
+# anyone who has the old one.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
