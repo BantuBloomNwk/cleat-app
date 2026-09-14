@@ -17,7 +17,7 @@ export const PROGRAM_ID = new PublicKey(
 
 /** A devnet owner whose verdict log holds real decisions, for the preview. */
 export const DEMO_OWNER = new PublicKey(
-  "EHqr2HAhgBLXqMVJhJXeDrvvi3XoaogtLqSct4sN8udr",
+  "GZGvz2J7jLpdAJXvWf92cSKL2uJTzCAF2fiutfpzvnEc",
 );
 
 /** In the browser we go through the proxy so the upstream key stays server side. */

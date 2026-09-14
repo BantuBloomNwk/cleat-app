@@ -15,6 +15,8 @@ import { DataInsightsModal } from './DataInsightsModal';
 interface ChartTabProps {
   markers: ChartMarker[];
   onOpenTickDrawer: () => void;
+  /** The widest book the mandate will trade into. Zero means unset. */
+  maxSpreadBps: number;
 }
 
 const TIMEFRAME_VOLUMES: Record<
@@ -38,6 +40,7 @@ const TIMEFRAME_VOLUMES: Record<
 
 export const ChartTab: React.FC<ChartTabProps> = ({
   onOpenTickDrawer,
+  maxSpreadBps,
 }) => {
   const [activeTimeframe, setActiveTimeframe] = useState<'1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL'>('30D');
   const [is3DActive, setIs3DActive] = useState(false);
@@ -1103,6 +1106,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         ticker={symbolTicker(instrument)}
         venuePrice={venuePrice}
         venueDepthUsd={venueDepth}
+        maxSpreadBps={maxSpreadBps}
       />
 
       {/* D3-Based Horizontal Progress Bar with Smooth Dynamic Interpolation */}

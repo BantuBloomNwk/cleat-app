@@ -18,21 +18,30 @@
 # than by effort: market data, chain reads and the issuer comparison all
 # go through a function on this origin.
 #
-# connect-src is the one place that had to widen, and the reason is worth
-# stating because it looks like a weakening and is the opposite. A client
-# who brings their own model key must have the browser call that provider
-# directly. Routing it through our proxy would mean their key and their
-# prompts passing through our servers, which is exactly what bringing your
-# own key is meant to avoid. So the three provider origins are listed, and
-# a local model is allowed on loopback, where nothing leaves the machine
-# at all.
+# connect-src is the one place that had to widen, and both reasons are
+# worth stating because each looks like a weakening and neither is.
+#
+# A client who brings their own model key must have the browser call that
+# provider directly. Routing it through our proxy would mean their key and
+# their prompts passing through our servers, which is exactly what bringing
+# your own key is meant to avoid. So the three provider origins are listed,
+# and a local model is allowed on loopback, where nothing leaves the
+# machine at all.
+#
+# Sunrise is the other one, and it is there for a legal reason rather than
+# a technical one. Asking it what a trade would cost returns 403
+# GEO_BLOCKED depending on where the request came from, and the region that
+# decides whether somebody may trade is the one they are sitting in. A
+# proxy on this origin would move that check to a machine in Virginia and
+# answer a question nobody asked. The listing of which mint is which is not
+# geofenced and does go through a function here, where it can be cached.
 #
 # What that costs: script injection that already had execution could
-# exfiltrate to one of four named hosts instead of none. What it buys: we
-# never hold a client's provider credential. Given script-src is 'self'
-# with no inline escape hatch, the first is a small delta on an attack
-# that has already won, and the second is a property we cannot get any
-# other way.
+# exfiltrate to one of five named hosts instead of none. What it buys: we
+# never hold a client's provider credential, and a jurisdiction check lands
+# where it belongs. Given script-src is 'self' with no inline escape hatch,
+# the first is a small delta on an attack that has already won, and the
+# second is a property we cannot get any other way.
 #
 # The build emits no inline script and no inline style block, so
 # script-src needs no escape hatch. style-src does need unsafe-inline,
@@ -56,6 +65,7 @@
       font-src 'self' https://fonts.gstatic.com data:;
       img-src 'self' data: blob:;
       connect-src 'self'
+        https://api.sunrise.xyz
         https://api.anthropic.com
         https://api.openai.com
         https://generativelanguage.googleapis.com

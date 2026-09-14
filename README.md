@@ -60,6 +60,14 @@ your key, so you get your position advanced without anyone having read it.
 Intel TDX enclave, which answers an attestation query. Measured on devnet: 1.8
 seconds to verify attestation, 36 millisecond median from submit to confirm.
 
+Before that, the app asks a router what the trade would actually cost. The
+mandate caps how wide a book the agent may trade into, and that number used to
+arrive from the agent, which is the weakest input in the design. Now it is
+measured: price a hundred dollars of the name, price the real size, and the gap
+between the two is what the trade costs for being that large. Micron at two
+thousand dollars comes back under a basis point. The endpoint is public, so
+anyone can run it again and get the same number.
+
 **The diary.** Every decision lands in a ring buffer on chain: the sector, the
 size as a share of the book, the outcome, the reason, the slot. Alongside it,
 one running total per sector, which is what makes a position cap a position cap
@@ -71,12 +79,11 @@ why it is the home screen and the thing people can share.
 
 ## What is real right now
 
-The devnet log for the demo owner holds fourteen decisions: four cleared, two
-trimmed, eight refused. Between them they exercise every reason the program has
-except one, and the missing one is the easy case where a mandate was edited
-after the grant was issued.
+The devnet log for the demo owner holds sixteen decisions, which is the ring
+buffer exactly full: four cleared, two trimmed, ten refused. Between them they
+exercise every reason the program has, all nine.
 
-Three of them are worth pointing at.
+Four of them are worth pointing at.
 
 One was refused because the instruction to make it arrived inside something the
 agent had read. A proposal that originates in ingested content is refused
@@ -87,6 +94,13 @@ One was refused for naming Exxon. The mandate says no fossil fuels, which the
 program cannot read, so the clause is resolved off chain into a list of mints
 and the list is what gets enforced. The mints are real ones, live on Solana
 today, so a reader can go and check.
+
+The second to last is the same refusal for a better reason. The owner widened
+the clause to cover every issuer that has wrapped those two companies, and the
+agent then asked for Exxon through the address that had not been on the list an
+hour earlier. Between those two the mandate version moved, so the proposal in
+between was refused for being checked against a sentence the agent had not been
+granted against. Three consecutive entries, each one a different boundary.
 
 Four near the end are each well inside every cap on their own, and the last two
 are stopped by what came before them. Two percent goes through, then another
@@ -106,9 +120,25 @@ The app reads that log directly off devnet. Nothing on the diary screen is
 seeded.
 
 Market data is real and it is not ours. Backpack Securities publishes the
-tradable universe, the session calendar and live quotes without a key, so the
-app shows the instruments the agent actually works against, priced by the venue
-they trade on. As this is written, on a Sunday with the New York exchanges shut,
+tradable universe, the session calendar and live quotes without a key, and
+Sunrise, the layer their tokens are listed through, publishes which mint is
+which. So the app shows the instruments the agent actually works against,
+priced by the venue they trade on and addressed by whatever the issuer says the
+address is today.
+
+That last part is not a detail. A ticker on Solana is not one thing.
+MicroStrategy exists right now as a Backpack token, as Backed's MSTRx and as
+Ondo's MSTRon, three different legal instruments wearing the same four letters,
+and around a listing the imitations arrive within minutes. An agent that
+hardcodes an address is one stale constant away from buying nothing at all, so
+the address is resolved at the moment of the trade.
+
+It also broke something we thought was working. The mandate can rule out an
+asset by name, and the demo mandate says no fossil fuels. That resolved to
+Backed's two wrappers, which means the agent could have bought Exxon anyway
+through Ondo's, without breaking a rule, because the rule only knew about the
+first address. A clause has to resolve across every issuer or it is decoration.
+The mandate now names all four and the log has the attempt in it. As this is written, on a Sunday with the New York exchanges shut,
 nineteen tokenized equity markets are quoting and have done just under fourteen
 thousand trades in a day.
 

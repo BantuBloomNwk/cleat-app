@@ -167,6 +167,16 @@ about what each is for.
 The spread check bounds an honest agent that would otherwise trade into an
 illiquid market. It is not a defence against a hostile one.
 
+The app now measures the same quantity instead of asking for it: price a
+hundred dollars of the name through a router, price the real size, and the
+gap is what the trade costs for being that large. That number is
+independently checkable, because the endpoint is public and anyone can run
+it again. It is not yet what the program checks against, and the gap
+between those two is worth naming rather than blurring: the measurement is
+verifiable, the argument the program receives is still whatever the caller
+puts in it. Closing that means the measurement arriving with something
+signed by whoever made it, and no venue here signs a quote today.
+
 The ingested content flag is not a defence at all and was never meant as
 one. It is a disclosure. An agent that has been talked into something by a
 web page it read has no reason to admit it, and an agent that does admit it
@@ -178,6 +188,37 @@ than recording a refusal with no reason attached.
 
 Both are stated this way in the code as well, so nobody reads either as
 more than it is.
+
+**A deny list that names one issuer stops nothing.** The mandate rules out
+assets by mint, and the same company exists at several addresses:
+MicroStrategy is a Backpack token, Backed's MSTRx and Ondo's MSTRon all at
+once, and Exxon and Chevron are each at two. An agent refused at the first
+address routes to the second without breaking a rule, because the rule only
+knew about the first. So a clause has to resolve across every issuer that
+has wrapped the company, and the resolution has to be redone when a new
+issuer appears rather than written once.
+
+This runs into a real ceiling. A mandate holds eight mints, which at two to
+three addresses per company is three companies, not a sector. A sentence
+that rules out fossil fuels in general cannot be expressed today, and
+saying otherwise would be the sort of claim this file exists to avoid.
+Widening it means either a larger account or a commitment to a list held
+off chain, and the second one gives back the property that makes the first
+one worth having.
+
+**The issuer field is not always populated.** Sunrise lists forty six
+tokenized shares and one of them, Nike, carries no issuer at all today.
+Code that assumes the field is set reports the wrong issuer rather than an
+unknown one, which is the same class of mistake as a shifted account field.
+
+**Quoting is geofenced, and that check belongs in the browser.** Asking
+Sunrise what a trade would cost returns 403 GEO_BLOCKED depending on where
+the request came from. Proxying it through a function on this origin would
+move the check to whichever region the host runs in, which for this project
+is not the region any user is in, and would answer a question nobody asked.
+So the browser asks directly, the CSP names that one origin, and when the
+answer is no the app says so. The listing of which mint is which is not
+geofenced and does go through a function here, where it can be cached.
 
 **The book size is declared rather than custodied.** `set_book_size` is
 how the owner says what the percentages are percentages of, because the

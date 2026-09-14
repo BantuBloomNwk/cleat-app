@@ -290,6 +290,7 @@ export default function App() {
             <ChartTab
               markers={chartMarkers}
               onOpenTickDrawer={() => setIsTickDrawerOpen(true)}
+              maxSpreadBps={chainMandate?.maxSpreadBps ?? 0}
             />
           )}
 

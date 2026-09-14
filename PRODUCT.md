@@ -358,7 +358,34 @@ outlets actually bringing equities onto this chain, so building against
 them is the difference between a demo with invented tickers and something a
 person could use.
 
-Four of their endpoints need no key and no account, and they are wired in:
+Sunrise is where those tokens are listed, and it publishes three endpoints
+that need no key: the tradable universe with the canonical mint for each
+name, a quote, and an execute. Forty six tokenized shares, each carrying
+the ISO market identifier for the exchange it belongs to.
+
+Two of those are load bearing and the third is the one to be honest about.
+
+The universe is the answer to which address is the real one, and it has to
+be asked rather than remembered. A ticker on Solana is not one thing:
+MicroStrategy exists right now as a Backpack token, as Backed's MSTRx and
+as Ondo's MSTRon, and around a listing the imitations arrive within
+minutes. This is also what makes an English clause enforceable across
+issuers rather than against whichever wrapper happened to be known when the
+mandate was written.
+
+The quote is how the spread cap stops being the agent's own word. Price a
+hundred dollars of the name, price the real size, and the difference is
+what the trade costs for being that large. Anyone can rerun it.
+
+The execute path is where the geography shows up. Sunrise refuses to price
+a trade from several countries, at the request rather than at the token, so
+the browser asks directly and the answer belongs to whoever is sitting
+there. That is the correct place for it and it is also the shape of the
+problem this product is for: the asset is global and the rails around it
+are not, yet.
+
+Four of Backpack's own endpoints need no key and no account, and they are
+wired in:
 
 - `securities` is the tradable universe, about eleven hundred names, each
   with a cusip and, per session, the minimum quantity and the step size the

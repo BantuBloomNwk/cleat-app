@@ -75,6 +75,19 @@ const DENIED = [
   new PublicKey("XsaHND8sHyfMfsWPj6kSdd5VwvCayZvjYgKmmcNL5qh"), // XOMx, Exxon
   new PublicKey("XsNNMt7WTNA2sV3jrb1NNfNgapxRF5i4i6GcnTRRHts"), // CVXx, Chevron
 ];
+
+// The same two companies, wrapped by somebody else.
+//
+// This is the part a deny list gets wrong. A ticker on Solana is not one
+// thing: Exxon exists today as Backed's XOMx and as Ondo's XOMon, two
+// addresses for one company, and an agent refused at the first routes to
+// the second without breaking a rule, because the rule only knew about the
+// first. MicroStrategy currently has three. So a clause resolves across
+// issuers or it is decoration.
+const DENIED_EVERY_ISSUER = DENIED.concat([
+  new PublicKey("qCYD74QnXzd9pzv6pGHQKJVwoibL6sNcPQDnpDiondo"), // XOMon, Exxon
+  new PublicKey("7tgKziACteG26VjV5xKufojKxwTgCFyTwmWUmz5ondo"), // CVXon, Chevron
+]);
 // A technology name, so the ordinary proposals have something to name.
 const NVDAX = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
 const OUTCOME = ["cleared", "clamped", "refused"];
@@ -194,7 +207,7 @@ async function main() {
     console.log(`  ${label.padEnd(46)} ${String(Math.round(performance.now() - t0)).padStart(5)}ms`);
   };
 
-  console.log("\nthe agent proposes fourteen things");
+  console.log("\nthe agent proposes sixteen things");
   await propose("4% of the book in technology", 1, 400, false);
   await propose("12%, over the single trade cap", 1, 1200, false);
   await propose("40%, well past the position cap", 1, 4000, false);
@@ -262,6 +275,38 @@ async function main() {
 
   // A different sector, because technology has been full since the fill above.
   await propose("1% of healthcare, with the halt lifted", 3, 100, false);
+
+  // The gap a deny list has when it names one issuer.
+  //
+  // The sentence has ruled out fossil fuels the whole way through, and the
+  // agent could have bought Exxon anyway, because the list named Backed's
+  // wrapper and Ondo's is a different address. So the owner widens the
+  // clause to every issuer that has wrapped those two companies.
+  await send([new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [meta(owner.publicKey, true, false), meta(mandate, false, true)],
+    data: Buffer.concat([
+      disc("update_mandate"), str(text), u16(1500), u16(500), u16(20),
+      vecPubkey(DENIED_EVERY_ISSUER),
+    ]),
+  })], [owner]);
+  console.log("  the owner widens the fossil fuel clause to every issuer");
+
+  // Editing the mandate moved its version, and the agent's grant was pinned
+  // to the old one. Nothing it proposes counts until the owner re-issues,
+  // which is the whole point: a sentence the agent has not been granted
+  // against is a sentence it cannot act on.
+  await propose("1% of healthcare, on a grant that no longer matches", 3, 100, false);
+
+  await send([new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
+    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(2_500_000_000)]),
+  })], [owner]);
+  console.log("  the owner re-issues the grant against the new version");
+
+  // The address that was not on the list an hour ago.
+  await propose("2% of Exxon through Ondo instead", 2, 200, false, 0, 0, DENIED_EVERY_ISSUER[2]);
 
   // Read the log back the way the app would.
   const info = await base.getAccountInfo(log);
