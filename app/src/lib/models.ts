@@ -93,42 +93,100 @@ export const PROVIDERS: Provider[] = [
   },
 ];
 
+import { deriveLocalSecretKey, seal, unseal } from './passkey';
+
 const KEY_PREFIX = 'cleat_model_key_';
 const CHOICE_KEY = 'cleat_model_choice';
 
 /**
- * Keys live in this browser and are never transmitted to us.
+ * Keys live in this browser, sealed, and are never transmitted to us.
  *
- * Deliberately not in the passkey derived wallet and deliberately not sent
- * anywhere for safekeeping. A provider key is the client's own credential
- * at somebody else's company, and the only honest place for it is their
- * device. If they clear their browser it is gone, which is correct: we
- * cannot lose what we never held.
+ * Deliberately not sent anywhere for safekeeping. A provider key is the
+ * client's own credential at somebody else's company, and the only honest
+ * place for it is their device. Clearing the browser loses it, which is
+ * correct: we cannot lose what we never held.
+ *
+ * What lands on disk is ciphertext, under a key derived from the same
+ * passkey with a different salt. The reason is a smaller attack than it
+ * sounds and a more likely one: a plain text key in localStorage stays
+ * readable forever by anything that gets one moment of script execution,
+ * and by anyone who picks the device up later. Sealed, the stored file is
+ * useless on its own.
+ *
+ * It does not defend against an attacker executing inside a live session,
+ * who can read the decrypted value out of memory while it is in use. That
+ * is a genuinely harder attack and it is not what this is for.
+ *
+ * The decrypted key is held in memory for the session and never written
+ * back out.
  */
+const live = new Map<string, string>();
+
 export const keyStore = {
+  /** The decrypted key, if this session has already unsealed it. */
   get(providerId: string): string | null {
+    return live.get(providerId) ?? null;
+  },
+
+  /** Ask the passkey once, then unseal whatever this browser has stored. */
+  async unlock(): Promise<number> {
+    let secret: CryptoKey;
     try {
-      return localStorage.getItem(KEY_PREFIX + providerId);
+      secret = await deriveLocalSecretKey();
     } catch {
-      return null;
+      return 0;
+    }
+    let opened = 0;
+    for (const p of PROVIDERS) {
+      let sealed: string | null = null;
+      try {
+        sealed = localStorage.getItem(KEY_PREFIX + p.id);
+      } catch {
+        sealed = null;
+      }
+      if (!sealed) continue;
+      try {
+        live.set(p.id, await unseal(secret, sealed));
+        opened++;
+      } catch {
+        /* written under a different passkey, or corrupt. Leave it. */
+      }
+    }
+    return opened;
+  },
+
+  async set(providerId: string, key: string) {
+    live.set(providerId, key);
+    try {
+      const secret = await deriveLocalSecretKey();
+      localStorage.setItem(KEY_PREFIX + providerId, await seal(secret, key));
+    } catch {
+      // Sealing failed, so this key lives for the session and is not
+      // written. Better than writing it in the clear.
     }
   },
-  set(providerId: string, key: string) {
-    try {
-      localStorage.setItem(KEY_PREFIX + providerId, key);
-    } catch {
-      /* a browser that refuses storage simply has no saved key */
-    }
-  },
+
   clear(providerId: string) {
+    live.delete(providerId);
     try {
       localStorage.removeItem(KEY_PREFIX + providerId);
     } catch {
       /* nothing to do */
     }
   },
+
+  /** Whether a key is usable right now, which needs it unsealed. */
   has(providerId: string) {
-    return !!keyStore.get(providerId);
+    return live.has(providerId);
+  },
+
+  /** Whether something is stored, even if this session has not opened it. */
+  stored(providerId: string) {
+    try {
+      return !!localStorage.getItem(KEY_PREFIX + providerId);
+    } catch {
+      return false;
+    }
   },
 };
 

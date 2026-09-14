@@ -150,3 +150,73 @@ reference circuit for adding two u8s is 470 million ACUs, so a large
 number there means nothing), unfinalized MXE keys, the cluster refusing
 secret comparisons, u16 against u64, a struct wrapper around the encrypted
 value, and the arithmetic in the comparison. None of them.
+
+## The gate: a reproduction, not a theory
+
+Six circuit versions aborted. The one that settled it was not a seventh
+version, it was a control.
+
+### The reproduction
+
+Take Ilowa's `init_pool_state_v4`, which runs on devnet cluster 456 today
+under MXE `DWQWnzjNk7EhsADBkKeCn2vHVFWuf3tzhnvT1TXjuWfN`:
+
+```rust
+#[instruction]
+pub fn control_init_pool() -> Enc<Mxe, PoolState> {
+    Mxe::get().from_arcis(PoolState { yes: 0, no: 0 })
+}
+```
+
+No input, so nothing about encryption on the way in can be wrong. Compile
+it unchanged into a second program and run it on the same cluster under
+MXE `DMNi8mRDCMDnnQv4q9WBsZPDxKN1dk26kDWWYw2nwLow`:
+
+```
+CONTROL rejected: AnchorError { error_name: "AbortedComputation",
+                                error_code_number: 6000 }
+```
+
+Same cluster, same circuit, same compiler, same toolchain pin. One MXE
+runs it and the other does not.
+
+### What that rules out
+
+Everything we spent six deploys on. The width of the number, a struct
+against a bare value, the arithmetic, a bool against a tuple, whether the
+caller's x25519 key is used, whether anything is sealed to the MXE. All of
+those were varied and all of them died the same way, which should have
+been the signal much earlier: when six dimensions give one answer, the
+thing being varied is not the thing that is wrong.
+
+### What it is not
+
+The MXE looks healthy by every measure Arcium exposes. Status active,
+cluster 456, the authority correct, `utilityPubkeys` populated with an
+x25519 key and an ed25519 verifying key, and `getMXEPublicKey` returns a
+real key. Its keygen computation is finalized. Asking the network to redo
+the keygen is refused, in Arcium's own words:
+
+```
+MxeKeysAlreadySet: The MXE keys are already set, i.e. all the nodes of
+the MXE cluster already agreed on the MXE keys.
+```
+
+So this is not an unfinalized MXE, not an unfinalized comp def, not a
+missing key, and not the cluster refusing the work, since the cluster does
+the same work for somebody else.
+
+### The one difference found
+
+Cleat's keygen computation account still exists and reads `finalized`.
+Ilowa's is closed, which is the normal end state once a computation has
+been consumed. Whether that is the cause or another symptom is not
+something this end can tell.
+
+### What to do with it
+
+Report it with the control attached rather than keep rewriting the
+circuit. A minimal reproduction where the same bytes succeed under one MXE
+and fail under another, on one cluster, is worth more than six more
+guesses, and there is nothing further to try from this side without
+Arcium's help.

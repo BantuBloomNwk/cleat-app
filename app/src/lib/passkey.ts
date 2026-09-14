@@ -36,6 +36,8 @@ import { Keypair } from '@solana/web3.js';
 
 const RP_NAME = 'Cleat';
 const PRF_SALT = new TextEncoder().encode('cleat-wallet-prf-v1');
+/** A second, independent derivation for encrypting things kept on device. */
+const PRF_SALT_LOCAL = new TextEncoder().encode('cleat-local-secrets-v1');
 const MODE_KEY = 'cleat_passkey_mode';
 const CRED_KEY = 'cleat_passkey_credid';
 const SEED_KEY = 'cleat_passkey_seed';
@@ -276,4 +278,72 @@ export async function restoreWallet(): Promise<Keypair> {
 /** Forget this browser's pointer to the wallet. The passkey itself survives. */
 export function forgetLocal() {
   store.clear();
+}
+
+/**
+ * A key for encrypting things this browser has to keep, derived from the
+ * same passkey and a different salt.
+ *
+ * The problem it solves: a provider API key sitting in localStorage in
+ * plain text is readable by anything that gets script execution on this
+ * origin, and it stays readable afterwards because the file persists.
+ * Encrypting it under a key that only exists while the passkey has been
+ * used turns the stored artifact into something useless on its own.
+ *
+ * This does not stop an attacker who is executing inside a live session,
+ * who can read the decrypted value out of memory. It stops the much more
+ * likely case: something that can read storage once, or a device that is
+ * later picked up by someone else.
+ *
+ * A different salt from the wallet's, so this key cannot reconstruct the
+ * wallet and the wallet's seed cannot decrypt these.
+ */
+export async function deriveLocalSecretKey(): Promise<CryptoKey> {
+  const credId = store.get(CRED_KEY) ?? undefined;
+  const assertion = (await navigator.credentials.get({
+    publicKey: {
+      challenge: randomBytes(32) as BufferSource,
+      rpId: rpId(),
+      allowCredentials: credId
+        ? [{ type: 'public-key', id: unb64url(credId) as BufferSource }]
+        : [],
+      userVerification: 'required',
+      timeout: 60_000,
+      extensions: {
+        prf: { eval: { first: PRF_SALT_LOCAL as BufferSource } },
+      } as AuthenticationExtensionsClientInputs,
+    },
+  })) as PublicKeyCredential | null;
+  if (!assertion) throw new Error('That was cancelled.');
+
+  const ext = assertion.getClientExtensionResults() as {
+    prf?: { results?: { first?: ArrayBuffer } };
+  };
+  const first = ext.prf?.results?.first;
+  if (!first) throw new Error('This device cannot derive a local key from that passkey.');
+
+  const raw = await crypto.subtle.digest('SHA-256', first);
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+
+/** Seal a string so that what lands on disk is meaningless by itself. */
+export async function seal(key: CryptoKey, plaintext: string): Promise<string> {
+  const iv = randomBytes(12);
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv as BufferSource },
+    key,
+    new TextEncoder().encode(plaintext),
+  );
+  return `${b64url(iv)}.${b64url(ct)}`;
+}
+
+export async function unseal(key: CryptoKey, sealed: string): Promise<string> {
+  const [ivPart, ctPart] = sealed.split('.');
+  if (!ivPart || !ctPart) throw new Error('That stored value is not in the expected shape.');
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: unb64url(ivPart) as BufferSource },
+    key,
+    unb64url(ctPart) as BufferSource,
+  );
+  return new TextDecoder().decode(pt);
 }

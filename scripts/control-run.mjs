@@ -48,29 +48,6 @@ async function retry(fn, attempts = 5) {
   throw last;
 }
 
-// Retry and pace every fetch in this process, including the ones inside
-// the Arcium SDK, which are the ones that keep failing and which no
-// wrapper of mine can reach. This machine resolves IPv6 first and stalls
-// before falling back, so a transient failure is the network rather than
-// the experiment, and the upload makes dozens of calls in parallel.
-{
-  const real = globalThis.fetch;
-  let queue = Promise.resolve();
-  globalThis.fetch = async (...args) => {
-    const turn = queue.then(
-      () => new Promise((r) => setTimeout(r, Number(process.env.RPC_GAP_MS || 90))),
-    );
-    queue = turn.catch(() => {});
-    await turn;
-    let last;
-    for (let i = 1; i <= 6; i++) {
-      try { return await real(...args); }
-      catch (e) { last = e; await new Promise((r) => setTimeout(r, 400 * i)); }
-    }
-    throw last;
-  };
-}
-
 const rpc = fs.readFileSync("~/Ilowa/Ilowa/server/.env", "utf8")
   .split("\n").find((l) => l.startsWith("SOLANA_RPC_URL=")).slice(15).trim();
 
