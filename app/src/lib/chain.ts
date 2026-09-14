@@ -129,7 +129,23 @@ export function decodeMandate(data: Uint8Array): Mandate {
   o += 32; // text hash
   const maxPositionBps = b.readUInt16LE(o); o += 2;
   const maxTradeBps = b.readUInt16LE(o); o += 2;
-  const maxSpreadBps = b.readUInt16LE(o); o += 2;
+
+  // The spread cap was added after the first accounts were written, so this
+  // reads both layouts. During an upgrade the two sit on chain together
+  // until every owner has touched their mandate, and a reader that assumes
+  // the newer one turns every older account into garbage rather than into
+  // an error, which is worse because garbage looks like data.
+  //
+  // Anchor allocates the whole max_len up front, so the two cannot be told
+  // apart by parsing: both walk to a plausible end through the padding.
+  // What does tell them apart is the allocation itself. One extra u16 makes
+  // the newer account exactly two bytes larger, and that is unambiguous.
+  const WITHOUT_SPREAD = 676;
+  const hasSpread = b.length >= WITHOUT_SPREAD + 2;
+
+  const maxSpreadBps = hasSpread ? b.readUInt16LE(o) : 0;
+  if (hasSpread) o += 2;
+
   const deniedLen = b.readUInt32LE(o); o += 4 + deniedLen * 32;
   const hasParent = b.readUInt8(o); o += 1 + (hasParent ? 32 : 0);
   const adoptCount = b.readUInt32LE(o);
