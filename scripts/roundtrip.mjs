@@ -118,6 +118,29 @@ function loadSessionPayer() {
   }
 }
 
+/**
+ * Retry a network step.
+ *
+ * The attestation check is a fetch to someone else's host, and a fetch to
+ * someone else's host fails sometimes. This machine resolves IPv6 first
+ * and stalls for about six seconds before falling back, so the first
+ * attempt times out while the second one succeeds. Failing the whole round
+ * trip because of that would be reporting the network rather than the
+ * system under test.
+ */
+async function withRetry(fn, attempts = 4) {
+  let last;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      if (i < attempts) await new Promise((r) => setTimeout(r, 400 * i));
+    }
+  }
+  throw last;
+}
+
 const times = [];
 async function step(label, fn) {
   const t0 = performance.now();
@@ -127,6 +150,7 @@ async function step(label, fn) {
   times.push({ label, ms, ok: !err });
   if (err) {
     console.log(`  ${label.padEnd(34)} FAILED after ${ms}ms`);
+    console.log(`    ${err.message}${err.cause ? '  cause: ' + (err.cause.code || err.cause.message) : ''}`);
     throw err;
   }
   console.log(`  ${label.padEnd(34)} ${String(ms).padStart(6)}ms`);
@@ -178,7 +202,7 @@ async function main() {
   }
 
   // 0. The attestation. Without this the rest is just a fast rollup.
-  await step("verify TDX attestation", () => verifyTeeRpcIntegrity(ER_URL));
+  await step("verify TDX attestation", () => withRetry(() => verifyTeeRpcIntegrity(ER_URL)));
 
   // 0b. Session auth. A private rollup will not take traffic from an unproven
   // identity, so every request carries a token signed by the owner's key. This
@@ -196,7 +220,7 @@ async function main() {
     tx = await router.prepareTransaction(tx);
     return router.sendAndConfirmTransaction(tx, signers, { commitment: "confirmed" });
   };
-  await step("session auth", async () => { er = await freshEr(); });
+  await step("session auth", () => withRetry(async () => { er = await freshEr(); }));
 
   // 1. The mandate, in the founder's own words.
   const text = "Moderate growth, nothing over fifteen percent in one name, and no fossil fuels.";
@@ -241,6 +265,51 @@ async function main() {
         fromPubkey: owner.publicKey, toPubkey: vault, lamports: 10_000_000,
       }),
     ]));
+  }
+
+  // A vault left delegated by an earlier run can be short inside the rollup
+  // even while base still shows a healthy number, because after delegation
+  // the rollup balance is the authoritative one and base transfers stop
+  // reaching it. That state cannot fund its own permission account, and the
+  // failure arrives much later as InsufficientFundsForRent on an account
+  // index rather than as anything that names the vault.
+  //
+  // So check the balance that actually matters and undo the delegation if it
+  // is short. Releasing brings the balance home, and the funding step above
+  // then applies on the next pass.
+  {
+    const delegatedNow = (await base.getAccountInfo(vault))?.owner.equals(DELEGATION_PROGRAM_ID);
+    if (delegatedNow) {
+      const peek = new Connection(ER_URL, "confirmed");
+      const inRollup = await peek.getAccountInfo(vault).catch(() => null);
+      if (inRollup && inRollup.lamports < 5_000_000) {
+        console.log(
+          `  vault holds ${inRollup.lamports} in the rollup, too little to sponsor its permission`,
+        );
+        const tok = await withRetry(() =>
+          getAuthToken(ER_URL, owner.publicKey, signCb),
+        );
+        const tmpEr = new Connection(`${ER_URL}?token=${tok.token}`, "confirmed");
+        await step("release the underfunded vault first", () =>
+          send(tmpEr, [new TransactionInstruction({
+            programId: PROGRAM_ID,
+            keys: [
+              meta(owner.publicKey, true, true),
+              meta(vault, false, true),
+              meta(MAGIC_CONTEXT_ID, false, true),
+              meta(MAGIC_PROGRAM_ID, false, false),
+            ],
+            data: disc("release_vault"),
+          })], [owner], true),
+        );
+        await new Promise((r) => setTimeout(r, 4000));
+        await step("fund it now that base owns it again", () => send(base, [
+          SystemProgram.transfer({
+            fromPubkey: owner.publicKey, toPubkey: vault, lamports: 12_000_000,
+          }),
+        ]));
+      }
+    }
   }
 
   const preDelegated = (await base.getAccountInfo(vault))?.owner.equals(DELEGATION_PROGRAM_ID);
@@ -294,7 +363,22 @@ async function main() {
   })]));
 
   // 5. Seal it. This runs on the rollup, not on base.
+  //
+  // Delegation is not instant from the rollup's point of view. The account
+  // has to be picked up before it can be written there, and a transaction
+  // sent into that window comes back InvalidWritableAccount, which names
+  // nothing useful. Wait for the rollup to admit it owns the vault rather
+  // than guessing at a delay.
   er = await freshEr();
+  await step("wait for the rollup to take the vault", async () => {
+    for (let i = 0; i < 20; i++) {
+      const seen = await er.getAccountInfo(vault).catch(() => null);
+      if (seen && seen.lamports > 0) return `visible with ${seen.lamports} lamports`;
+      await new Promise((r) => setTimeout(r, 1000));
+      er = await freshEr();
+    }
+    throw new Error("the rollup never picked the vault up");
+  });
 
   await step("seal_vault (inside the enclave)", () => send(er, [new TransactionInstruction({
     programId: PROGRAM_ID,
