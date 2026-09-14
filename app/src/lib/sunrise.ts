@@ -213,3 +213,40 @@ export async function resolveAcrossIssuers(
 
   return out;
 }
+
+/** What a mint on a deny list actually is. */
+export interface IdentifiedMint {
+  mint: string;
+  symbol: string | null;
+  name: string | null;
+  issuer: string | null;
+}
+
+const ISSUER_NAMES: Record<string, string> = {
+  xstocks: "Backed",
+  ondo: "Ondo",
+};
+
+export function issuerLabel(id: string | null): string {
+  return id ? (ISSUER_NAMES[id] ?? id) : "unknown issuer";
+}
+
+/**
+ * Turn a deny list back into something a person can check.
+ *
+ * Four base58 strings say nothing about whether they cover one company or
+ * four, or whether an issuer has been missed. Resolved, they say it, and
+ * the gap in a clause becomes visible instead of being asserted.
+ */
+export async function identifyMints(mints: string[]): Promise<IdentifiedMint[]> {
+  if (typeof window === "undefined" || mints.length === 0) return [];
+  try {
+    const res = await fetch(
+      `/api/issuers?mints=${encodeURIComponent(mints.join(","))}`,
+    );
+    if (!res.ok) return [];
+    return (await res.json()) as IdentifiedMint[];
+  } catch {
+    return [];
+  }
+}

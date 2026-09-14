@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
 import { CommunityMandate } from '../types';
 import type { Mandate, SectorExposure } from '../lib/chain';
+import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise';
 import { tactile } from '../utils/haptics';
 
 interface MandatesTabProps {
@@ -21,8 +22,25 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   chainMandate,
 }) => {
   const [adoptedId, setAdoptedId] = useState<string | null>(null);
+  const [denied, setDenied] = useState<IdentifiedMint[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  // The deny list, read back as companies rather than as addresses.
+  const deniedKey = (chainMandate?.denied ?? []).join(',');
+  useEffect(() => {
+    if (!deniedKey) {
+      setDenied([]);
+      return;
+    }
+    let live = true;
+    identifyMints(deniedKey.split(',')).then((rows) => {
+      if (live) setDenied(rows);
+    });
+    return () => {
+      live = false;
+    };
+  }, [deniedKey]);
 
   const handleAdopt = (mandate: CommunityMandate) => {
     tactile.mandateAction();
@@ -206,17 +224,31 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
               <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)] mt-1">
                 The sentence says no fossil fuels. A program cannot read that, so
                 the clause resolves off chain into {chainMandate.denied.length}{' '}
-                mints and the list is what gets enforced.
+                mints and the list is what gets enforced. It has to name every
+                issuer that has wrapped the company, because an agent refused at
+                one address can route to another without breaking a rule.
               </p>
-              <div className="flex flex-col gap-1 mt-2">
-                {chainMandate.denied.map((mint) => (
-                  <code
-                    key={mint}
-                    className="text-[10px] font-mono text-[var(--text-tertiary)] break-all"
-                  >
-                    {mint}
-                  </code>
-                ))}
+              <div className="flex flex-col gap-1.5 mt-2">
+                {chainMandate.denied.map((mint) => {
+                  const known = denied.find((d) => d.mint === mint);
+                  return (
+                    <div key={mint} className="flex flex-col gap-0.5">
+                      {known?.name && (
+                        <span className="text-[11px] text-[var(--text-primary)]">
+                          {known.name}
+                          <span className="text-[var(--text-tertiary)]">
+                            {' '}
+                            via {issuerLabel(known.issuer)}
+                            {known.symbol ? `, ${known.symbol}` : ''}
+                          </span>
+                        </span>
+                      )}
+                      <code className="text-[10px] font-mono text-[var(--text-tertiary)] break-all">
+                        {mint}
+                      </code>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

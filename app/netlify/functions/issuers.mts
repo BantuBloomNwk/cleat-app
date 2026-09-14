@@ -19,8 +19,75 @@ const KNOWN = new Set(["xstocks", "ondo"]);
 
 const TICKER = /^[A-Z]{1,6}$/;
 
+const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/**
+ * The other direction: an address, and what it turns out to be.
+ *
+ * A mandate's deny list is a list of mints, which is the only thing a
+ * program can enforce and the least readable thing a person can be shown.
+ * Four base58 strings say nothing about whether they cover one company or
+ * four, or whether an issuer has been missed. Resolved, they say it
+ * plainly.
+ */
+async function identify(mints: string[]) {
+  const out = await Promise.all(
+    mints.map(async (mint) => {
+      try {
+        const res = await fetch(`${UPSTREAM}?query=${encodeURIComponent(mint)}`, {
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok) return { mint, symbol: null, name: null, issuer: null };
+        const rows = (await res.json()) as any[];
+        const t = Array.isArray(rows)
+          ? rows.find((r) => (r.id ?? r.address) === mint)
+          : null;
+        if (!t) return { mint, symbol: null, name: null, issuer: null };
+        const tags: string[] = t.tags ?? [];
+        return {
+          mint,
+          symbol: t.symbol ?? null,
+          // Each issuer stamps itself into the name, as "Exxon Mobil (Ondo
+          // Tokenized)" or "Exxon Mobil xStock". The issuer is already its
+          // own field here, so saying it twice in one line reads as a
+          // mistake rather than as emphasis.
+          name: String(t.name ?? "")
+            .replace(/\s*\([^)]*Tokenized[^)]*\)\s*$/i, "")
+            .replace(/\s+xStocks?$/i, "")
+            .trim(),
+          issuer: tags.find((x) => KNOWN.has(x)) ?? null,
+        };
+      } catch {
+        return { mint, symbol: null, name: null, issuer: null };
+      }
+    }),
+  );
+  return out;
+}
+
 export default async (req: Request) => {
   const url = new URL(req.url);
+
+  const mints = (url.searchParams.get("mints") ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  if (mints.length > 0) {
+    if (mints.length > 8 || !mints.every((m) => MINT.test(m))) {
+      return new Response(JSON.stringify({ error: "up to eight mints" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify(await identify(mints)), {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "public, max-age=300, s-maxage=600",
+      },
+    });
+  }
+
   const ticker = (url.searchParams.get("ticker") ?? "").toUpperCase();
 
   if (!TICKER.test(ticker)) {
