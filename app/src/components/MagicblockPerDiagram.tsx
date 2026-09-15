@@ -51,7 +51,7 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
    * number however many runs happen.
    */
   const measured = (i: number): string => {
-    if (!run) return 'not run yet';
+    if (!run) return '—';
     if (i === 2) return 'gate not live';
     const ms = i === 0 ? run.submittedMs : i === 1 ? run.confirmedMs : run.readMs;
     return ms === null ? 'no answer' : `${ms}ms`;
@@ -510,7 +510,7 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
               fontSize="17"
               fontWeight="700"
             >
-              {flowMode === 'intercept' ? 'Refused' : 'Cleared'}
+              {flowMode === 'intercept' ? 'Refused' : 'To the rollup'}
             </text>
             <text
               x="595"
@@ -526,6 +526,39 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
         </svg>
 
         {/* Live Simulator Button */}
+        <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)] mt-2">
+          {run ? (
+            <>
+              Timed from the proposal sent just above, wall clock. The
+              confirmation is an upper bound rather than the exact moment the
+              cluster agreed, because it is polled.
+            </>
+          ) : (
+            <>
+              Nothing has been sent yet, so there is nothing to time. Send a
+              proposal in the box above and these fill in with what it
+              actually cost.
+            </>
+          )}
+          {flowMode === 'compliant' ? (
+            <>
+              {' '}
+              A cleared trade then executes in MagicBlock's rollup, inside an
+              Intel TDX enclave, which a refused one never reaches. That leg
+              is measured separately on devnet: 1,808ms to verify the
+              attestation, 168ms to seal the vault, 205ms to commit and
+              release it, and a 36ms median from submit to confirm once
+              inside.
+            </>
+          ) : (
+            <>
+              {' '}
+              A refused proposal stops here. It never reaches the rollup, and
+              nothing settles.
+            </>
+          )}
+        </p>
+
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mt-2 pt-2 border-t border-[var(--card-border-subtle)]">
           <div className="flex items-center gap-1.5 text-[10.5px] font-mono text-[var(--text-tertiary)] min-w-0">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--verdigris)] animate-pulse shrink-0" />

@@ -114,11 +114,14 @@ export const AttackBox: React.FC<{
 
       <div className="poison-box glass-card flex flex-col gap-3.5 w-full" id="attack-card">
         <p className="text-[12px] leading-[1.6] text-[var(--text-secondary)]">
-          Everything above is a record of what the program decided. This is not.
-          Pick one and a genuine transaction goes to Solana devnet against the
-          same program and the same sentence, signed by an agent whose grant is
-          live. The verdict comes back off the chain, and you get the signature,
-          so you can check it somewhere that has never heard of us.
+          The ledger below this is a record of decisions already made, which is
+          something you are asked to believe. This is not. Pick one and a
+          genuine transaction goes to Solana devnet against the same program
+          and the same sentence, signed by an agent whose grant is live. The
+          verdict comes back off the chain and you get the signature, so you
+          can check it somewhere that has never heard of us. The trace
+          underneath animates on whatever actually happens, timed by the
+          clock rather than by us.
         </p>
 
         {current && (
