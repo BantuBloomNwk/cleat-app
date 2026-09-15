@@ -3,6 +3,7 @@ import { Copy, Check, Share2, ShieldCheck, Cpu } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
+import { AttackBox } from './AttackBox';
 import type { Restraint } from '../lib/chain';
 import { loadSessions, type MarketSession } from '../lib/backpack';
 import { ToastNotification } from './ToastNotification';
@@ -14,7 +15,6 @@ interface DiaryTabProps {
   onOpenRewriteModal: () => void;
   entries: LedgerEntry[];
   onToggleEntry: (id: string) => void;
-  onInjectScenario: (scenarioVal: string) => void;
   overnightRefusalCount: number;
   /** What the agent asked for against what the sentence allowed. */
   restraint: Restraint | null;
@@ -80,7 +80,6 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   onOpenRewriteModal,
   entries,
   onToggleEntry,
-  onInjectScenario,
   overnightRefusalCount,
   restraint,
 }) => {
@@ -110,19 +109,12 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
 
   const [selectedPeriod, setSelectedPeriod] = useState<'overnight' | 'week' | 'month'>('overnight');
   const [statusFilter, setStatusFilter] = useState<'all' | 'refused' | 'trimmed' | 'cleared'>('all');
-  const [selectedHeadline, setSelectedHeadline] = useState('fossil');
-  const [isInjecting, setIsInjecting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('Active Mandate Copied to Clipboard');
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [isMpcValidating, setIsMpcValidating] = useState(false);
   const [mpcProofHash, setMpcProofHash] = useState('5KwN8v3bWz6Y7qT9ArciumMPC9x7kM2vP4L1');
-  const [lastInjectedResult, setLastInjectedResult] = useState<{
-    scenario: string;
-    boundary: string;
-    detail: string;
-  } | null>(null);
 
   // Dynamically trigger Arcium MPC computation animation when mandate updates
   useEffect(() => {
@@ -217,53 +209,6 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
       setShareFeedback('Mandate & link ready to share');
       setTimeout(() => setShareFeedback(null), 3200);
     }
-  };
-
-  const handleInject = () => {
-    setIsInjecting(true);
-    tactile.ledgerTrigger('refused');
-    setTimeout(() => {
-      onInjectScenario(selectedHeadline);
-      setIsInjecting(false);
-
-      if (selectedHeadline === 'fossil') {
-        setLastInjectedResult({
-          scenario: 'Crude oil spike 9%',
-          boundary: '"no fossil fuels"',
-          detail: 'Agent attempted 40% allocation into Exxon Mobil (XOM). Enforcer rejected transaction cold before broadcast. Zero USDC moved.',
-        });
-      } else if (selectedHeadline === 'nvidia') {
-        setLastInjectedResult({
-          scenario: 'Nvidia FOMO 25%',
-          boundary: '"nothing over fifteen percent in one name"',
-          detail: 'Agent requested 25% single-stock buy on NVDA breakout. Single-name ceiling held at 15.0%. Execution aborted cold.',
-        });
-      } else if (selectedHeadline === 'defense') {
-        setLastInjectedResult({
-          scenario: 'Defense sector surge',
-          boundary: '"no defense or weapons"',
-          detail: 'Lockheed Martin (LMT) order blocked. Classified ticker hash intercepted before Solana RPC broadcast.',
-        });
-      } else if (selectedHeadline === 'apy_farm') {
-        setLastInjectedResult({
-          scenario: '48% APY synthetic farm',
-          boundary: '"moderate growth" risk ceiling',
-          detail: 'Unhedged collateralized debt pool rejected due to impermanent loss tail risk threshold.',
-        });
-      } else if (selectedHeadline === 'apple_dip') {
-        setLastInjectedResult({
-          scenario: 'Mega-cap tech dip',
-          boundary: '"nothing over fifteen percent in one name"',
-          detail: 'Order curtailed from 600 USDC to 180 USDC to maintain single-name concentration safety envelope.',
-        });
-      } else {
-        setLastInjectedResult({
-          scenario: 'Offshore wind utility concession',
-          boundary: '"moderate growth" ESG compliant',
-          detail: 'Compliant green infrastructure investment verified and signed. Risk envelope validated.',
-        });
-      }
-    }, 450);
   };
 
   return (
@@ -667,82 +612,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
         )}
       </div>
 
-      {/* Interactive Simulation / Test Mandate Section */}
-      <div className="section-row-header mt-2">
-        <h3 className="section-heading text-[16px] font-bold">Test Mandate</h3>
-        <span className="flex items-center gap-2">
-          <span className="section-hint text-[11px]">Inject market headlines to test boundaries</span>
-          <DataOrigin origin="sample" />
-        </span>
-      </div>
-
-      <div className="poison-box glass-card flex flex-col gap-3.5 w-full" id="test-mandate-card">
-        <label htmlFor="headlineScenarioSelect" className="text-[12.5px] text-[var(--text-secondary)] font-medium leading-normal">
-          Simulate a market event to see your enforcer react in real time:
-        </label>
-        
-        <div className="flex flex-col gap-2.5 w-full">
-          <div className="relative w-full min-w-0">
-            <select
-              id="headlineScenarioSelect"
-              className="select-headline"
-              value={selectedHeadline}
-              onChange={(e) => setSelectedHeadline(e.target.value)}
-              aria-label="Select Market Headline Scenario"
-            >
-              <option value="fossil">OPEC shock: Crude oil spikes 9%</option>
-              <option value="nvidia">Nvidia breaks out +14% (FOMO Buy)</option>
-              <option value="defense">Geopolitical tension: Defense sector jumps</option>
-              <option value="apy_farm">DeFi Yield: 48% APY unhedged liquidity farm</option>
-              <option value="apple_dip">Mega-cap tech dips 5% on news</option>
-              <option value="green_energy">Green infrastructure bond offering</option>
-            </select>
-          </div>
-
-          <button
-            id="btn-inject-scenario"
-            type="button"
-            className="btn-inject"
-            onClick={handleInject}
-            disabled={isInjecting}
-            aria-label="Simulate Enforcer Reaction"
-          >
-            {isInjecting ? (
-              <span className="inline-flex items-center justify-center gap-2">
-                <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                <span>Simulating Reaction...</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center justify-center gap-2">
-                <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-                <span>Simulate Enforcer Reaction</span>
-              </span>
-            )}
-          </button>
-        </div>
-
-        {lastInjectedResult && (
-          <div className="poison-result-card mt-1" id="poisonFeedbackCard">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-[var(--refused-rust)] uppercase tracking-wider text-[10px]">
-                Enforcer Reaction
-              </span>
-              <span className="text-[10px] text-[var(--text-tertiary)]">Intercepted in 12ms</span>
-            </div>
-            <div className="text-[13px] font-bold text-[var(--text-primary)]">
-              {lastInjectedResult.scenario}
-            </div>
-            <div className="text-[12px] text-[var(--trimmed-amber)]">
-              Enforced boundary: {lastInjectedResult.boundary}
-            </div>
-            <div className="text-[11.5px] text-[var(--text-secondary)] mt-1">
-              {lastInjectedResult.detail}
-            </div>
-          </div>
-        )}
-      </div>
+      <AttackBox />
 
       {/* Subtle Toast Notification confirming mandate share / copy with haptic feedback */}
       <ToastNotification

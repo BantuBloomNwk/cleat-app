@@ -573,6 +573,16 @@ body {
   margin-top: 6px;
   margin-bottom: 2px;
 }
+/* The trailing group, which is a hint and an origin chip more often than
+   not, wraps its own children rather than travelling as one block. Without
+   this the pair moves to a second line as a single unit whose width happens
+   to equal the line, and the chip lands flush against the edge with no
+   gutter, which reads as a box being overflowed even though nothing is. */
+.section-row-header > span {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
 .section-row-header > * {
   min-width: 0;
 }

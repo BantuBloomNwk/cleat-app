@@ -166,6 +166,14 @@ const REASONS = [
   "The owner halted the mandate",
 ];
 
+/** The program's reason codes, rendered for a reader. */
+export const reasonText = (reason: number) =>
+  REASONS[reason] ?? "Inside every limit set";
+
+/** 0 cleared, 1 trimmed, 2 refused. */
+export const outcomeLabel = (outcome: number) =>
+  OUTCOME_LABEL[outcome] ?? "Refused";
+
 const OUTCOME_TO_STATUS: EntryStatus[] = ["cleared", "trimmed", "refused"];
 const OUTCOME_LABEL = ["Cleared", "Trimmed", "Refused"];
 

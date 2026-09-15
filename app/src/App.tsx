@@ -116,131 +116,6 @@ export default function App() {
     );
   };
 
-  const handleInjectScenario = (scenarioVal: string) => {
-    const now = new Date();
-    const timeStr = `${String(now.getUTCHours()).padStart(2, '0')}:${String(
-      now.getUTCMinutes()
-    ).padStart(2, '0')} UTC`;
-
-    let newEntry: LedgerEntry;
-
-    if (scenarioVal === 'fossil') {
-      newEntry = {
-        id: `entry-${Date.now()}`,
-        status: 'refused',
-        statusLabel: 'Refused',
-        timestamp: timeStr,
-        action: 'Blocked impulsive add to Exxon Mobil (XOM)',
-        cause: 'Triggered boundary: "no fossil fuels"',
-        causeDetail:
-          'Agent attempted 40% allocation into Exxon Mobil (XOM) following Gulf supply headline. Enforcer rejected transaction cold before broadcast. Zero USDC moved.',
-        agentTrace:
-          'Agent trace: "OPEC supply headline triggered auto-allocation (40% book). Aborted: ticker matches restricted fossil fuel sector hash."',
-        period: 'overnight',
-        ticker: 'XOM',
-        amount: '40% of book',
-        expanded: true,
-      };
-      setOvernightRefusalCount((prev) => prev + 1);
-      setStats((prev) => ({ ...prev, refused: prev.refused + 1 }));
-    } else if (scenarioVal === 'nvidia') {
-      newEntry = {
-        id: `entry-${Date.now()}`,
-        status: 'refused',
-        statusLabel: 'Refused',
-        timestamp: timeStr,
-        action: 'Blocked FOMO long on Nvidia (NVDA)',
-        cause: 'Triggered boundary: "nothing over fifteen percent in one name"',
-        causeDetail:
-          'Agent requested 25% single-stock buy on earnings breakout. Current allocation buffer held at 15.0% ceiling. Order aborted cold before broadcast.',
-        agentTrace:
-          'Agent trace: "Impulse aborted: order would exceed portfolio concentration envelope. Execution halted."',
-        period: 'overnight',
-        ticker: 'NVDA',
-        amount: '25% allocation',
-        expanded: true,
-      };
-      setOvernightRefusalCount((prev) => prev + 1);
-      setStats((prev) => ({ ...prev, refused: prev.refused + 1 }));
-    } else if (scenarioVal === 'defense') {
-      newEntry = {
-        id: `entry-${Date.now()}`,
-        status: 'refused',
-        statusLabel: 'Refused',
-        timestamp: timeStr,
-        action: 'Blocked Lockheed Martin (LMT) buy order',
-        cause: 'Triggered boundary: "no defense or weapons"',
-        causeDetail:
-          'Geopolitical defense sector surge triggered auto-buy trigger. Kernel intercepted ticker classification hash and denied signing signature.',
-        agentTrace:
-          'Agent trace: "Restricted sector detected: defense/aerospace weapons. Transaction submission terminated."',
-        period: 'overnight',
-        ticker: 'LMT',
-        amount: '750 USDC',
-        expanded: true,
-      };
-      setOvernightRefusalCount((prev) => prev + 1);
-      setStats((prev) => ({ ...prev, refused: prev.refused + 1 }));
-    } else if (scenarioVal === 'apy_farm') {
-      newEntry = {
-        id: `entry-${Date.now()}`,
-        status: 'refused',
-        statusLabel: 'Refused',
-        timestamp: timeStr,
-        action: 'Rejected 48% APY unhedged yield farm deposit',
-        cause: 'Triggered boundary: "moderate growth" risk ceiling',
-        causeDetail:
-          'Synthetic high-yield liquidity pool flagged excessive impermanent loss risk. Transaction gate closed cold.',
-        agentTrace:
-          'Agent trace: "Protocol risk score 8.4/10 exceeds allowable moderate envelope. Rebalance rejected."',
-        period: 'overnight',
-        ticker: 'YIELD-FARM',
-        amount: '1,500 USDC',
-        expanded: true,
-      };
-      setOvernightRefusalCount((prev) => prev + 1);
-      setStats((prev) => ({ ...prev, refused: prev.refused + 1 }));
-    } else if (scenarioVal === 'apple_dip') {
-      newEntry = {
-        id: `entry-${Date.now()}`,
-        status: 'trimmed',
-        statusLabel: 'Trimmed',
-        timestamp: timeStr,
-        action: 'Curtailed Apple (AAPL) position add',
-        cause: 'Boundary clamp: single-stock buffer ceiling',
-        causeDetail:
-          'Mega-cap dip prompted 600 USDC buy. Rebalance resized to 180 USDC to honor 15% single name concentration rule.',
-        agentTrace:
-          'Agent trace: "Partial execution approved within constraint. Clamped at 180 USDC."',
-        period: 'overnight',
-        ticker: 'AAPL',
-        amount: '420 USDC trimmed',
-        expanded: true,
-      };
-      setStats((prev) => ({ ...prev, trimmed: prev.trimmed + 1 }));
-    } else {
-      newEntry = {
-        id: `entry-${Date.now()}`,
-        status: 'cleared',
-        statusLabel: 'Cleared',
-        timestamp: timeStr,
-        action: 'Accumulated European offshore wind turbine supplier',
-        cause: 'Compliant: "moderate growth" ESG verified',
-        causeDetail:
-          'Utility concession announcement met all sustainability and portfolio risk criteria. Signed and broadcast.',
-        agentTrace:
-          'Agent trace: "Green infrastructure validation passed. 100% boundary clearance."',
-        period: 'overnight',
-        ticker: 'VESTAS',
-        amount: '500 USDC',
-        expanded: true,
-      };
-      setStats((prev) => ({ ...prev, cleared: prev.cleared + 1 }));
-    }
-
-    setLedgerEntries((prev) => [newEntry, ...prev]);
-  };
-
   const handleAdoptCommunityMandate = (sentence: string) => {
     setMandateSentence(sentence);
     setActiveTab('diary');
@@ -283,7 +158,6 @@ export default function App() {
               onOpenRewriteModal={() => setIsRewriteModalOpen(true)}
               entries={ledgerEntries}
               onToggleEntry={handleToggleEntry}
-              onInjectScenario={handleInjectScenario}
               overnightRefusalCount={overnightRefusalCount}
               restraint={restraint}
             />
