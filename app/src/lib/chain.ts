@@ -769,3 +769,54 @@ export async function loadStandings(): Promise<StandingRow[]> {
     return [];
   }
 }
+
+// ── What the agent may spend on itself ───────────────────────────────
+
+export interface SpendState {
+  address: string;
+  ceilingLamports: number;
+  periodSecs: number;
+  spentLamports: number;
+  periodStart: number;
+  lifetimeLamports: number;
+  payments: number;
+  refusals: number;
+}
+
+export const spendPda = (owner: PublicKey) =>
+  PublicKey.findProgramAddressSync([seed("spend"), owner.toBuffer()], PROGRAM_ID)[0];
+
+/**
+ * The second ceiling, read off the chain.
+ *
+ * The mandate bounds what the agent may do with the client's money. This
+ * bounds what it may do with its own, and an agent that pays per call for its
+ * own inference needs both or it has half a leash. It has worked since it was
+ * written and has never been visible anywhere in the interface, which is its
+ * own kind of untruth: a control nobody can see is a control nobody can check.
+ *
+ * The number worth reading is refusals against payments. How often the agent
+ * was stopped from spending is the same class of fact as how often it was
+ * stopped from trading.
+ */
+export async function loadSpend(owner: PublicKey): Promise<SpendState | null> {
+  try {
+    const key = spendPda(owner);
+    const info = await connection.getAccountInfo(key);
+    if (!info) return null;
+    const c = new Cursor(info.data);
+    c.skip(8 + 32 + 32); // discriminator, owner, agent
+    return {
+      address: key.toBase58(),
+      ceilingLamports: Number(c.u64()),
+      periodSecs: Number(c.u64()),
+      spentLamports: Number(c.u64()),
+      periodStart: Number(c.u64()),
+      lifetimeLamports: Number(c.u64()),
+      payments: c.u32(),
+      refusals: c.u32(),
+    };
+  } catch {
+    return null;
+  }
+}

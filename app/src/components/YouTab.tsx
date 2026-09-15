@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
+import { AgentSpend } from './AgentSpend';
 import type { WalletState as WalletStatus } from '../hooks/useWallet';
 import { DEMO_OWNER } from '../lib/chain';
 import { Vibrate, VibrateOff, ShieldCheck, Sparkles } from 'lucide-react';
@@ -86,6 +87,8 @@ export const YouTab: React.FC<YouTabProps> = ({
 
       {/* Security & Enclave Card */}
       <WalletState wallet={wallet} fallbackOwner={DEMO_OWNER} />
+
+      <AgentSpend owner={wallet.status === 'ready' ? wallet.address : DEMO_OWNER} />
 
       <div className="flex items-center justify-end -mb-1">
         <DataOrigin origin="sample" />
