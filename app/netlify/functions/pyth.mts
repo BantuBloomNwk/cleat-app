@@ -1,90 +1,107 @@
-// The share, the wrapper, and the gap between them.
+// What the agent is watching, across asset classes, and what the sentence
+// makes of it.
 //
-// Pyth publishes three feeds for one company: the equity itself, the xStock
-// wrapper and the Ondo wrapper. That is the comparison this app already
-// draws, drawn better, because a difference between two published prices is
-// firmer than an inference off pooled liquidity.
+// The first attempt at this asked for Apple as an equity alongside Backed's
+// and Ondo's wrappers, and all three came back 403. That was read as the
+// trial being too small. It was not: the trial entitles twenty five named
+// symbols and Apple is not among them. Six of them are, across six different
+// asset classes, and that turns out to be the more interesting build anyway.
 //
-// Two things about the plumbing, both learned the hard way. The host is
-// pyth.dourolabs.app and not hermes.pyth.network, which answers the feed
-// catalogue to anyone and 401s on every price path; against the wrong host a
-// perfectly good key looks like a bad one. And the endpoint takes a symbol
-// rather than a feed id, which is why the ids fetched from Hermes turned out
-// to be useless here.
+// The useful one is oil. Four WTI contracts are entitled, and the mandate
+// this app demonstrates says no fossil fuels. So a real crude price moving is
+// a real reason for an agent to want energy exposure, and a real refusal
+// comes back, decided against a deny list naming actual mints. Nothing about
+// that chain is staged: the price is published by Pyth, the rule is on chain,
+// and the refusal is in a ring buffer anyone can read.
 //
-// The account is a trial and the trial does not reach these feeds. Six
-// tokens were spent establishing exactly that, and the result is worth
-// writing down because it is not obvious: the key is good, the host and the
-// request shape are right, and Crypto.BTC/USD comes back at a real price.
-// Equity.US.AAPL/USD and Crypto.AAPLX/USD both return 403. So the three
-// feeds this integration exists for sit above the trial tier, and no amount
-// of fiddling with resolutions or windows changes that.
-//
-// The plumbing was worth getting right anyway, and two parts of it were not
-// obvious either. The host is pyth.dourolabs.app, not hermes.pyth.network,
-// which answers the feed catalogue to anyone and 401s on every price path.
-// And the endpoint takes a symbol rather than a feed id, so the ids Hermes
-// hands out are useless here. Against the wrong host a good key looks like a
-// bad one, which is how an afternoon goes missing.
-//
-// It is one environment variable and an entitlement away from working.
+// Two things about the plumbing, both learned expensively. The host is
+// pyth.dourolabs.app, not hermes.pyth.network, which answers the feed
+// catalogue to anyone and 401s on every price path, so against the wrong host
+// a good key looks like a bad one. And the endpoint takes a symbol rather
+// than a feed id, which makes the ids Hermes hands out useless here.
 const HOST = "https://pyth.dourolabs.app";
 const KEY = process.env.PYTH_API_KEY ?? "";
 
-/** One company, because the allowance does not stretch to browsing. */
-const SYMBOLS = [
-  { symbol: "Equity.US.AAPL/USD", kind: "equity" as const, label: "Apple, the share" },
-  { symbol: "Crypto.AAPLX/USD", kind: "xstock" as const, label: "Backed's AAPLx" },
-  { symbol: "Crypto.AAPLON/USD", kind: "ondo" as const, label: "Ondo's AAPLon" },
+/** Six of the twenty five the trial entitles, one per asset class. */
+const WATCHED = [
+  {
+    symbol: "Equity.US.TSLA/USD",
+    label: "Tesla",
+    klass: "A single name",
+    note: "One company, which is what a position cap is a cap on.",
+  },
+  {
+    symbol: "Equity.US.QQQ/USD",
+    label: "Nasdaq 100",
+    klass: "An index",
+    note: "A basket, so a sector cap reads differently against it than against one name.",
+  },
+  {
+    symbol: "Commodities.WTIZ6/USD",
+    label: "Crude oil, Dec",
+    klass: "Fossil fuel",
+    note: "The sentence rules this out by name. A price moving here is a reason to want exposure and the mandate refuses it anyway.",
+    denied: true,
+  },
+  {
+    symbol: "Metal.XAU/USD",
+    label: "Gold",
+    klass: "Metal",
+    note: "Trades around the clock, like everything on this screen and unlike New York.",
+  },
+  {
+    symbol: "FX.EUR/USD",
+    label: "Euro",
+    klass: "Currency",
+    note: "What the book is worth depends on this, which is easy to forget when the caps are in percentages.",
+  },
+  {
+    symbol: "Crypto.SOL/USD",
+    label: "Solana",
+    klass: "Crypto",
+    note: "What the fees and the rent are paid in.",
+  },
 ];
 
 let cache: { at: number; body: unknown } | null = null;
-const TTL_MS = 60 * 60 * 1000;
+const TTL_MS = 5 * 60 * 1000;
 
-const json = (body: unknown, status = 200) =>
+const json = (body: unknown) =>
   new Response(JSON.stringify(body), {
-    status,
     headers: {
       "content-type": "application/json",
-      // An hour at the edge too, so the trial is spent once and not per
-      // reader.
-      "cache-control": "public, max-age=3600, s-maxage=3600",
+      "cache-control": "public, max-age=300, s-maxage=300",
     },
   });
 
 /**
- * The last published price for one symbol.
+ * Where a symbol is now and where it was, from one call.
  *
- * There is a history endpoint and it is the one whose syntax is known to
- * work, so a narrow recent window is asked for and the final point taken.
- * Guessing at a latest endpoint would cost a token per guess.
+ * The history endpoint is the one whose syntax is known to work, and a month
+ * of daily closes gives both the latest price and something to compare it
+ * with, which is what makes a move rather than a number.
  */
-async function lastPrice(symbol: string, resolution = "1D") {
+async function series(symbol: string) {
   const to = Math.floor(Date.now() / 1000);
-  // A month at daily resolution, which is the shape of the request the
-  // provider's own example uses. Narrower windows and finer resolutions were
-  // refused, and each guess costs a token from a trial allowance.
   const from = to - 60 * 60 * 24 * 30;
-  const url =
-    `${HOST}/v1/fixed_rate@1000ms/history` +
-    `?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}&resolution=${resolution}`;
-
-  const res = await fetch(url, {
-    headers: { authorization: `Bearer ${KEY}`, accept: "application/json" },
-  });
-  if (!res.ok) return { error: `${res.status}` };
-  const body = (await res.json()) as any;
-
-  // TradingView shaped: parallel arrays of t, o, h, l, c. Take the last close
-  // that exists rather than assuming the series is full.
-  const closes: number[] = body?.c ?? [];
-  const times: number[] = body?.t ?? [];
-  for (let i = closes.length - 1; i >= 0; i--) {
-    if (Number.isFinite(closes[i])) {
-      return { price: Number(closes[i]), at: times[i] ?? null, points: closes.length };
-    }
-  }
-  return { error: "no points", raw: Object.keys(body ?? {}).join(",") };
+  const res = await fetch(
+    `${HOST}/v1/fixed_rate@1000ms/history?symbol=${encodeURIComponent(symbol)}` +
+      `&from=${from}&to=${to}&resolution=1D`,
+    { headers: { authorization: `Bearer ${KEY}`, accept: "application/json" } },
+  );
+  if (!res.ok) return { error: String(res.status) };
+  const b = (await res.json()) as any;
+  const c: number[] = (b?.c ?? []).filter((n: number) => Number.isFinite(n));
+  if (c.length === 0) return { error: "no points" };
+  const price = c[c.length - 1];
+  const prev = c.length > 1 ? c[c.length - 2] : price;
+  const first = c[0];
+  return {
+    price,
+    dayBps: prev > 0 ? ((price - prev) / prev) * 10_000 : 0,
+    monthBps: first > 0 ? ((price - first) / first) * 10_000 : 0,
+    points: c.length,
+  };
 }
 
 export default async () => {
@@ -92,39 +109,20 @@ export default async () => {
     return json({
       priced: false,
       reason:
-        "Pyth publishes these three feeds and gates the prices behind a paid tier. They are named because that much is true without a key, and the numbers are not guessed.",
-      feeds: SYMBOLS,
+        "Pyth gates prices behind a paid tier. The feeds are named because that much is true without a key, and the numbers are not guessed.",
+      rows: WATCHED,
     });
   }
-
   if (cache && Date.now() - cache.at < TTL_MS) return json(cache.body);
 
   try {
-    const out = [];
-    for (const s of SYMBOLS) {
-      out.push({ ...s, ...(await lastPrice(s.symbol)) });
-    }
-
-    const equity = out.find((o: any) => o.kind === "equity" && o.price);
-    const body = {
-      priced: out.some((o: any) => o.price),
-      asOf: Date.now(),
-      equity: equity ?? null,
-      wrappers: out
-        .filter((o: any) => o.kind !== "equity")
-        .map((w: any) => ({
-          ...w,
-          // What the wrapper costs against the thing it stands for.
-          driftBps:
-            equity && w.price
-              ? ((w.price - (equity as any).price) / (equity as any).price) * 10_000
-              : null,
-        })),
-    };
+    const rows = [];
+    for (const w of WATCHED) rows.push({ ...w, ...(await series(w.symbol)) });
+    const body = { priced: rows.some((r: any) => r.price), asOf: Date.now(), rows };
     cache = { at: Date.now(), body };
     return json(body);
   } catch (err) {
-    return json({ priced: false, reason: String(err).slice(0, 140), feeds: SYMBOLS });
+    return json({ priced: false, reason: String(err).slice(0, 140), rows: WATCHED });
   }
 };
 

@@ -2,6 +2,7 @@ import { ExpandSheet, ExpandButton } from './ExpandSheet';
 import { LiveInstrument } from './LiveInstrument';
 import { CrossIssuer } from './CrossIssuer';
 import { PreIpo } from './PreIpo';
+import { Watching } from './Watching';
 import { DataOrigin } from './DataOrigin';
 import { useTilt3D } from '../utils/useTilt3D';
 import { symbolTicker, loadTickers, loadDepth, bookQuality } from '../lib/backpack';
@@ -1103,6 +1104,8 @@ export const ChartTab: React.FC<ChartTabProps> = ({
             />
           </div>
         </div>
+
+        <Watching />
 
         <PreIpo maxSpreadBps={maxSpreadBps} />
 
