@@ -4,6 +4,7 @@ import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
 import { AttackBox } from './AttackBox';
+import { PlainEnglish } from './PlainEnglish';
 import { GateStatus } from './GateStatus';
 import type { Restraint } from '../lib/chain';
 import { loadSessions, type MarketSession } from '../lib/backpack';
@@ -195,6 +196,8 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
 
   return (
     <section className="tab-screen active flex flex-col gap-3.5 w-full pb-12" id="view-diary">
+      <PlainEnglish />
+
       {/* Hero Mandate Card with 3D Specular Halo */}
       <article className="glass-card" id="active-mandate-card">
         <div className="mandate-glow-halo" />

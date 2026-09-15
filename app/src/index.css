@@ -2243,3 +2243,14 @@ h1, h2, h3, h4, h5, h6,
   text-transform: uppercase;
   color: var(--verdigris);
 }
+
+/* ── For somebody who has never traded ───────────────────────────────
+   A door rather than a card: closed it is one line, open it is the only
+   thing on screen written for a reader who does not already know the
+   vocabulary. */
+.plain-english {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+}

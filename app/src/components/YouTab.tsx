@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { DataOrigin } from './DataOrigin';
+import { WalletState } from './WalletState';
+import { DEMO_OWNER } from '../lib/chain';
 import { Vibrate, VibrateOff, ShieldCheck, Sparkles } from 'lucide-react';
 import { EnforcerStats } from '../types';
 import { tactile } from '../utils/haptics';
@@ -79,6 +81,8 @@ export const YouTab: React.FC<YouTabProps> = ({
       </div>
 
       {/* Security & Enclave Card */}
+      <WalletState owner={DEMO_OWNER} />
+
       <div className="flex items-center justify-end -mb-1">
         <DataOrigin origin="sample" />
       </div>
