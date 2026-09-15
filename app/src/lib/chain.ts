@@ -413,6 +413,7 @@ export function verdictToChartMarker(
     cx: count > 1 ? 30 + (i * 320) / (count - 1) : 180,
     cy: v.outcome === 2 ? 42 : v.outcome === 1 ? 70 : 96,
     r: 4,
+    proposedBps: v.proposedBps,
     solanaSlot: Number(v.slot),
   };
 }

@@ -177,6 +177,7 @@ export default async (req: Request) => {
       Buffer.from(b58decode(s.mint)),
     ]);
 
+    const t0 = Date.now();
     const { wire, signature } = buildSignedTx({
       secretKey,
       programId: PROGRAM_ID,
@@ -195,6 +196,9 @@ export default async (req: Request) => {
       Buffer.from(wire).toString("base64"),
       { encoding: "base64", preflightCommitment: "confirmed" },
     ]);
+    const submittedMs = Date.now() - t0;
+    let confirmedMs: number | null = null;
+    let readMs: number | null = null;
 
     // Wait for it to land, then read the verdict back off the log rather than
     // reporting what we expected. The whole claim is that the program decides.
@@ -206,6 +210,7 @@ export default async (req: Request) => {
       if (!s0) continue;
       if (s0.err) break;
       if (s0.confirmationStatus === "confirmed" || s0.confirmationStatus === "finalized") {
+        confirmedMs = Date.now() - t0;
         const acc = await rpc(upstream, "getAccountInfo", [
           LOG,
           { encoding: "base64", commitment: "confirmed" },
@@ -229,12 +234,18 @@ export default async (req: Request) => {
             reason: b.readUInt8(at + 16),
           };
         }
+        readMs = Date.now() - t0;
         break;
       }
     }
 
     return json({
       signature,
+      // Wall clock, measured here, not modelled. Polling granularity is
+      // roughly nine hundred milliseconds, so confirmation is an upper bound
+      // rather than the exact moment the cluster agreed, and it is labelled
+      // that way on screen.
+      timings: { submittedMs, confirmedMs, readMs },
       explorer: `https://explorer.solana.com/tx/${signature}?cluster=devnet`,
       scenario: key,
       asked: s.bps,

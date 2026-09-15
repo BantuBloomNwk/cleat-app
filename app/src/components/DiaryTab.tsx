@@ -8,7 +8,7 @@ import { GateStatus } from './GateStatus';
 import type { Restraint } from '../lib/chain';
 import { loadSessions, type MarketSession } from '../lib/backpack';
 import { ToastNotification } from './ToastNotification';
-import { MagicblockPerDiagram } from './MagicblockPerDiagram';
+import { MagicblockPerDiagram, type TracedRun } from './MagicblockPerDiagram';
 
 interface DiaryTabProps {
   mandateSentence: string;
@@ -110,6 +110,9 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
 
   const [selectedPeriod, setSelectedPeriod] = useState<'overnight' | 'week' | 'month'>('overnight');
   const [statusFilter, setStatusFilter] = useState<'all' | 'refused' | 'trimmed' | 'cleared'>('all');
+  // Null until somebody fires a real proposal. The trace diagram shows
+  // 'not run yet' rather than a number until then.
+  const [tracedRun, setTracedRun] = useState<TracedRun | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('Active Mandate Copied to Clipboard');
@@ -354,7 +357,9 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                   because the program deliberately records no amounts, and a
                   card that mixes the two without saying so is the thing this
                   badge exists to prevent. */}
-              <DataOrigin origin="sample" />
+              <DataOrigin
+                origin={selectedPeriod === 'overnight' && restraint ? 'chain' : 'sample'}
+              />
             </span>
           </div>
 
@@ -366,9 +371,32 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
             {currentPeriodConfig.description}
           </p>
 
-          {/* Period Specific Stat Pills */}
+          {/* Period Specific Stat Pills.
+              Overnight is the period the devnet log actually covers, so it
+              gets the log's own numbers. A week and a month of this account
+              do not exist yet, and those rows stay marked as samples rather
+              than being filled in with something plausible. */}
           <div className="flex items-center flex-wrap gap-2 mt-2 pt-2 border-t border-[var(--card-border-subtle)]">
-            {currentPeriodConfig.stats.map((st, i) => (
+            {(selectedPeriod === 'overnight' && restraint
+              ? [
+                  {
+                    label: 'Held the line',
+                    value: `${entries.filter((e) => e.status !== 'cleared').length} of ${entries.length}`,
+                    type: 'refused',
+                  },
+                  {
+                    label: 'Asked for',
+                    value: `${(restraint.askedBps / 100).toFixed(0)}% of the book`,
+                    type: 'trimmed',
+                  },
+                  {
+                    label: 'Allowed',
+                    value: `${(restraint.allowedBps / 100).toFixed(0)}%`,
+                    type: 'cleared',
+                  },
+                ]
+              : currentPeriodConfig.stats
+            ).map((st, i) => (
               <div
                 key={i}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] text-[11px]"
@@ -402,7 +430,9 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
       </div>
 
       {/* Interactive SVG Diagram: Magicblock PER Trade Filtering Flow */}
-      <MagicblockPerDiagram />
+      <AttackBox onRun={setTracedRun} />
+
+      <MagicblockPerDiagram run={tracedRun} />
 
       {/* What the boundary is worth, in one line of arithmetic.
           Every proposal's size added up against every allowance. No
@@ -547,8 +577,6 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
           ))
         )}
       </div>
-
-      <AttackBox />
 
       {/* Subtle Toast Notification confirming mandate share / copy with haptic feedback */}
       <ToastNotification

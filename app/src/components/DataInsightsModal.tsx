@@ -61,7 +61,7 @@ Status: ${statusLabel.toUpperCase()}
 Exact Timestamp: ${formattedIsoTimestamp}
 Solana Slot: #${solanaSlotNum}
 Target Venue: ${marker.venue || 'Jupiter v6 Routing (JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4)'}
-Order Size: ${marker.orderSize || '$500 USDC'}
+Size: ${marker.proposedBps ? (marker.proposedBps / 100).toFixed(0) + '% of the book' : 'not recorded'}
 Specific Trade Cause: ${marker.desc}
 Triggered Mandate Boundary: "${marker.rule}"
 Capital Preserved / Buffer: ${marker.saved}
@@ -249,7 +249,14 @@ Autonomous Raw Instruction: ${marker.rawPayload || 'Program: JUP6LkbZbjS1jKKwapd
           </p>
           <div className="p-2 rounded-lg bg-[var(--card-surface)] border border-[var(--card-border-subtle)] font-mono text-[11px] text-[var(--text-secondary)] flex items-center justify-between">
             <span>Requested Size:</span>
-            <span className="font-bold text-[var(--text-primary)]">{marker.orderSize || '$500 USDC'}</span>
+            {/* The log records a share of the book and never an amount.
+                Showing dollars here invented the one field the design
+                deliberately does not store. */}
+            <span className="font-bold text-[var(--text-primary)]">
+              {marker.proposedBps
+                ? `${(marker.proposedBps / 100).toFixed(0)}% of the book`
+                : 'not recorded'}
+            </span>
           </div>
         </section>
 

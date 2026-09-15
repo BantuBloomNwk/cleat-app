@@ -13,8 +13,49 @@ interface StageDetail {
   payload: string;
 }
 
-export const MagicblockPerDiagram: React.FC = () => {
+/** A real run, measured. Null until somebody has actually fired one. */
+export interface TracedRun {
+  refused: boolean;
+  submittedMs: number;
+  confirmedMs: number | null;
+  readMs: number | null;
+  signature: string;
+}
+
+interface DiagramProps {
+  /**
+   * The last proposal anybody actually sent, with the wall clock it took.
+   *
+   * Every latency on this diagram used to be typed in: one point two
+   * milliseconds to intercept, four point eight in the enclave, eleven point
+   * four for predicates. None of it was measured and one of the stages does
+   * not run at all. When a run exists these come from it instead, and when
+   * one does not the diagram says so rather than showing a number.
+   */
+  run?: TracedRun | null;
+}
+
+export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => {
   const [flowMode, setFlowMode] = useState<'intercept' | 'compliant'>('intercept');
+
+  // The path a real run took wins over whichever tab was left selected.
+  useEffect(() => {
+    if (run) setFlowMode(run.refused ? 'intercept' : 'compliant');
+  }, [run]);
+
+  /**
+   * What each stage cost, from the run if there is one.
+   *
+   * Four boxes, three measurements: submitted, confirmed, verdict read. The
+   * third box is the Arcium evaluator, which does not run, so it never gets a
+   * number however many runs happen.
+   */
+  const measured = (i: number): string => {
+    if (!run) return 'not run yet';
+    if (i === 2) return 'gate not live';
+    const ms = i === 0 ? run.submittedMs : i === 1 ? run.confirmedMs : run.readMs;
+    return ms === null ? 'no answer' : `${ms}ms`;
+  };
   const [selectedNode, setSelectedNode] = useState<number>(0);
   const [isPlayingPulse, setIsPlayingPulse] = useState(false);
   const [pulseStep, setPulseStep] = useState<number>(0);
@@ -22,9 +63,9 @@ export const MagicblockPerDiagram: React.FC = () => {
   const stagesIntercept: StageDetail[] = [
     {
       id: 'mempool',
-      name: '1. Ingress & Mempool Intercept',
+      name: '1. Submitted to Solana',
       sub: 'Solana RPC Ingestion',
-      latency: '1.2ms',
+      latency: 'measured per run',
       privacy: 'Unencrypted RPC Payload',
       status: 'active',
       detail: 'Trading agent triggers automated swap instruction via Jupiter router. Packet is captured at RPC boundary before validator inclusion.',
@@ -32,9 +73,9 @@ export const MagicblockPerDiagram: React.FC = () => {
     },
     {
       id: 'per',
-      name: '2. Magicblock Ephemeral Rollup (PER)',
+      name: '2. The program decides',
       sub: 'Confidential State Enclave',
-      latency: '4.8ms',
+      latency: 'measured per run',
       privacy: 'SEV-SNP Hardware Blinded',
       status: 'active',
       detail: 'Transaction routes into private ephemeral rollup. State transitions occur in blinded memory; public mempool and front-running searchers see nothing.',
@@ -42,9 +83,9 @@ export const MagicblockPerDiagram: React.FC = () => {
     },
     {
       id: 'mpc',
-      name: '3. Arcium MPC Mandate Evaluator',
+      name: '3. Confidential gate, not live',
       sub: 'Threshold Rule Circuit',
-      latency: '11.4ms',
+      latency: 'not live',
       privacy: 'Confidential Multi-Party Verification',
       status: 'active',
       detail: 'Arcium multi-party node cluster evaluates human plain English mandate predicate: "no fossil fuels". Computes cryptographic token classification.',
@@ -52,9 +93,9 @@ export const MagicblockPerDiagram: React.FC = () => {
     },
     {
       id: 'gate',
-      name: '4. Enforcer Cold Refusal Gate',
+      name: '4. Refusal recorded',
       sub: 'Execution Aborted',
-      latency: '14.1ms',
+      latency: 'measured per run',
       privacy: 'Blinded Refusal Root Recorded',
       status: 'blocked',
       detail: 'Mandate violation detected. Hard cryptographic gate halts execution. Zero USDC moved, zero gas spent. Permanent refusal signature logged.',
@@ -65,9 +106,9 @@ export const MagicblockPerDiagram: React.FC = () => {
   const stagesCompliant: StageDetail[] = [
     {
       id: 'mempool',
-      name: '1. Ingress & Mempool Intercept',
+      name: '1. Submitted to Solana',
       sub: 'Solana RPC Ingestion',
-      latency: '1.1ms',
+      latency: 'measured per run',
       privacy: 'Encrypted Inbound Route',
       status: 'active',
       detail: 'Trading agent proposes scheduled rebalance into compliant ESG Clean Energy yield vault.',
@@ -75,19 +116,19 @@ export const MagicblockPerDiagram: React.FC = () => {
     },
     {
       id: 'per',
-      name: '2. Magicblock Ephemeral Rollup (PER)',
+      name: '2. The program decides',
       sub: 'Confidential Execution Enclave',
-      latency: '4.2ms',
+      latency: 'measured per run',
       privacy: 'Blinded Sub-ms Rollup',
       status: 'active',
-      detail: 'PER executes transaction optimistically inside enclave without risking sandwich attacks or slippage leakage.',
+      detail: 'The nine boundaries the mandate sets are checked here, inside the transaction, by the program. Nothing off chain gets a vote.',
       payload: 'Rollup: per-sol-instance-92 • Slippage: 0.02% Protected',
     },
     {
       id: 'mpc',
-      name: '3. Arcium MPC Mandate Evaluator',
+      name: '3. Confidential gate, not live',
       sub: 'Threshold Rule Circuit',
-      latency: '9.8ms',
+      latency: 'not live',
       privacy: 'Confidential MPC Consensus',
       status: 'active',
       detail: 'Arcium MPC evaluates mandate bounds: single-stock concentration <= 15%, ESG compliant. All 4 nodes attest compliance.',
@@ -95,9 +136,9 @@ export const MagicblockPerDiagram: React.FC = () => {
     },
     {
       id: 'gate',
-      name: '4. Solana Settlement Commitment',
+      name: '4. Clearance recorded',
       sub: 'State Finalized on Chain',
-      latency: '16.5ms',
+      latency: 'measured per run',
       privacy: 'MPC Threshold Signed Proof',
       status: 'cleared',
       detail: 'MPC cluster generates multi-party authorization signature. Transaction state commits to Solana Mainnet slot cleanly.',
@@ -146,9 +187,9 @@ export const MagicblockPerDiagram: React.FC = () => {
             <Zap size={14} />
           </div>
           <div>
-            <span className="meta-kicker text-[10px]">Filtering Architecture</span>
+            <span className="meta-kicker text-[10px]">How a proposal is decided</span>
             <h4 className="font-bold text-[13.5px] text-[var(--text-primary)]">
-              Magicblock PER &amp; MPC Enforcer Pipeline
+              Four stages, three of them measured
             </h4>
           </div>
         </div>
@@ -172,7 +213,7 @@ export const MagicblockPerDiagram: React.FC = () => {
               tactile.selectionTap();
             }}
           >
-            Refusal Intercept
+            Refused
           </button>
           <button
             type="button"
@@ -187,13 +228,20 @@ export const MagicblockPerDiagram: React.FC = () => {
               tactile.selectionTap();
             }}
           >
-            Compliant Pass
+            Cleared
           </button>
         </div>
       </div>
 
       <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
-        Autonomous agent transactions are intercepted in sub-millisecond memory before reaching the public Solana validator pool. Private Ephemeral Rollups isolate execution while Arcium MPC evaluates plain English boundaries.
+        A proposal is an ordinary Solana transaction. The program decides it
+        inside that transaction, against the nine boundaries the sentence
+        sets, and the verdict is read back off the log. The timings are wall
+        clock from whichever proposal was sent last, not modelled. The third
+        stage is the confidential gate that would keep the holdings hidden
+        while the same decision is made, and it is not working yet. Attested
+        execution in MagicBlock's rollup handles cleared trades and is
+        measured separately, at 1.8 seconds to verify the attestation.
       </p>
 
       {/* SVG Interactive Pipeline Flow Diagram */}
@@ -203,7 +251,7 @@ export const MagicblockPerDiagram: React.FC = () => {
 
         <svg
           className="w-full h-auto min-h-[170px]"
-          viewBox="0 0 680 160"
+          viewBox="0 0 680 206"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -248,7 +296,7 @@ export const MagicblockPerDiagram: React.FC = () => {
             <circle
               cx={85 + pulseStep * 170}
               cy="80"
-              r="7.5"
+              r="10"
               fill={pulseStep === 3 && flowMode === 'intercept' ? 'var(--refused-rust)' : 'var(--verdigris)'}
               filter="url(#glowFilter)"
               className="transition-all duration-500 ease-out"
@@ -273,19 +321,19 @@ export const MagicblockPerDiagram: React.FC = () => {
             <circle
               cx="85"
               cy="80"
-              r={selectedNode === 0 ? "26" : "22"}
+              r={selectedNode === 0 ? "34" : "30"}
               fill="var(--card-surface)"
               stroke={selectedNode === 0 ? "var(--text-primary)" : "var(--card-border)"}
               strokeWidth={selectedNode === 0 ? "2.5" : "1.5"}
               className="transition-all duration-200"
             />
-            <circle cx="85" cy="80" r="14" fill="var(--card-surface-raised)" />
+            <circle cx="85" cy="80" r="22" fill="var(--card-surface-raised)" />
             <text
               x="85"
-              y="84"
+              y="87"
               textAnchor="middle"
               fill="var(--text-primary)"
-              fontSize="10"
+              fontSize="17"
               fontFamily="var(--font-mono)"
               fontWeight="bold"
             >
@@ -293,27 +341,27 @@ export const MagicblockPerDiagram: React.FC = () => {
             </text>
             <text
               x="85"
-              y="122"
+              y="136"
               textAnchor="middle"
               fill="var(--text-primary)"
-              fontSize="10"
+              fontSize="17"
               fontWeight="700"
             >
-              Ingress
+              Submitted
             </text>
             <text
               x="85"
-              y="136"
+              y="162"
               textAnchor="middle"
               fill="var(--text-tertiary)"
-              fontSize="8.5"
+              fontSize="15"
               fontFamily="var(--font-mono)"
             >
-              1.2ms • Intercept
+              {measured(0)}
             </text>
           </g>
 
-          {/* Node 2: Magicblock PER */}
+          {/* Node 2: the program decides, inside the transaction */}
           <g
             className="cursor-pointer group"
             onClick={() => {
@@ -324,43 +372,43 @@ export const MagicblockPerDiagram: React.FC = () => {
             <circle
               cx="255"
               cy="80"
-              r={selectedNode === 1 ? "28" : "24"}
+              r={selectedNode === 1 ? "36" : "32"}
               fill="var(--card-surface)"
               stroke={selectedNode === 1 ? "var(--verdigris)" : "var(--card-border)"}
               strokeWidth={selectedNode === 1 ? "2.5" : "1.5"}
               className="transition-all duration-200"
             />
-            <circle cx="255" cy="80" r="16" fill="var(--verdigris-chip-bg)" />
+            <circle cx="255" cy="80" r="24" fill="var(--verdigris-chip-bg)" />
             <text
               x="255"
-              y="84"
+              y="87"
               textAnchor="middle"
               fill="var(--verdigris)"
-              fontSize="10.5"
+              fontSize="18"
               fontFamily="var(--font-mono)"
               fontWeight="extrabold"
             >
-              PER
-            </text>
-            <text
-              x="255"
-              y="122"
-              textAnchor="middle"
-              fill="var(--text-primary)"
-              fontSize="10"
-              fontWeight="700"
-            >
-              Magicblock PER
+              SOL
             </text>
             <text
               x="255"
               y="136"
               textAnchor="middle"
+              fill="var(--text-primary)"
+              fontSize="17"
+              fontWeight="700"
+            >
+              Program decides
+            </text>
+            <text
+              x="255"
+              y="162"
+              textAnchor="middle"
               fill="var(--text-tertiary)"
-              fontSize="8.5"
+              fontSize="15"
               fontFamily="var(--font-mono)"
             >
-              4.8ms • Enclave
+              {measured(1)}
             </text>
           </g>
 
@@ -375,19 +423,19 @@ export const MagicblockPerDiagram: React.FC = () => {
             <circle
               cx="425"
               cy="80"
-              r={selectedNode === 2 ? "28" : "24"}
+              r={selectedNode === 2 ? "36" : "32"}
               fill="var(--card-surface)"
               stroke={selectedNode === 2 ? "var(--ember)" : "var(--card-border)"}
               strokeWidth={selectedNode === 2 ? "2.5" : "1.5"}
               className="transition-all duration-200"
             />
-            <circle cx="425" cy="80" r="16" fill="var(--card-surface-raised)" />
+            <circle cx="425" cy="80" r="24" fill="var(--card-surface-raised)" />
             <text
               x="425"
-              y="84"
+              y="87"
               textAnchor="middle"
               fill="var(--ember)"
-              fontSize="10"
+              fontSize="17"
               fontFamily="var(--font-mono)"
               fontWeight="extrabold"
             >
@@ -395,23 +443,23 @@ export const MagicblockPerDiagram: React.FC = () => {
             </text>
             <text
               x="425"
-              y="122"
+              y="136"
               textAnchor="middle"
               fill="var(--text-primary)"
-              fontSize="10"
+              fontSize="17"
               fontWeight="700"
             >
-              Arcium MPC
+              Arcium gate
             </text>
             <text
               x="425"
-              y="136"
+              y="162"
               textAnchor="middle"
               fill="var(--text-tertiary)"
-              fontSize="8.5"
+              fontSize="15"
               fontFamily="var(--font-mono)"
             >
-              11.4ms • Predicates
+              {measured(2)}
             </text>
           </g>
 
@@ -426,7 +474,7 @@ export const MagicblockPerDiagram: React.FC = () => {
             <circle
               cx="595"
               cy="80"
-              r={selectedNode === 3 ? "28" : "24"}
+              r={selectedNode === 3 ? "36" : "32"}
               fill="var(--card-surface)"
               stroke={
                 selectedNode === 3
@@ -446,33 +494,33 @@ export const MagicblockPerDiagram: React.FC = () => {
             />
             <text
               x="595"
-              y="84"
+              y="87"
               textAnchor="middle"
               fill={flowMode === 'intercept' ? 'var(--refused-rust)' : 'var(--verdigris)'}
-              fontSize="12"
+              fontSize="20"
               fontWeight="bold"
             >
               {flowMode === 'intercept' ? '✕' : '✓'}
             </text>
             <text
               x="595"
-              y="122"
+              y="136"
               textAnchor="middle"
               fill={flowMode === 'intercept' ? 'var(--refused-rust)' : 'var(--verdigris)'}
-              fontSize="10"
+              fontSize="17"
               fontWeight="700"
             >
-              {flowMode === 'intercept' ? 'Refused Cold' : 'Solana Settled'}
+              {flowMode === 'intercept' ? 'Refused' : 'Cleared'}
             </text>
             <text
               x="595"
-              y="136"
+              y="162"
               textAnchor="middle"
               fill="var(--text-tertiary)"
-              fontSize="8.5"
+              fontSize="15"
               fontFamily="var(--font-mono)"
             >
-              {flowMode === 'intercept' ? '14.1ms • Aborted' : '16.5ms • Cleared'}
+              {measured(3)}
             </text>
           </g>
         </svg>

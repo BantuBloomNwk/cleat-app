@@ -32,7 +32,8 @@ export interface ChartMarker {
   r: number;
   hasRadarRing?: boolean;
   venue?: string;
-  orderSize?: string;
+  /** A share of the book in basis points. The log never records an amount. */
+  proposedBps?: number;
   drawdownSaved?: string;
   slippagePrevented?: string;
   blockNumber?: number;

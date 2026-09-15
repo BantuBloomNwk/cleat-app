@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { outcomeLabel, reasonText } from '../lib/chain';
 import { tactile } from '../utils/haptics';
+import type { TracedRun } from './MagicblockPerDiagram';
 
 /**
  * Push on the boundary yourself.
@@ -26,6 +27,11 @@ interface Scenario {
 
 interface Outcome {
   signature?: string;
+  timings?: {
+    submittedMs: number;
+    confirmedMs: number | null;
+    readMs: number | null;
+  };
   explorer?: string;
   asked?: number;
   verdict?: {
@@ -41,7 +47,10 @@ interface Outcome {
 
 const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%`;
 
-export const AttackBox: React.FC = () => {
+export const AttackBox: React.FC<{
+  /** Handed up so the trace diagram can animate a run that actually happened. */
+  onRun?: (r: TracedRun) => void;
+}> = ({ onRun }) => {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [picked, setPicked] = useState('headline');
   const [busy, setBusy] = useState(false);
@@ -72,7 +81,17 @@ export const AttackBox: React.FC = () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ scenario: picked }),
       });
-      setResult(await res.json());
+      const out: Outcome = await res.json();
+      setResult(out);
+      if (out.signature && out.timings) {
+        onRun?.({
+          refused: out.verdict ? out.verdict.outcome === 2 : true,
+          submittedMs: out.timings.submittedMs,
+          confirmedMs: out.timings.confirmedMs,
+          readMs: out.timings.readMs,
+          signature: out.signature,
+        });
+      }
     } catch {
       setResult({ error: 'could not reach the chain from here' });
     } finally {
