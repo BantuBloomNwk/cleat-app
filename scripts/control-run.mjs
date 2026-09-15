@@ -28,8 +28,8 @@ import {
 import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CIRCUIT = "control_init_pool";
-const CLUSTER = 456;
+const CIRCUIT = "control_init_pool_v3";
+const CLUSTER = 4500; // moved off 456 on 2026-09-15, see TOOLCHAIN.md
 const LUT_PROGRAM_ID = new PublicKey("AddressLookupTab1e1111111111111111111111111");
 
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
@@ -95,19 +95,15 @@ if (!(await retry(() => plain.getAccountInfo(compDef)))) {
   console.log("comp def exists");
 }
 
-const raw = new Uint8Array(fs.readFileSync(new URL(`../build/${CIRCUIT}.arcis`, import.meta.url)));
-console.log(`circuit ${raw.length} bytes, uploading`);
-try { await uploadCircuit(provider, CIRCUIT, PROGRAM_ID, raw, true); }
-catch (e) { if (!/AlreadyCompleted|OnchainFinalized/.test(String(e.message))) throw e; console.log("already finalized"); }
-
-await sleep(1500);
-try {
-  const tx = await buildFinalizeCompDefTx(provider, offset, PROGRAM_ID);
-  tx.feePayer = owner.publicKey;
-  tx.recentBlockhash = (await retry(() => plain.getLatestBlockhash())).blockhash;
-  await sendAndConfirmTransaction(plain, tx, [owner], { commitment: "confirmed" });
-  console.log("finalized");
-} catch (e) { console.log("finalize skipped:", String(e.message).slice(0, 60)); }
+// Upload and finalize now live in upload-verify.mjs, which reads the bytes
+// back off chain and refuses to finalize until they match the artifact. They
+// used to be here, unchecked, and six circuits were finalized over uploads
+// with holes in them before anybody looked.
+if (process.env.SKIP_UPLOAD !== "1") {
+  console.log("run: node scripts/upload-verify.mjs " + CIRCUIT + " --finalize");
+  console.log("then re-run this with SKIP_UPLOAD=1");
+  process.exit(0);
+}
 
 const compOffset = crypto.randomBytes(8).readBigUInt64LE(0) >> 1n;
 const computation = getComputationAccAddress(CLUSTER, new anchor.BN(compOffset.toString()));

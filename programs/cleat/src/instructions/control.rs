@@ -24,9 +24,9 @@ use arcium_anchor::prelude::*;
 
 use crate::{ArciumSignerAccount, ID, ID_CONST};
 
-pub const COMP_DEF_OFFSET_CONTROL: u32 = comp_def_offset("control_init_pool");
+pub const COMP_DEF_OFFSET_CONTROL: u32 = comp_def_offset("control_init_pool_v3");
 
-#[init_computation_definition_accounts("control_init_pool", payer)]
+#[init_computation_definition_accounts("control_init_pool_v3", payer)]
 #[derive(Accounts)]
 pub struct InitControlCompDef<'info> {
     #[account(mut)]
@@ -46,7 +46,7 @@ pub struct InitControlCompDef<'info> {
     pub system_program: Program<'info, System>,
 }
 
-#[queue_computation_accounts("control_init_pool", payer)]
+#[queue_computation_accounts("control_init_pool_v3", payer)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct ControlQueue<'info> {
@@ -84,9 +84,9 @@ pub struct ControlQueue<'info> {
     pub arcium_program: Program<'info, Arcium>,
 }
 
-#[callback_accounts("control_init_pool")]
+#[callback_accounts("control_init_pool_v3")]
 #[derive(Accounts)]
-pub struct ControlInitPoolCallback<'info> {
+pub struct ControlInitPoolV3Callback<'info> {
     pub arcium_program: Program<'info, Arcium>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_CONTROL))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
@@ -112,7 +112,7 @@ pub fn exec_queue_control(ctx: Context<ControlQueue>, computation_offset: u64) -
         ctx.accounts,
         computation_offset,
         ArgBuilder::new().build(),
-        vec![ControlInitPoolCallback::callback_ix(
+        vec![ControlInitPoolV3Callback::callback_ix(
             computation_offset,
             &ctx.accounts.mxe_account,
             &[],
@@ -127,8 +127,8 @@ pub fn exec_queue_control(ctx: Context<ControlQueue>, computation_offset: u64) -
 /// Says what came back rather than erroring on it, which is the only
 /// reason the probes told us anything.
 pub fn exec_control_callback(
-    ctx: Context<ControlInitPoolCallback>,
-    output: SignedComputationOutputs<ControlInitPoolOutput>,
+    ctx: Context<ControlInitPoolV3Callback>,
+    output: SignedComputationOutputs<ControlInitPoolV3Output>,
 ) -> Result<()> {
     match output.verify_output_raw(
         &ctx.accounts.cluster_account,

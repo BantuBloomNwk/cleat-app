@@ -156,10 +156,10 @@ pub mod cleat {
         )
     }
 
-    #[arcium_callback(encrypted_ix = "gate_breach_v5")]
-    pub fn gate_breach_v5_callback(
-        ctx: Context<GateBreachV5Callback>,
-        output: SignedComputationOutputs<GateBreachV5Output>,
+    #[arcium_callback(encrypted_ix = "gate_breach_v7")]
+    pub fn gate_breach_v7_callback(
+        ctx: Context<GateBreachV7Callback>,
+        output: SignedComputationOutputs<GateBreachV7Output>,
     ) -> Result<()> {
         instructions::gate::exec_gate_callback(ctx, output)
     }
@@ -188,10 +188,10 @@ pub mod cleat {
         instructions::control::exec_queue_control(ctx, computation_offset)
     }
 
-    #[arcium_callback(encrypted_ix = "control_init_pool")]
-    pub fn control_init_pool_callback(
-        ctx: Context<ControlInitPoolCallback>,
-        output: SignedComputationOutputs<ControlInitPoolOutput>,
+    #[arcium_callback(encrypted_ix = "control_init_pool_v3")]
+    pub fn control_init_pool_v3_callback(
+        ctx: Context<ControlInitPoolV3Callback>,
+        output: SignedComputationOutputs<ControlInitPoolV3Output>,
     ) -> Result<()> {
         instructions::control::exec_control_callback(ctx, output)
     }

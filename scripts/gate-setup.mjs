@@ -33,7 +33,7 @@ import {
 import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CIRCUIT = "gate_breach_v5";
+const CIRCUIT = "gate_breach_v7";
 const LUT_PROGRAM_ID = new PublicKey("AddressLookupTab1e1111111111111111111111111");
 
 const IDL = JSON.parse(
@@ -115,27 +115,23 @@ async function main() {
     console.log("created:", sig.slice(0, 28) + "…");
   }
 
-  console.log("\nuploading the circuit...");
-  const raw = new Uint8Array(fs.readFileSync(new URL(`../build/${CIRCUIT}.arcis`, import.meta.url)));
-  console.log(`circuit is ${raw.length} bytes`);
-  const sigs = await uploadCircuit(provider, CIRCUIT, PROGRAM_ID, raw, true);
-  console.log(`uploaded in ${sigs.length} transactions`);
-
-  console.log("\nfinalizing...");
-  // Let the throttle queue drain before asking for a blockhash.
+  // Upload and finalize moved to circuit-repair.mjs, which writes every
+  // window with a fresh blockhash, reads the bytes back off chain, and
+  // refuses to finalize until they match the artifact.
   //
-  // The gap that keeps the upload under the rate limit also delays every
-  // call behind it, so on a ninety chunk circuit the finalize was being
-  // signed against a blockhash fetched minutes earlier and rejected as
-  // "Blockhash not found". Waiting for the queue, then fetching, means the
-  // blockhash is as fresh as the send.
-  await new Promise((r) => setTimeout(r, 1500));
-  const finalizeTx = await buildFinalizeCompDefTx(provider, offset, PROGRAM_ID);
-  finalizeTx.feePayer = owner.publicKey;
-  const fresh = new Connection(baseRpc(), "confirmed");
-  finalizeTx.recentBlockhash = (await fresh.getLatestBlockhash()).blockhash;
-  const fsig = await sendAndConfirmTransaction(fresh, finalizeTx, [owner], { commitment: "confirmed" });
-  console.log("finalized:", fsig.slice(0, 28) + "…");
+  // What used to be here called uploadCircuit, which has three faults that
+  // compound into a circuit nobody can run. It takes one blockhash before its
+  // upload loop and reuses it for every chunk, so a long upload loses whatever
+  // is still in flight when that expires. It finalizes the comp def at the end
+  // regardless of whether the chunks landed. And running it again repairs
+  // nothing, because it returns early when the account merely exists at the
+  // right size, checking the length and never the contents.
+  //
+  // Six circuits were finalized over uploads with holes in them before anyone
+  // read the bytes back. The node had been saying so the whole time:
+  // CircuitFailure(CircuitSerialization).
+  console.log("\nnow run:");
+  console.log(`  node scripts/circuit-repair.mjs ${CIRCUIT} --finalize`);
 }
 
 main().catch((e) => {

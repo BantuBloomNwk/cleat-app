@@ -39,7 +39,7 @@ mod circuits {
     /// decided it is never revealed to anyone, including this program and
     /// whoever runs the agent.
     #[instruction]
-    pub fn gate_breach_v5(
+    pub fn gate_breach_v7(
         exposure_bps: Enc<Shared, u64>,
         effective_bps: u64,
         max_position_bps: u64,
@@ -101,7 +101,7 @@ mod circuits {
     }
 
     #[instruction]
-    pub fn control_init_pool() -> Enc<Mxe, PoolState> {
+    pub fn control_init_pool_v3() -> Enc<Mxe, PoolState> {
         Mxe::get().from_arcis(PoolState { yes: 0, no: 0 })
     }
 }

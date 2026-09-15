@@ -28,8 +28,8 @@ const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL")
 // NVDAx, Backed's wrapper of Nvidia, live on mainnet today. Named so the
 // mandate's deny list has something real to be checked against.
 const MINT = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
-const CIRCUIT = "gate_breach_v5";
-const CLUSTER = 456; // the devnet cluster this MXE was initialised on
+const CIRCUIT = "gate_breach_v7";
+const CLUSTER = 4500; // moved off 456 on 2026-09-15, see TOOLCHAIN.md
 
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
 const disc = (n) => {
@@ -109,7 +109,7 @@ async function main() {
   if (!(await connection.getAccountInfo(mandate))) {
     await send([new TransactionInstruction({ programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, true), meta(SystemProgram.programId, false, false)],
-      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), vecPubkey([])]) })], [owner]);
+      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), u16(20), vecPubkey([])]) })], [owner]);
     console.log("mandate: 15% position cap, 5% single trade cap");
   }
   if (!(await connection.getAccountInfo(vault))) {
@@ -144,6 +144,18 @@ async function main() {
     // one secret now: the exposure as a share of the book. The circuit needs
     // nothing else, because the caps are public on the mandate.
     const ct = cipher.encrypt([BigInt(exposureBps)], nonce); // one u64, bare
+
+    // Publish the handle before asking about it.
+    //
+    // The gate refuses any sealed exposure that is not the one the vault
+    // published, which is what stops an agent sealing a flattering number to
+    // its own key and asking the network about that instead. The owner is the
+    // only signer who can move the handle, so the owner moves it here.
+    await send([new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [meta(owner.publicKey, true, false), meta(vault, false, true)],
+      data: Buffer.concat([disc("set_position_handle"), Buffer.from(ct[0])]),
+    })], [owner]);
 
     const compOffset = crypto.randomBytes(8).readBigUInt64LE(0) >> 1n;
     const computation = getComputationAccAddress(CLUSTER, new anchor.BN(compOffset.toString()));

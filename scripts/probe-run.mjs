@@ -47,7 +47,7 @@ import {
 import { baseRpc } from "./rpc.mjs";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
-const CLUSTER = 456;
+const CLUSTER = 4500; // moved off 456 on 2026-09-15, see TOOLCHAIN.md
 const LUT_PROGRAM_ID = new PublicKey("AddressLookupTab1e1111111111111111111111111");
 
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));

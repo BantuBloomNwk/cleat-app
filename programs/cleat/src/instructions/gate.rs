@@ -11,9 +11,9 @@ use crate::constants::*;
 use crate::error::CleatError;
 use crate::state::{Mandate, Pending, Vault, Verdict, VerdictLog};
 
-pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v5");
+pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v7");
 
-#[init_computation_definition_accounts("gate_breach_v5", payer)]
+#[init_computation_definition_accounts("gate_breach_v7", payer)]
 #[derive(Accounts)]
 pub struct InitGateCompDef<'info> {
     #[account(mut)]
@@ -41,7 +41,7 @@ pub struct InitGateCompDef<'info> {
 /// The caps travel in the clear because they are already public on the mandate,
 /// and sending them as plaintext keeps them out of the expensive part of the
 /// circuit.
-#[queue_computation_accounts("gate_breach_v5", payer)]
+#[queue_computation_accounts("gate_breach_v7", payer)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct GateTrade<'info> {
@@ -107,9 +107,9 @@ pub struct GateTrade<'info> {
     pub arcium_program: Program<'info, Arcium>,
 }
 
-#[callback_accounts("gate_breach_v5")]
+#[callback_accounts("gate_breach_v7")]
 #[derive(Accounts)]
-pub struct GateBreachV5Callback<'info> {
+pub struct GateBreachV7Callback<'info> {
     pub arcium_program: Program<'info, Arcium>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GATE_BREACH))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
@@ -296,11 +296,11 @@ pub fn exec_gate_trade(
         ctx.accounts,
         computation_offset,
         args,
-        vec![GateBreachV5Callback::callback_ix(
+        vec![GateBreachV7Callback::callback_ix(
             computation_offset,
             &ctx.accounts.mxe_account,
             // Order matters twice over. It has to match the field order on
-            // GateBreachV5Callback, and every one of these is constrained
+            // GateBreachV7Callback, and every one of these is constrained
             // there, because the node will pass along whatever is named here
             // and nothing downstream re-derives it for us.
             &[
@@ -323,8 +323,8 @@ pub fn exec_gate_trade(
 /// pending account this computation created, which is why the question has to
 /// be parked before it is asked.
 pub fn exec_gate_callback(
-    ctx: Context<GateBreachV5Callback>,
-    output: SignedComputationOutputs<GateBreachV5Output>,
+    ctx: Context<GateBreachV7Callback>,
+    output: SignedComputationOutputs<GateBreachV7Output>,
 ) -> Result<()> {
     // verify_output_raw, not verify_output, and the difference is the whole
     // reason every computation came back as an abort.
