@@ -20,7 +20,7 @@ import {
 } from './data/initialData';
 import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
 import { loadChainSnapshot } from './lib/chain';
-import type { Mandate, Restraint, SectorExposure } from './lib/chain';
+import type { Mandate, Restraint, SealState, SectorExposure } from './lib/chain';
 
 export default function App() {
   // Theme state with local persistence
@@ -50,6 +50,8 @@ export default function App() {
   const [sectorExposure, setSectorExposure] = useState<SectorExposure[]>([]);
   const [chainMandate, setChainMandate] = useState<Mandate | null>(null);
   const [restraint, setRestraint] = useState<Restraint | null>(null);
+  // Open until the chain says otherwise. Nothing is sealed by default.
+  const [sealed, setSealed] = useState<SealState>('open');
 
   // Modals (Intro page open initially by default for first-time experience)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(true);
@@ -74,6 +76,7 @@ export default function App() {
         setSectorExposure(snap.exposure);
         setChainMandate(snap.mandate);
         setRestraint(snap.restraint);
+        setSealed(snap.sealed);
         if (snap.mandate?.text) setMandateSentence(snap.mandate.text);
         setOvernightRefusalCount(
           snap.entries.filter((e) => e.status === 'refused').length,
@@ -147,6 +150,7 @@ export default function App() {
           theme={theme}
           onToggleTheme={toggleTheme}
           onOpenOnboarding={() => setIsOnboardingOpen(true)}
+          sealed={sealed}
         />
 
         {/* Scrollable Content View */}

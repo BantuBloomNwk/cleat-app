@@ -1,3 +1,4 @@
+import type { SealState } from '../lib/chain';
 import React, { useEffect, useState } from 'react';
 import {
   loadSessions,
@@ -16,12 +17,48 @@ interface HeaderProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onOpenOnboarding: () => void;
+  /** Read off the vault, not asserted. See lib/chain.ts. */
+  sealed: SealState;
 }
+
+/**
+ * The three states a line can be in.
+ *
+ * Cleated means the vault has been delegated to the attested rollup and its
+ * privacy flags set, which is a thing the chain can be asked about rather than
+ * a thing this screen decides. Open means it has not, and open is the honest
+ * resting state for somebody who has just arrived and set nothing up. Showing
+ * a green lock to a visitor who owns nothing would be the same class of
+ * mistake as a green tick on a computation that never ran.
+ */
+const SEAL_COPY: Record<
+  SealState,
+  { label: string; color: string; title: string }
+> = {
+  cleated: {
+    label: 'CLEATED',
+    color: 'var(--verdigris)',
+    title:
+      'The vault is delegated to MagicBlock\'s attested rollup with its privacy flags set. Read off the account, not asserted here.',
+  },
+  pending: {
+    label: 'MAKING FAST',
+    color: 'var(--trimmed-amber)',
+    title: 'A delegation is in flight. Nothing is sealed until it lands.',
+  },
+  open: {
+    label: 'OPEN',
+    color: 'var(--refused-rust)',
+    title:
+      'Nothing is sealed. The vault is still owned by the program on the main chain, which is what an unsealed vault looks like from here.',
+  },
+};
 
 export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
   onOpenOnboarding,
+  sealed,
 }) => {
   // The real session, from the exchange's own calendar.
   //
@@ -228,12 +265,20 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="pulse-dot" />
               <span>WATCHING</span>
             </span>
-            <span className="inline-flex items-center gap-1 text-[var(--verdigris)] font-extrabold uppercase tracking-wide">
+            <span
+              className="inline-flex items-center gap-1 font-extrabold uppercase tracking-wide"
+              style={{ color: SEAL_COPY[sealed].color }}
+              title={SEAL_COPY[sealed].title}
+            >
               <svg className="w-2.5 h-2.5 stroke-current fill-none stroke-[2.6]" viewBox="0 0 24 24">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                {sealed === 'cleated' ? (
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                ) : (
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                )}
               </svg>
-              <span>SEALED</span>
+              <span>{SEAL_COPY[sealed].label}</span>
             </span>
             {/* Two clocks, and only one of them stops.
                 The venue state comes first because it is the one that

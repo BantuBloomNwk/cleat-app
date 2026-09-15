@@ -4,6 +4,7 @@ import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
 import { AttackBox } from './AttackBox';
+import { GateStatus } from './GateStatus';
 import type { Restraint } from '../lib/chain';
 import { loadSessions, type MarketSession } from '../lib/backpack';
 import { ToastNotification } from './ToastNotification';
@@ -113,28 +114,6 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('Active Mandate Copied to Clipboard');
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
-  const [isMpcValidating, setIsMpcValidating] = useState(false);
-  const [mpcProofHash, setMpcProofHash] = useState('5KwN8v3bWz6Y7qT9ArciumMPC9x7kM2vP4L1');
-
-  // Dynamically trigger Arcium MPC computation animation when mandate updates
-  useEffect(() => {
-    setIsMpcValidating(true);
-    const timer = setTimeout(() => {
-      setIsMpcValidating(false);
-      setMpcProofHash(`ArciumMPC_${Math.random().toString(36).substring(2, 10).toUpperCase()}_verified`);
-    }, 950);
-    return () => clearTimeout(timer);
-  }, [mandateSentence]);
-
-  const handleManualMpcVerify = () => {
-    tactile.mandateAction();
-    setIsMpcValidating(true);
-    setTimeout(() => {
-      setIsMpcValidating(false);
-      setToastMessage('Arcium MPC Computation Attested • 18ms Threshold Proof');
-      setIsToastOpen(true);
-    }, 700);
-  };
 
   const currentPeriodConfig = PERIOD_CONFIGS[selectedPeriod];
 
@@ -286,57 +265,14 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
         </div>
 
         <div className="mandate-footer flex flex-row items-center justify-between gap-2.5 flex-wrap w-full pt-3 border-t border-[var(--card-border-subtle)]/70 mt-1">
-          {/* Dynamic Metallic Plate UI Pill */}
-          <button
-            id="mpc-security-verified-badge"
-            type="button"
-            role="status"
-            aria-live="polite"
-            title="Arcium MPC cluster computation validated mandate chain (tap to test proof)"
-            onClick={handleManualMpcVerify}
-            className="metallic-plate-pill group"
-          >
-            {/* Live Hardware Status Indicator Dot */}
-            <span className="relative flex h-2 w-2 shrink-0">
-              {isMpcValidating ? (
-                <>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--ember)] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--ember)]" />
-                </>
-              ) : (
-                <>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--verdigris)] opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--verdigris)]" />
-                </>
-              )}
-            </span>
-
-            {/* Micro Shield Icon */}
-            <ShieldCheck
-              size={12}
-              className={`shrink-0 transition-transform ${
-                isMpcValidating
-                  ? 'text-[var(--ember)] animate-spin'
-                  : 'text-[var(--verdigris)] group-hover:scale-110'
-              }`}
-            />
-
-            {/* High-Contrast Non-Clipping Label */}
-            <span className="metallic-plate-label whitespace-nowrap">
-              {isMpcValidating ? 'Validating...' : 'MPC Security Verified'}
-            </span>
-
-            <span className="metallic-plate-sub whitespace-nowrap">
-              • Arcium 18ms
-            </span>
-          </button>
+          <GateStatus />
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               id="btn-speak-mandate"
               type="button"
-              aria-label="Speak Mandate"
+              aria-label="Cast Anchor, set the mandate by voice"
               className="btn-mic whitespace-nowrap shrink-0 flex-row"
               onClick={() => {
                 tactile.selectionTap();
@@ -349,7 +285,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                 <span className="voice-bar" />
                 <span className="voice-bar" />
               </div>
-              <span>Speak Mandate</span>
+              <span>Cast Anchor</span>
             </button>
             <button
               id="btn-rewrite-mandate"
@@ -360,7 +296,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                 onOpenRewriteModal();
               }}
             >
-              Rewrite Sentence
+              Rewrite Mandate
             </button>
           </div>
         </div>

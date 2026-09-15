@@ -37,10 +37,10 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
         <div className="flex items-center justify-between border-b border-[var(--card-border-subtle)] pb-2.5">
           <div>
             <h3 className="font-wordmark text-[16px] font-bold text-[var(--text-primary)]">
-              Rewrite Active Mandate
+              Mount Mandate
             </h3>
             <span className="text-[11px] font-mono text-[var(--text-tertiary)]">
-              Plain English boundaries enforced on-chain
+              The sentence the agent cannot exceed, enforced on chain
             </span>
           </div>
           <button
@@ -83,7 +83,7 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
             className="btn-inject flex-[1.4] justify-center"
             onClick={handleSave}
           >
-            Update &amp; Re-Seal
+            Mount Mandate
           </button>
         </div>
       </div>

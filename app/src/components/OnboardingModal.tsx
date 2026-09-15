@@ -167,9 +167,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             <div className="splash-claim-sentence">
               “An agent you don’t have to trust.”
             </div>
-            <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed mb-6 max-w-[320px]">
+            <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed mb-2 max-w-[320px]">
               Autonomous speed governed by what you actually told it to do.
             </p>
+            {/* A cleat is the fitting on a dock that a line is made fast to.
+                It does not move the boat. It stops it leaving. */}
+            <p className="splash-tagline mb-6">Markets drift. Cleat holds.</p>
             <button
               id="btn-onboarding-continue"
               type="button"

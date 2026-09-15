@@ -100,6 +100,90 @@ export const mandatePda = (owner: PublicKey) =>
     PROGRAM_ID,
   )[0];
 
+/**
+ * The Arcium accounts behind the confidential gate.
+ *
+ * Written down rather than derived. Deriving them needs the circuit name
+ * hashed through Arcium's own offset scheme, which means shipping their client
+ * into the bundle to recompute two constants that cannot change while the
+ * circuit keeps its name. Both were read off devnet on 15 September 2026 and
+ * both are owned by the Arcium program.
+ */
+export const ARCIUM_COMP_DEF = new PublicKey(
+  "FCQCHbvqM2wxyzWHCY6u3hy2dpk4rsr51NJRa2KL4EN9",
+);
+export const ARCIUM_MXE = new PublicKey(
+  "DMNi8mRDCMDnnQv4q9WBsZPDxKN1dk26kDWWYw2nwLow",
+);
+
+export interface GateCheck {
+  label: string;
+  /** "live" is read and true. "blocked" is read and false. */
+  state: "live" | "blocked" | "unknown";
+  detail: string;
+}
+
+/**
+ * What is actually standing between an agent and the book, checked rather
+ * than claimed.
+ *
+ * This replaced a badge that ran a timer for seven hundred milliseconds and
+ * then announced an Arcium computation had been attested at eighteen
+ * milliseconds. No computation ran, the number was invented, and the
+ * confidential gate it was reporting on has never returned a verdict. On a
+ * product whose argument is that you should not have to trust it, that was
+ * the worst thing on the screen.
+ *
+ * Two of these three are now read off the chain on every load. The third is
+ * stated plainly, because it is false and saying so is the only honest
+ * option available.
+ */
+export async function loadGateStatus(): Promise<GateCheck[]> {
+  const read = async (key: PublicKey) => {
+    try {
+      return await connection.getAccountInfo(key);
+    } catch {
+      return null;
+    }
+  };
+
+  const [program, compDef, mxe] = await Promise.all([
+    read(PROGRAM_ID),
+    read(ARCIUM_COMP_DEF),
+    read(ARCIUM_MXE),
+  ]);
+
+  return [
+    {
+      label: "Boundaries enforced on chain",
+      state: program?.executable ? "live" : "unknown",
+      detail: program?.executable
+        ? "The program is deployed and executable on devnet. Every refusal on this screen came out of it."
+        : "Could not reach the program account from here.",
+    },
+    {
+      label: "Confidential circuit finalised",
+      state: compDef && mxe ? "live" : "unknown",
+      detail:
+        compDef && mxe
+          ? "The computation definition and the execution environment both exist on devnet, owned by the Arcium program."
+          : "Could not read the Arcium accounts from here.",
+    },
+    {
+      label: "Gate returning verdicts",
+      state: "blocked",
+      detail:
+        "It is not. The network runs the computation and the callback is delivered, and what comes back is a signed failure. A circuit that runs on this same cluster under a different environment, copied byte for byte, fails here too, which puts the fault above this program. TOOLCHAIN.md has the reproduction.",
+    },
+  ];
+}
+
+export const vaultPda = (owner: PublicKey) =>
+  PublicKey.findProgramAddressSync(
+    [seed("vault"), owner.toBuffer()],
+    PROGRAM_ID,
+  )[0];
+
 export const verdictLogPda = (owner: PublicKey) =>
   PublicKey.findProgramAddressSync(
     [seed("verdicts"), owner.toBuffer()],
@@ -341,6 +425,20 @@ export function verdictToChartMarker(
  * what would have been bought, which is why it can be said without hedging.
  * It is the shortest true answer to what the boundary is worth.
  */
+/**
+ * Whether the vault is actually sealed, rather than whether we would like it
+ * to be.
+ *
+ * Sealing means the vault has been delegated to MagicBlock's attested rollup
+ * and its privacy flags set, and delegation reassigns the account away from
+ * this program. So the owner field answers the question on its own: if the
+ * program still owns it, nothing has been sealed, whatever the screen says.
+ *
+ * "pending" is set by the app while a delegation is in flight, because that
+ * is the one state a single read cannot see.
+ */
+export type SealState = "cleated" | "pending" | "open";
+
 export interface Restraint {
   askedBps: number;
   allowedBps: number;
@@ -361,6 +459,7 @@ export interface ChainSnapshot {
   /** Sectors that have something in them, against the cap they run to. */
   exposure: SectorExposure[];
   restraint: Restraint;
+  sealed: SealState;
 }
 
 /**
@@ -373,9 +472,10 @@ export async function loadChainSnapshot(
   owner: PublicKey = DEMO_OWNER,
 ): Promise<ChainSnapshot | null> {
   try {
-    const [logInfo, mandateInfo, latestSlot] = await Promise.all([
+    const [logInfo, mandateInfo, vaultInfo, latestSlot] = await Promise.all([
       connection.getAccountInfo(verdictLogPda(owner)),
       connection.getAccountInfo(mandatePda(owner)),
+      connection.getAccountInfo(vaultPda(owner)),
       connection.getSlot(),
     ]);
     if (!logInfo) return null;
@@ -397,6 +497,11 @@ export async function loadChainSnapshot(
       ),
       // Only the sectors with something in them. An empty one is not a fact
       // worth a row, and the list is short enough to read at a glance.
+      // Delegation moves the account away from this program, so an owner that
+      // is still the program means nothing has been sealed.
+      sealed: (vaultInfo && !vaultInfo.owner.equals(PROGRAM_ID)
+        ? "cleated"
+        : "open") as SealState,
       restraint: log.entries.reduce(
         (acc, v) => ({
           askedBps: acc.askedBps + v.proposedBps,

@@ -2218,3 +2218,28 @@ h1, h2, h3, h4, h5, h6,
   font-weight: 600;
   color: var(--text-primary);
 }
+
+/* ── What is actually running ────────────────────────────────────────
+   Opens under the badge that summarises it, so the detail sits with the
+   claim rather than in a modal that has to be dismissed before the screen
+   can be read again. */
+.gate-status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+}
+
+
+/* The line the product is named for. Set apart from the supporting copy
+   because it is the thing meant to be repeated, not read once. */
+.splash-tagline {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--verdigris);
+}
