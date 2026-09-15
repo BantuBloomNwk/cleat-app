@@ -1,148 +1,130 @@
 // The share, the wrapper, and the gap between them.
 //
-// Cleat's mandate carries a cap on how wide a book it will trade into, and
-// the app already shows how far each issuer's token has drifted from the
-// share it stands for. Both numbers came from Jupiter, which prices tokens
-// against on chain liquidity and does not know what the underlying equity is
-// worth.
+// Pyth publishes three feeds for one company: the equity itself, the xStock
+// wrapper and the Ondo wrapper. That is the comparison this app already
+// draws, drawn better, because a difference between two published prices is
+// firmer than an inference off pooled liquidity.
 //
-// Pyth publishes all three: the equity itself, the xStock wrapper and the
-// Ondo wrapper, as separate feeds with their own confidence intervals. That
-// turns the drift from an inference off pooled liquidity into a difference
-// between two published prices, and it brings a confidence interval with it,
-// which is the part that matters. A price with a wide confidence band is a
-// price nobody is sure of, and trading into one is the thing the spread cap
-// exists to stop.
-// Metadata is open; prices are not. Hermes answers /v2/price_feeds to anyone
-// and returns 401 unauthorized on every price path, which is the split Pyth
-// Pro sells. The equity, xStock and Ondo feeds are pull oracles rather than
-// sponsored feeds, so they are not sitting on Solana to be read either: the
-// price account PDAs for them do not exist on mainnet at any shard.
+// Two things about the plumbing, both learned the hard way. The host is
+// pyth.dourolabs.app and not hermes.pyth.network, which answers the feed
+// catalogue to anyone and 401s on every price path; against the wrong host a
+// perfectly good key looks like a bad one. And the endpoint takes a symbol
+// rather than a feed id, which is why the ids fetched from Hermes turned out
+// to be useless here.
 //
-// So this works without a key as far as saying which feeds exist for a
-// ticker, and needs one to say what they cost. That is stated on screen
-// rather than faked, and the moment PYTH_API_KEY is set the prices appear
-// with no other change.
-const HERMES = "https://hermes.pyth.network";
+// The account is a trial and the trial does not reach these feeds. Six
+// tokens were spent establishing exactly that, and the result is worth
+// writing down because it is not obvious: the key is good, the host and the
+// request shape are right, and Crypto.BTC/USD comes back at a real price.
+// Equity.US.AAPL/USD and Crypto.AAPLX/USD both return 403. So the three
+// feeds this integration exists for sit above the trial tier, and no amount
+// of fiddling with resolutions or windows changes that.
+//
+// The plumbing was worth getting right anyway, and two parts of it were not
+// obvious either. The host is pyth.dourolabs.app, not hermes.pyth.network,
+// which answers the feed catalogue to anyone and 401s on every price path.
+// And the endpoint takes a symbol rather than a feed id, so the ids Hermes
+// hands out are useless here. Against the wrong host a good key looks like a
+// bad one, which is how an afternoon goes missing.
+//
+// It is one environment variable and an entitlement away from working.
+const HOST = "https://pyth.dourolabs.app";
 const KEY = process.env.PYTH_API_KEY ?? "";
-const authed = (init: RequestInit = {}): RequestInit =>
-  KEY
-    ? { ...init, headers: { ...(init.headers ?? {}), authorization: `Bearer ${KEY}` } }
-    : init;
 
-/**
- * A ticker's three prices. Not every name has all three, and a name with
- * only one is not a failure, it is a name only one issuer has wrapped.
- */
-interface Feed {
-  id: string;
-  symbol: string;
-  kind: "equity" | "xstock" | "ondo" | "other";
-}
+/** One company, because the allowance does not stretch to browsing. */
+const SYMBOLS = [
+  { symbol: "Equity.US.AAPL/USD", kind: "equity" as const, label: "Apple, the share" },
+  { symbol: "Crypto.AAPLX/USD", kind: "xstock" as const, label: "Backed's AAPLx" },
+  { symbol: "Crypto.AAPLON/USD", kind: "ondo" as const, label: "Ondo's AAPLon" },
+];
 
-const KIND = (symbol: string): Feed["kind"] => {
-  if (/^Equity\.US\./.test(symbol)) return "equity";
-  if (/X\/USD$/.test(symbol)) return "xstock";
-  if (/ON\/USD$/.test(symbol)) return "ondo";
-  return "other";
-};
+let cache: { at: number; body: unknown } | null = null;
+const TTL_MS = 60 * 60 * 1000;
 
-const json = (body: unknown, status = 200, maxAge = 15) =>
+const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json",
-      "cache-control": `public, max-age=${maxAge}, s-maxage=${maxAge * 2}`,
+      // An hour at the edge too, so the trial is spent once and not per
+      // reader.
+      "cache-control": "public, max-age=3600, s-maxage=3600",
     },
   });
 
-export default async (req: Request) => {
-  const ticker = (new URL(req.url).searchParams.get("ticker") ?? "").toUpperCase();
-  if (!/^[A-Z]{1,6}$/.test(ticker)) return json({ error: "bad ticker" }, 400, 0);
+/**
+ * The last published price for one symbol.
+ *
+ * There is a history endpoint and it is the one whose syntax is known to
+ * work, so a narrow recent window is asked for and the final point taken.
+ * Guessing at a latest endpoint would cost a token per guess.
+ */
+async function lastPrice(symbol: string, resolution = "1D") {
+  const to = Math.floor(Date.now() / 1000);
+  // A month at daily resolution, which is the shape of the request the
+  // provider's own example uses. Narrower windows and finer resolutions were
+  // refused, and each guess costs a token from a trial allowance.
+  const from = to - 60 * 60 * 24 * 30;
+  const url =
+    `${HOST}/v1/fixed_rate@1000ms/history` +
+    `?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}&resolution=${resolution}`;
+
+  const res = await fetch(url, {
+    headers: { authorization: `Bearer ${KEY}`, accept: "application/json" },
+  });
+  if (!res.ok) return { error: `${res.status}` };
+  const body = (await res.json()) as any;
+
+  // TradingView shaped: parallel arrays of t, o, h, l, c. Take the last close
+  // that exists rather than assuming the series is full.
+  const closes: number[] = body?.c ?? [];
+  const times: number[] = body?.t ?? [];
+  for (let i = closes.length - 1; i >= 0; i--) {
+    if (Number.isFinite(closes[i])) {
+      return { price: Number(closes[i]), at: times[i] ?? null, points: closes.length };
+    }
+  }
+  return { error: "no points", raw: Object.keys(body ?? {}).join(",") };
+}
+
+export default async () => {
+  if (!KEY) {
+    return json({
+      priced: false,
+      reason:
+        "Pyth publishes these three feeds and gates the prices behind a paid tier. They are named because that much is true without a key, and the numbers are not guessed.",
+      feeds: SYMBOLS,
+    });
+  }
+
+  if (cache && Date.now() - cache.at < TTL_MS) return json(cache.body);
 
   try {
-    const res = await fetch(
-      `${HERMES}/v2/price_feeds?query=${encodeURIComponent(ticker)}`,
-      authed({ headers: { accept: "application/json" } }),
-    );
-    if (!res.ok) return json({ error: `hermes ${res.status}` }, 502, 0);
-    const all = (await res.json()) as any[];
-
-    // Only the three the bounty names, and only exact matches. A search for
-    // MU also returns MUSD and similar, and a chart showing the wrong
-    // company's price is worse than a chart showing none.
-    const wanted: Feed[] = [];
-    for (const f of all) {
-      const symbol = String(f?.attributes?.symbol ?? "");
-      const kind = KIND(symbol);
-      if (kind === "other") continue;
-      const bare = symbol.replace(/^(Equity\.US\.|Crypto\.)/, "").replace(/\/USD$/, "");
-      if (bare !== ticker && bare !== `${ticker}X` && bare !== `${ticker}ON`) continue;
-      wanted.push({ id: f.id, symbol, kind });
-    }
-    if (wanted.length === 0) return json({ ticker, feeds: [] });
-
-    // Which feeds exist is answerable without a key and is worth answering:
-    // it says outright that this company is wrapped by two issuers and that
-    // Pyth publishes the share itself alongside both.
-    const catalogue = wanted.map((f) => ({ id: f.id, symbol: f.symbol, kind: f.kind }));
-    if (!KEY) {
-      return json({
-        ticker,
-        priced: false,
-        reason:
-          "Pyth publishes these three feeds and gates the prices behind Pyth Pro. The feeds are named here because that much is true without a key; the numbers are not guessed.",
-        feeds: catalogue,
-      });
+    const out = [];
+    for (const s of SYMBOLS) {
+      out.push({ ...s, ...(await lastPrice(s.symbol)) });
     }
 
-    const q = wanted.map((f) => `ids[]=${f.id}`).join("&");
-    const pr = await fetch(
-      `${HERMES}/v2/updates/price/latest?${q}`,
-      authed({ headers: { accept: "application/json" } }),
-    );
-    if (!pr.ok) return json({ ticker, priced: false, reason: `hermes said ${pr.status}`, feeds: catalogue }, 200, 0);
-    const body = (await pr.json()) as any;
-
-    const priced = (body.parsed ?? []).map((p: any) => {
-      const meta = wanted.find((f) => f.id.replace(/^0x/, "") === String(p.id).replace(/^0x/, ""));
-      // Pyth prices are an integer and an exponent, and the confidence is in
-      // the same units. Carrying both is the point: a number without its
-      // uncertainty is the kind of figure this product exists to argue with.
-      const scale = 10 ** Number(p.price.expo);
-      const price = Number(p.price.price) * scale;
-      const conf = Number(p.price.conf) * scale;
-      return {
-        id: p.id,
-        symbol: meta?.symbol ?? "",
-        kind: meta?.kind ?? "other",
-        price,
-        conf,
-        /** How unsure the network is, in basis points of the price. */
-        confBps: price > 0 ? (conf / price) * 10_000 : null,
-        publishTime: p.price.publish_time,
-      };
-    });
-
-    const equity = priced.find((p: any) => p.kind === "equity");
-    const wrappers = priced.filter((p: any) => p.kind !== "equity");
-
-    return json({
-      ticker,
-      priced: true,
+    const equity = out.find((o: any) => o.kind === "equity" && o.price);
+    const body = {
+      priced: out.some((o: any) => o.price),
+      asOf: Date.now(),
       equity: equity ?? null,
-      wrappers: wrappers.map((w: any) => ({
-        ...w,
-        // What the wrapper costs against the thing it stands for. Positive
-        // means it trades over the share, negative under.
-        driftBps:
-          equity && equity.price > 0
-            ? ((w.price - equity.price) / equity.price) * 10_000
-            : null,
-      })),
-    });
+      wrappers: out
+        .filter((o: any) => o.kind !== "equity")
+        .map((w: any) => ({
+          ...w,
+          // What the wrapper costs against the thing it stands for.
+          driftBps:
+            equity && w.price
+              ? ((w.price - (equity as any).price) / (equity as any).price) * 10_000
+              : null,
+        })),
+    };
+    cache = { at: Date.now(), body };
+    return json(body);
   } catch (err) {
-    return json({ error: String(err).slice(0, 200) }, 502, 0);
+    return json({ priced: false, reason: String(err).slice(0, 140), feeds: SYMBOLS });
   }
 };
 
