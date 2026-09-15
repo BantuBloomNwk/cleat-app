@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { Spark } from './Spark';
+import { PriceChart } from './PriceChart';
 
 /**
  * What the agent is looking at, and what the sentence makes of it.
@@ -21,6 +22,7 @@ interface Row {
   dayBps?: number;
   monthBps?: number;
   series?: number[];
+  at?: number[];
   error?: string;
 }
 
@@ -61,7 +63,7 @@ export const Watching: React.FC = () => {
         hours. Thirty days of closes on every row. The interesting one is the
         oil: the sentence rules out fossil fuels by name, so a crude price
         moving is a real reason to want energy exposure and the mandate
-        refuses it regardless. Tap a row for the month.
+        refuses it regardless. Tap a row to read a price on any day.
       </p>
 
       <div className="flex flex-col gap-1.5">
@@ -128,39 +130,12 @@ export const Watching: React.FC = () => {
               {isOpen && (
                 <div className="px-2.5 pb-2.5 pt-2.5 border-t border-[var(--card-border-subtle)] flex flex-col gap-2">
                   {r.series && r.series.length > 1 && (
-                    <>
-                      <div className="w-full">
-                        <Spark
-                          series={r.series}
-                          width={320}
-                          height={72}
-                          stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
-                          fill
-                        />
-                      </div>
-                      <div className="flex items-baseline justify-between gap-3 font-mono text-[10.5px] text-[var(--text-tertiary)] tabular-nums">
-                        <span>{money(Math.min(...r.series))} low</span>
-                        <span>{r.series.length} days</span>
-                        <span>{money(Math.max(...r.series))} high</span>
-                      </div>
-                      <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                        <span className="text-[var(--text-secondary)]">
-                          Over the month
-                        </span>
-                        <span
-                          className="font-mono font-bold tabular-nums"
-                          style={{
-                            color:
-                              (r.monthBps ?? 0) >= 0
-                                ? 'var(--verdigris)'
-                                : 'var(--refused-rust)',
-                          }}
-                        >
-                          {(r.monthBps ?? 0) >= 0 ? '+' : '−'}
-                          {Math.abs((r.monthBps ?? 0) / 100).toFixed(2)}%
-                        </span>
-                      </div>
-                    </>
+                    <PriceChart
+                      series={r.series}
+                      at={r.at}
+                      label={r.label}
+                      stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
+                    />
                   )}
                   <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)]">
                     {r.note}

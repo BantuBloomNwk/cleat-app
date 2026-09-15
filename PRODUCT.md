@@ -482,3 +482,44 @@ and one below that is shown with a dash rather than hidden, because new and
 empty are different states. And the screen says outright that this is not
 Sybil proof, which costs nothing and is more than the category usually
 manages.
+
+
+## The mandate is a thesis, not a muzzle
+
+This document has described the mandate as a constraint on the agent
+throughout, and that is the smaller half of what it is.
+
+A constraint is something you impose on a thing you do not trust. It makes
+the person a supervisor, watching for the moment the software misbehaves, and
+it makes the product a leash. That framing is accurate and it is joyless, and
+it explains why the app spent months with no chart on it: if your job is
+supervision, a chart is decoration.
+
+The better reading is that the sentence is what somebody thinks, written
+down. Nothing over fifteen percent in one sector is a view about
+concentration. No fossil fuels is a view about what they will own. Never a
+book wider than twenty basis points is a view about when the market is worth
+trading in at all. None of those are restrictions on an agent. They are
+positions a person holds, expressed once, in a form that then holds without
+them.
+
+Which changes what the app owes the reader. If the mandate is a muzzle, the
+person needs a record of what was stopped, and that is all. If the mandate is
+a thesis, the person needs enough to form one and to keep revising it: what
+a name has done, how far a wrapper has drifted from the thing it stands for,
+where the book is thin, what crude did today when the sentence rules crude
+out. The charts are not decoration on a compliance product. They are the
+inputs to the only thing the person actually does here.
+
+It also changes the relationship to the agent. A supervisor and a suspect
+have nothing to say to each other. Somebody with a view and a tireless
+counterparty who can act on it at four in the morning, in a market that never
+closes, in a book they cannot see, do. The agent proposes and the sentence
+answers, and both of those are the person's, at different removes.
+
+The legal framing is unchanged by any of this and is worth restating because
+the two sit close together. A self-directed account with an automated
+order-entry assistant, bounded by a policy the client wrote. Nobody here
+advises, and the reason is now the plainer one: the view is already the
+client's. Handing them a chart does not make us their adviser. Withholding
+it only made us a worse product.

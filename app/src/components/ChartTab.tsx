@@ -60,7 +60,11 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   // permission, and it is the one our framing survives on. Perps stay in
   // the picker because they are where the liquidity is, and they are
   // labelled.
-  const [instrument, setInstrument] = useState('MU.US_USDC');
+  // Tesla rather than Micron, because it is one of the twenty five symbols
+  // Pyth entitles, so it is the one name on this screen that can carry a
+  // chart somebody can read a price off. A featured instrument a trader
+  // cannot analyse is a featured instrument in name only.
+  const [instrument, setInstrument] = useState('TSLA.US_USDC');
   const tilt = useTilt3D(is3DActive);
 
   // What the venue's own book says about the selected name, so the

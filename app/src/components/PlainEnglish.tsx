@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { tactile } from '../utils/haptics';
 
 /**
@@ -94,12 +96,33 @@ export const PlainEnglish: React.FC = () => {
           </span>
         </span>
         <span className="text-[11px] font-mono text-[var(--verdigris)] shrink-0">
-          {open ? 'close' : 'open'}
+          read
         </span>
       </button>
 
-      {open && (
-        <div className="flex flex-col gap-3 mt-3 pt-3 border-t border-[var(--card-border-subtle)]">
+      {open &&
+        createPortal(
+          <div
+            className="modal-backdrop"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setOpen(false);
+            }}
+          >
+            <div className="onboarding-card max-w-[460px] w-full max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--card-border-subtle)] pb-2.5 mb-3 sticky top-0 bg-[var(--card-surface)]">
+                <h3 className="font-wordmark text-[15px] font-bold text-[var(--text-primary)]">
+                  New to this
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={() => setOpen(false)}
+                  className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+        <div className="flex flex-col gap-3">
           <p className="text-[12.5px] leading-[1.7] text-[var(--text-secondary)]">
             You write one sentence about how your money should be handled.
             Something like{' '}
@@ -160,8 +183,11 @@ export const PlainEnglish: React.FC = () => {
               make a good trade out of a bad one.
             </p>
           </div>
-        </div>
-      )}
+            </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </section>
   );
 };
