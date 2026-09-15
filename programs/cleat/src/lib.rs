@@ -87,6 +87,14 @@ pub mod cleat {
         instructions::vault::exec_revoke_agent(ctx)
     }
 
+    pub fn deposit(ctx: Context<Deposit>, lamports: u64) -> Result<()> {
+        instructions::vault::exec_deposit(ctx, lamports)
+    }
+
+    pub fn withdraw(ctx: Context<Withdraw>, lamports: u64) -> Result<()> {
+        instructions::vault::exec_withdraw(ctx, lamports)
+    }
+
     pub fn set_book_size(ctx: Context<SetBookSize>, quote_units: u64) -> Result<()> {
         instructions::vault::exec_set_book_size(ctx, quote_units)
     }
@@ -100,6 +108,10 @@ pub mod cleat {
 
     pub fn open_verdict_log(ctx: Context<OpenVerdictLog>) -> Result<()> {
         instructions::verdict::exec_open_verdict_log(ctx)
+    }
+
+    pub fn open_treasury(ctx: Context<OpenTreasury>) -> Result<()> {
+        instructions::verdict::exec_open_treasury(ctx)
     }
 
     pub fn migrate_verdict_log(ctx: Context<MigrateVerdictLog>) -> Result<()> {

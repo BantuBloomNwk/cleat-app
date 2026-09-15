@@ -62,3 +62,21 @@ pub const PENDING_SEED: &[u8] = b"pending";
 /// A proposal naming anything past this has no room under any cap, which is the
 /// safe way for an out of range number to fail.
 pub const CATEGORY_COUNT: usize = 6;
+
+#[constant]
+pub const TREASURY_SEED: &[u8] = b"treasury";
+
+/// What the product charges, in basis points of what actually cleared.
+///
+/// Charged on clearances and never on refusals, which is the whole of the
+/// pricing argument. An agent that proposes a thousand times and is stopped a
+/// thousand times costs its owner nothing, so there is no version of this
+/// where we are paid for the agent misbehaving, and no incentive to let
+/// something through that should not have been.
+///
+/// Three basis points. On a two thousand dollar fill that is sixty cents, and
+/// the cap below stops it becoming a percentage fee on a large book.
+pub const PROTOCOL_FEE_BPS: u64 = 3;
+
+/// No single clearance pays more than this, whatever it was worth.
+pub const PROTOCOL_FEE_CAP: u64 = 2_000_000; // 0.002 SOL on devnet

@@ -52,6 +52,8 @@ pub enum CleatError {
     ExposureNotBound,
     #[msg("The confidential gate judges entries. An exit goes through propose_trade.")]
     ExitNotGated,
+    #[msg("There is less in the vault than that, once rent is left behind.")]
+    VaultEmpty,
     #[msg("This log is already on the current layout.")]
     LogAlreadyMigrated,
     #[msg("The owner has halted this mandate. Nothing proposes until they lift it.")]

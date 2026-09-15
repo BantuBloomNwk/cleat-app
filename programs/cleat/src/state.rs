@@ -352,3 +352,23 @@ pub struct Pending {
     pub side: u8,
     pub bump: u8,
 }
+
+/// Where the fee on a clearance lands.
+///
+/// It needs to be a real account rather than a bare address, because an
+/// address holding lamports with no data and no rent exemption is collected
+/// by the runtime at the end of the transaction that funded it. The first
+/// fees this product ever charged were swept away that way, which is a
+/// cheerful sort of bug to have.
+///
+/// It has no authority over anything. Nothing in this program moves value
+/// from the treasury back toward a vault, an agent or an owner.
+#[account]
+#[derive(InitSpace)]
+pub struct Treasury {
+    /// Everything ever collected, which is a fact about the product rather
+    /// than a balance, since the balance also carries its own rent.
+    pub collected: u64,
+    pub clearances: u64,
+    pub bump: u8,
+}

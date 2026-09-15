@@ -184,3 +184,107 @@ pub fn exec_set_book_size(ctx: Context<SetBookSize>, quote_units: u64) -> Result
     ctx.accounts.vault.deposited = quote_units;
     Ok(())
 }
+
+/// Put money in.
+///
+/// The vault held authority and never value, which made `deposited` a number
+/// the owner typed rather than a balance, and made the agent's cash ceiling a
+/// bound on a declaration. Anyone may fund a vault, because adding to
+/// somebody's account is not an attack and requiring the owner to be present
+/// would stop a salary or a parent paying in.
+///
+/// Lamports on devnet stand in for USDC on mainnet. The custody question is
+/// identical either way: the program holds it, the owner alone can take it
+/// out, and the agent has no instruction that moves it anywhere.
+#[derive(Accounts)]
+pub struct Deposit<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, vault.owner.as_ref()],
+        bump = vault.bump
+    )]
+    pub vault: Account<'info, Vault>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn exec_deposit(ctx: Context<Deposit>, lamports: u64) -> Result<()> {
+    require!(lamports > 0, CleatError::EmptyPayment);
+    anchor_lang::system_program::transfer(
+        CpiContext::new(
+            ctx.accounts.system_program.key(),
+            anchor_lang::system_program::Transfer {
+                from: ctx.accounts.payer.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+            },
+        ),
+        lamports,
+    )?;
+    let v = &mut ctx.accounts.vault;
+    v.deposited = v.deposited.saturating_add(lamports);
+    emit!(VaultFunded {
+        vault: v.key(),
+        payer: ctx.accounts.payer.key(),
+        lamports,
+        deposited: v.deposited,
+    });
+    Ok(())
+}
+
+#[event]
+pub struct VaultFunded {
+    pub vault: Pubkey,
+    pub payer: Pubkey,
+    pub lamports: u64,
+    pub deposited: u64,
+}
+
+/// Take money out. Owner only, always, no conditions.
+///
+/// There is no ceiling on this, no delay, no approval and no agent in the
+/// path. A product whose argument is that you keep the account has to mean it
+/// at the one instruction where it counts, and anything that could hold a
+/// withdrawal is a place somebody could be made to hold one.
+#[derive(Accounts)]
+pub struct Withdraw<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner @ CleatError::NotOwner
+    )]
+    pub vault: Account<'info, Vault>,
+}
+
+pub fn exec_withdraw(ctx: Context<Withdraw>, lamports: u64) -> Result<()> {
+    require!(lamports > 0, CleatError::EmptyPayment);
+
+    // Rent has to stay behind or the account closes and takes the agent
+    // grant, the mandate version pin and the position handle with it.
+    let info = ctx.accounts.vault.to_account_info();
+    let floor = Rent::get()?.minimum_balance(info.data_len());
+    let free = info.lamports().saturating_sub(floor);
+    require!(lamports <= free, CleatError::VaultEmpty);
+
+    **info.try_borrow_mut_lamports()? -= lamports;
+    **ctx.accounts.owner.to_account_info().try_borrow_mut_lamports()? += lamports;
+
+    let v = &mut ctx.accounts.vault;
+    v.deposited = v.deposited.saturating_sub(lamports);
+    emit!(VaultDrawn {
+        vault: v.key(),
+        lamports,
+        deposited: v.deposited,
+    });
+    Ok(())
+}
+
+#[event]
+pub struct VaultDrawn {
+    pub vault: Pubkey,
+    pub lamports: u64,
+    pub deposited: u64,
+}

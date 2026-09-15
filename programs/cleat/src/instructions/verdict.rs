@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::constants::*;
 use crate::error::CleatError;
-use crate::state::{Mandate, Vault, Verdict, VerdictLog};
+use crate::state::{Mandate, Treasury, Vault, Verdict, VerdictLog};
 
 #[derive(Accounts)]
 pub struct OpenVerdictLog<'info> {
@@ -41,6 +41,8 @@ pub fn exec_open_verdict_log(ctx: Context<OpenVerdictLog>) -> Result<()> {
 
 #[event]
 pub struct ProposalDecided {
+    /// What this clearance cost, in lamports. Zero on every refusal.
+    pub fee: u64,
     pub vault: Pubkey,
     pub mandate_version: u16,
     pub category: u8,
@@ -84,6 +86,11 @@ pub struct ProposeTrade<'info> {
         bump = log.bump
     )]
     pub log: Account<'info, VerdictLog>,
+    /// Where the fee on a clearance goes. No authority over anything, and
+    /// nothing in this program moves value out of it toward a vault, an
+    /// agent or an owner.
+    #[account(mut, seeds = [TREASURY_SEED], bump = treasury.bump)]
+    pub treasury: Account<'info, Treasury>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -240,6 +247,36 @@ pub fn exec_propose_trade(
         }
     }
 
+    // The fee, and the only place one is taken.
+    //
+    // Charged on what cleared, never on what was refused, and moved out of
+    // the vault the owner funded rather than billed separately. A refusal
+    // costs nothing, so nobody is ever paid for an agent being stopped, and
+    // there is no arrangement under which letting something through pays
+    // better than refusing it.
+    let mut fee = 0u64;
+    if outcome != 2 && vault.deposited > 0 {
+        let notional = (vault.deposited as u128).saturating_mul(allowed_bps as u128)
+            / BPS_DENOM as u128;
+        let raw = notional.saturating_mul(PROTOCOL_FEE_BPS as u128) / BPS_DENOM as u128;
+        fee = (raw as u64).min(PROTOCOL_FEE_CAP);
+
+        let vault_info = ctx.accounts.vault.to_account_info();
+        let floor = Rent::get()?.minimum_balance(vault_info.data_len());
+        if fee > 0 && vault_info.lamports().saturating_sub(floor) >= fee {
+            **vault_info.try_borrow_mut_lamports()? -= fee;
+            **ctx.accounts.treasury.to_account_info().try_borrow_mut_lamports()? += fee;
+            let t = &mut ctx.accounts.treasury;
+            t.collected = t.collected.saturating_add(fee);
+            t.clearances = t.clearances.saturating_add(1);
+        } else {
+            // Not enough to pay it. The verdict still stands, because a
+            // boundary that stops working when the fee cannot be collected
+            // would be a boundary that money can switch off.
+            fee = 0;
+        }
+    }
+
     let v = Verdict {
         slot: Clock::get()?.slot,
         mandate_version: mandate.version,
@@ -255,6 +292,7 @@ pub fn exec_propose_trade(
     }
 
     emit!(ProposalDecided {
+        fee,
         vault: vault.key(),
         mandate_version: mandate.version,
         category,
@@ -361,5 +399,35 @@ pub fn exec_migrate_verdict_log(ctx: Context<MigrateVerdictLog>) -> Result<()> {
         *b = 0;
     }
     data[tail + CATEGORY_COUNT * 2] = ctx.bumps.log;
+    Ok(())
+}
+
+
+/// Create the treasury, once, by anybody.
+///
+/// Opening it is not a privileged act: it holds fees and grants nothing. It
+/// has to exist before the first clearance can pay one, and it has to carry
+/// data so the runtime does not collect it for being a rent poor account
+/// with nothing in it.
+#[derive(Accounts)]
+pub struct OpenTreasury<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + Treasury::INIT_SPACE,
+        seeds = [TREASURY_SEED],
+        bump
+    )]
+    pub treasury: Account<'info, Treasury>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn exec_open_treasury(ctx: Context<OpenTreasury>) -> Result<()> {
+    let t = &mut ctx.accounts.treasury;
+    t.collected = 0;
+    t.clearances = 0;
+    t.bump = ctx.bumps.treasury;
     Ok(())
 }

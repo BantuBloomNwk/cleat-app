@@ -118,6 +118,8 @@ async function main() {
     [Buffer.from("vault"), owner.publicKey.toBuffer()], PROGRAM_ID);
   const [log] = PublicKey.findProgramAddressSync(
     [Buffer.from("verdicts"), owner.publicKey.toBuffer()], PROGRAM_ID);
+  const [treasury] = PublicKey.findProgramAddressSync(
+    [Buffer.from("treasury")], PROGRAM_ID);
 
   console.log("owner ", owner.publicKey.toBase58());
   console.log("agent ", agent.publicKey.toBase58());
@@ -165,11 +167,29 @@ async function main() {
   const BOOK = 100_000_000_000; // 100,000.000000 in six decimal quote units
   const CEILING = 5_000_000_000; // 5,000.000000, which is what a 5% trade costs
 
+  // The treasury has to exist before a clearance can pay into it. Opening it
+  // is not privileged: it holds fees and grants nothing.
+  if (!(await base.getAccountInfo(treasury))) {
+    await send([new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [meta(funder.publicKey, true, true), meta(treasury, false, true),
+             meta(SystemProgram.programId, false, false)],
+      data: disc("open_treasury"),
+    })], [funder]);
+    console.log("treasury opened");
+  }
+
+  // Real money, not a declared number. The cash ceiling and the fee are both
+  // computed from what is actually in the vault, so both were bounds on a
+  // typed figure until this instruction existed.
+  const DEPOSIT = 2_000_000_000; // 2 SOL
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
-    keys: [meta(owner.publicKey, true, false), meta(vault, false, true)],
-    data: Buffer.concat([disc("set_book_size"), u64(BOOK)]),
-  })], [owner]);
+    keys: [meta(funder.publicKey, true, true), meta(vault, false, true),
+           meta(SystemProgram.programId, false, false)],
+    data: Buffer.concat([disc("deposit"), u64(DEPOSIT)]),
+  })], [funder]);
+  console.log("deposited 2 SOL into the vault");
 
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
@@ -198,7 +218,7 @@ async function main() {
     const t0 = performance.now();
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
-      keys: [meta(agent.publicKey, true, true), meta(vault, false, false), meta(mandate, false, false), meta(log, false, true)],
+      keys: [meta(agent.publicKey, true, true), meta(vault, false, true), meta(mandate, false, false), meta(log, false, true), meta(treasury, false, true)],
       data: Buffer.concat([
         disc("propose_trade"), u8(category), u16(bps), bool(ingested),
         u8(side ?? 0), u16(spreadBps ?? 0), (mint ?? NVDAX).toBuffer(),
