@@ -290,12 +290,25 @@ the Arcium circuit's information leakage beyond reasoning about what the
 revealed bit can imply. The findings above were all found by reading the
 program rather than by running anything at it.
 
-The confidential gate does not return a verdict yet. The failure is
-reproduced in `TOOLCHAIN.md` and sits above this program: a circuit of
-Ilowa's that runs on the same devnet cluster, copied byte for byte, aborts
-under this MXE and not under theirs. Everything written above about the
-gate's account handling is correct and deployed, and none of it has been
-exercised by a callback that carried a real answer.
+The confidential gate returns verdicts as of 15 September 2026, so the
+account handling described above has now been exercised by callbacks
+carrying real answers rather than only reasoned about. Two proposals
+identical from outside came back cleared and refused on the strength of a
+holding neither this program nor the agent nor we ever saw.
+
+The failure that preceded it is worth recording here rather than only in
+`TOOLCHAIN.md`, because the lesson is a security one. Six circuits were
+finalised on chain over uploads that had silently dropped chunks, and
+nothing anywhere checked that what landed matched what was sent. Arcium's
+client reuses one blockhash across its whole upload loop, finalises whether
+or not the chunks arrived, and on a retry checks only that the account is
+the right size, never that the contents are right. The result was a circuit
+that could never run and could never be repaired, only renamed.
+
+**The general point: an upload that reports success is not an upload that
+happened.** Anything written to a chain in pieces needs reading back and
+comparing before it is treated as done, and `scripts/circuit-repair.mjs`
+now does that and refuses to finalise until the bytes match.
 
 Before mainnet: the multisig above, a focused review of the program by
 someone who did not write it, and counsel on whether a US person acquiring

@@ -226,15 +226,33 @@ name that makes it a security based swap, which is more restricted than the
 share, not a shortcut around anything. The app defaults to spot and labels every
 row.
 
-**The confidential gate is not passing yet.** The circuit compiles, uploads and
-finalises, the network runs it, the callback is delivered, and the computation
-comes back a signed failure. We found why late: an `Enc<Shared, T>` carries the
-caller's key so the circuit can seal a result back to them, our circuit only
-revealed a bit and never touched that key, and the compiler had been saying so
-on every build while we theorised about the arithmetic. The current version
-seals the updated exposure back and the warning is gone. It is deploying as this
-is written. The rest of the system runs without it; the gate is the part that
-makes the guarantee confidential rather than merely enforced.
+**The confidential gate works, and the reason it did not for six attempts is
+worth knowing.** Two proposals go to the network looking identical from
+outside, three percent of technology each. One comes back cleared and one
+comes back refused. The only thing that differed was a number sealed to the
+owner's key, which this program never saw, the agent never saw and we never
+saw.
+
+It failed six times before that, and five write ups blamed the circuit. All
+five were wrong. Arcium's node had been reporting the real reason the whole
+time and nobody read it: `CircuitFailure(CircuitSerialization)`, meaning it
+could not deserialize the circuit it fetched. Reading the uploaded bytes back
+and comparing them to the file showed almost four thousand bytes wrong, every
+one a zero on chain where the artifact had data.
+
+The upload was dropping chunks. Arcium's client takes one blockhash before its
+upload loop and reuses it for every chunk in that loop, so behind any rate
+limiting the upload outlives the blockhash and the cluster quietly drops what
+is still in flight. It then finalises the circuit whether the chunks landed or
+not, which seals it permanently, and running it again repairs nothing because
+it checks that the account is the right size and never that the contents are
+right. Three faults that are survivable alone and fatal together.
+
+`scripts/circuit-repair.mjs` replaces that path. It writes each window itself,
+takes a fresh blockhash every eight, reads the bytes back off the chain and
+refuses to finalise until they match the file. `TOOLCHAIN.md` has the full
+account, including the four hours spent migrating between clusters on a theory
+that turned out to be wrong.
 
 ## Running it
 

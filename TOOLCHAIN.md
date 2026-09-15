@@ -16,7 +16,7 @@ is how an IDL stops matching the deployed program.
 | platform-tools | v1.57, rust 1.95.0 | what `anchor build` selected and what the devnet loader accepted |
 | `solana-sha256-hasher` | `=3.1.0` | anchor 1.x re-exports a slim `solana_program` shim with no hash module, so hashing needs its own crate |
 | `ephemeral-rollups-sdk` | 0.17.0 when PER lands | latest, and safely past the 0.16.2 floor that fixed the `#[ephemeral]` macro issue |
-| Arcium CLI | 0.14.1 | latest, installed alongside 0.13.2 rather than replacing it |
+| Arcium CLI | 0.14.1 | latest on npm since 2026-07-29, though the changelog stops at 0.13.2. Installed alongside rather than replacing it |
 
 ## Two traps worth writing down
 
@@ -51,7 +51,7 @@ each project's own `anchor-lang`. The same shape of bug had `arcium` pinned to
 0.10.3 while 0.13.2 was installed. Check what a version manager's binary
 actually resolves to before believing its version output.
 
-## Arcium on devnet cluster 456: what actually goes wrong
+## Arcium on devnet: what actually goes wrong
 
 Written down because five separate theories were chased here and every one
 of them was wrong, and the evidence that settled it was cheap to get and
@@ -151,72 +151,115 @@ number there means nothing), unfinalized MXE keys, the cluster refusing
 secret comparisons, u16 against u64, a struct wrapper around the encrypted
 value, and the arithmetic in the comparison. None of them.
 
-## The gate: a reproduction, not a theory
+## The gate: solved, and the answer was not where anyone looked
 
-Six circuit versions aborted. The one that settled it was not a seventh
-version, it was a control.
-
-### The reproduction
-
-Take Ilowa's `init_pool_state_v4`, which runs on devnet cluster 456 today
-under MXE `DWQWnzjNk7EhsADBkKeCn2vHVFWuf3tzhnvT1TXjuWfN`:
-
-```rust
-#[instruction]
-pub fn control_init_pool() -> Enc<Mxe, PoolState> {
-    Mxe::get().from_arcis(PoolState { yes: 0, no: 0 })
-}
-```
-
-No input, so nothing about encryption on the way in can be wrong. Compile
-it unchanged into a second program and run it on the same cluster under
-MXE `DMNi8mRDCMDnnQv4q9WBsZPDxKN1dk26kDWWYw2nwLow`:
+**Resolved 15 September 2026.** Six circuits came back as signed failures over
+several days. Five theories were written up here and all five were wrong. The
+answer was that the uploaded circuit was corrupt, and Arcium's node had been
+saying so the whole time in a log line nobody read:
 
 ```
-CONTROL rejected: AnchorError { error_name: "AbortedComputation",
-                                error_code_number: 6000 }
+Program log: Computation failed for reason: CircuitFailure(CircuitSerialization).
 ```
 
-Same cluster, same circuit, same compiler, same toolchain pin. One MXE
-runs it and the other does not.
-
-### What that rules out
-
-Everything we spent six deploys on. The width of the number, a struct
-against a bare value, the arithmetic, a bool against a tuple, whether the
-caller's x25519 key is used, whether anything is sealed to the MXE. All of
-those were varied and all of them died the same way, which should have
-been the signal much earlier: when six dimensions give one answer, the
-thing being varied is not the thing that is wrong.
-
-### What it is not
-
-The MXE looks healthy by every measure Arcium exposes. Status active,
-cluster 456, the authority correct, `utilityPubkeys` populated with an
-x25519 key and an ed25519 verifying key, and `getMXEPublicKey` returns a
-real key. Its keygen computation is finalized. Asking the network to redo
-the keygen is refused, in Arcium's own words:
+It could not deserialize what it fetched. Reading the raw circuit account back
+and diffing it against the file on disk:
 
 ```
-MxeKeysAlreadySet: The MXE keys are already set, i.e. all the nodes of
-the MXE cluster already agreed on the MXE keys.
+total differing bytes 3947 of 34438
+first differing runs: 10584..10584, 10592..10624, 10628..10628, 10640..10672
+runs total 2359
+onchain at 10584: 0000000000000000000000000000000000000000000000000000000000000000
+local   at 10584: 2000000000000000862a1cc88f165839fa656d99168556a3de55863cb39c8aff
 ```
 
-So this is not an unfinalized MXE, not an unfinalized comp def, not a
-missing key, and not the cluster refusing the work, since the cluster does
-the same work for somebody else.
+Zeros on chain where the artifact had data. The upload had dropped chunks.
 
-### The one difference found
+### Three faults in uploadCircuit, fatal only together
 
-Cleat's keygen computation account still exists and reads `finalized`.
-Ilowa's is closed, which is the normal end state once a computation has
-been consumed. Whether that is the cause or another symptom is not
-something this end can tell.
+Reading `@arcium-hq/client/src/onchain.ts`:
 
-### What to do with it
+1. **One blockhash for the whole loop.** `uploadToCircuitAcc` fetches a single
+   blockhash before its send loop and reuses it for every chunk. A blockhash
+   lives about a minute. Behind any rate limiting a forty chunk upload takes
+   longer than that, and the cluster drops whatever is still in flight when it
+   expires. Nothing throws. The function returns the signatures it managed.
 
-Report it with the control attached rather than keep rewriting the
-circuit. A minimal reproduction where the same bytes succeed under one MXE
-and fail under another, on one cluster, is worth more than six more
-guesses, and there is nothing further to try from this side without
-Arcium's help.
+2. **It finalises regardless.** `uploadCircuit` sends a finalise transaction at
+   the end whether or not the chunks arrived, so the first partial upload seals
+   that circuit permanently. After that every write returns
+   `ComputationDefinitionAlreadyCompleted` and the only way forward is a new
+   circuit name.
+
+3. **Retrying repairs nothing.** `uploadToCircuitAcc` returns early when the
+   account merely exists at the right size. It checks `data.length` and never
+   the contents, so once the space is allocated every later upload writes
+   nothing at all and reports success.
+
+This repo made the first fault certain by adding a 260ms gap in front of every
+RPC call to stop Helius answering 429. That was a real fix for a real problem
+and it converted an intermittent upload bug into a deterministic one. The same
+stale blockhash failure had already been found and fixed for the finalise
+transaction, and nobody went back for the chunks.
+
+It also explains the control experiment that looked so damning. A circuit of
+Ilowa's copied byte for byte failed here too, which was read as proof that the
+fault was in this MXE. It was proof of nothing: the circuit was never the
+variable, the upload path was, and both circuits went through the same one.
+
+### What replaced it
+
+`scripts/circuit-repair.mjs` does the upload itself: `initRawCircuitAcc`,
+`embiggenRawCircuitAcc` until the account is big enough, then one
+`uploadCircuit` instruction per 814 byte window, serialised, with a fresh
+blockhash every eight. Then it reads the bytes back, diffs them against the
+file, and only finalises when they match. Control uploaded 43 of 43 windows
+clean. The gate, 116 of 116.
+
+```
+pass 1: 116 of 116 windows to write
+pass 2: 0 of 116 windows to write
+on chain matches the artifact
+finalized
+```
+
+And then, first time of asking:
+
+```
+3% of tech, with 1% already held there    cleared   asked 3%  allowed 3%
+3% of tech, with 14% already held there   refused   asked 3%  allowed 0%
+```
+
+### The cluster detour, recorded because it cost four hours
+
+Before the real cause was found, the theory was that cluster 456 was at fault:
+two nodes carrying 1,283 MXEs, and Cerberus aborts rather than return a wrong
+answer when a node's share does not check out. Arcium's own docs name cluster
+migration as the recovery for exactly that.
+
+Cluster 789 looked ideal, three nodes and nearly empty, and it stalled four
+times. `arcium mempool 789` explains why: tier **Tiny**, one computation in
+flight at a time, and one already stuck in its execpool. It has one MXE
+because nobody successfully uses it. **Registered nodes and serving nodes are
+not the same thing, and `list-clusters` does not distinguish them. Read the
+tier and the pools before choosing.**
+
+Migrating to 4500 succeeded and changed nothing, which is the useful part:
+`migrate-cluster` **recovers** the existing key material onto the new cluster
+rather than generating fresh keys. Arcium's docs say so plainly. So migration
+can never fix a key problem, and the fact that it did not fix ours was
+evidence the keys were never wrong.
+
+The MXE stays on 4500. Three nodes against 456's two, seven MXEs against
+1,282, and five consecutive successful computations on it. 456 is the only
+devnet cluster Arcium's documentation names, which is worth knowing, but
+working beats documented.
+
+### What to take from this
+
+**An upload that reports success is not an upload that happened.** Anything
+written to a chain in pieces needs reading back and comparing before it is
+treated as done. Five theories were argued from the shape of the failure when
+the node had already said the reason out loud, in a log line one
+`getTransaction` away.
+

@@ -110,10 +110,23 @@ export const mandatePda = (owner: PublicKey) =>
  * both are owned by the Arcium program.
  */
 export const ARCIUM_COMP_DEF = new PublicKey(
-  "FCQCHbvqM2wxyzWHCY6u3hy2dpk4rsr51NJRa2KL4EN9",
+  "4ZheLnQbwLQFBdS39MaBhYVNgusjt8chnJrJqcYoU8kq",
 );
 export const ARCIUM_MXE = new PublicKey(
   "DMNi8mRDCMDnnQv4q9WBsZPDxKN1dk26kDWWYw2nwLow",
+);
+
+/**
+ * The owner whose verdicts came out of the confidential gate.
+ *
+ * Kept separate from the demo owner on purpose, because it makes the third
+ * check below a real reading rather than a sentence somebody typed. Every
+ * entry in this log was written by the gate's callback, so the count is the
+ * number of confidential verdicts the network has actually returned, and it
+ * goes up on its own.
+ */
+export const GATE_OWNER = new PublicKey(
+  "xEgzm1r7C94u3xdDx34odYij75s1MuBZGHLjRXaw42r",
 );
 
 export interface GateCheck {
@@ -147,11 +160,23 @@ export async function loadGateStatus(): Promise<GateCheck[]> {
     }
   };
 
-  const [program, compDef, mxe] = await Promise.all([
+  const [program, compDef, mxe, gateLog] = await Promise.all([
     read(PROGRAM_ID),
     read(ARCIUM_COMP_DEF),
     read(ARCIUM_MXE),
+    read(verdictLogPda(GATE_OWNER)),
   ]);
+
+  // Every entry on that log came out of the gate's callback, so counting them
+  // counts confidential verdicts. Read, not asserted.
+  let gateVerdicts = 0;
+  if (gateLog) {
+    try {
+      gateVerdicts = decodeVerdictLog(gateLog.data).entries.length;
+    } catch {
+      gateVerdicts = 0;
+    }
+  }
 
   return [
     {
@@ -171,9 +196,11 @@ export async function loadGateStatus(): Promise<GateCheck[]> {
     },
     {
       label: "Gate returning verdicts",
-      state: "blocked",
+      state: gateVerdicts > 0 ? "live" : "blocked",
       detail:
-        "It is not. The network runs the computation and the callback is delivered, and what comes back is a signed failure. A circuit that runs on this same cluster under a different environment, copied byte for byte, fails here too, which puts the fault above this program. TOOLCHAIN.md has the reproduction.",
+        gateVerdicts > 0
+          ? `${gateVerdicts} of them, on this log, each one decided inside the network against a holding sealed to the owner's key. Two proposals identical from outside, three percent of technology each, came back cleared and refused. The only thing that differed was a number nobody outside the computation saw.`
+          : "Not yet. The network runs the computation and the callback is delivered, and what comes back is a signed failure.",
     },
   ];
 }
