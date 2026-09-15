@@ -3,6 +3,7 @@ import { Copy, Check, Share2, ShieldCheck, Cpu } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
+import type { Restraint } from '../lib/chain';
 import { loadSessions, type MarketSession } from '../lib/backpack';
 import { ToastNotification } from './ToastNotification';
 import { MagicblockPerDiagram } from './MagicblockPerDiagram';
@@ -15,6 +16,8 @@ interface DiaryTabProps {
   onToggleEntry: (id: string) => void;
   onInjectScenario: (scenarioVal: string) => void;
   overnightRefusalCount: number;
+  /** What the agent asked for against what the sentence allowed. */
+  restraint: Restraint | null;
 }
 
 const PERIOD_CONFIGS = {
@@ -79,6 +82,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   onToggleEntry,
   onInjectScenario,
   overnightRefusalCount,
+  restraint,
 }) => {
   // The overnight window, from the exchange rather than from a number
   // someone typed. It was written as 22:00 to 06:00 UTC, which is not when
@@ -518,6 +522,40 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
 
       {/* Interactive SVG Diagram: Magicblock PER Trade Filtering Flow */}
       <MagicblockPerDiagram />
+
+      {/* What the boundary is worth, in one line of arithmetic.
+          Every proposal's size added up against every allowance. No
+          counterfactual about what would have been bought, because the log
+          does not know that and neither do we. Just the two totals. */}
+      {restraint && restraint.askedBps > 0 && (
+        <div className="restraint-band" id="restraint-band">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <span className="text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-tertiary)]">
+              Asked for, and allowed
+            </span>
+            <DataOrigin origin="chain" />
+          </div>
+          <p className="restraint-figure">
+            <span className="restraint-held">
+              {(restraint.heldBps / 100).toFixed(0)}%
+            </span>
+            <span className="restraint-tail">
+              {' '}of the book held back
+            </span>
+          </p>
+          <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
+            Across every decision on this log the agent asked to move{' '}
+            <strong className="text-[var(--text-primary)]">
+              {(restraint.askedBps / 100).toFixed(0)}%
+            </strong>{' '}
+            of the book. The sentence allowed{' '}
+            <strong className="text-[var(--text-primary)]">
+              {(restraint.allowedBps / 100).toFixed(0)}%
+            </strong>
+            . That is the two totals added up, nothing modelled.
+          </p>
+        </div>
+      )}
 
       {/* Decision Ledger Feed Header */}
       <div className="section-row-header">

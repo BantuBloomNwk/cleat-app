@@ -20,7 +20,7 @@ import {
 } from './data/initialData';
 import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
 import { loadChainSnapshot } from './lib/chain';
-import type { Mandate, SectorExposure } from './lib/chain';
+import type { Mandate, Restraint, SectorExposure } from './lib/chain';
 
 export default function App() {
   // Theme state with local persistence
@@ -49,6 +49,7 @@ export default function App() {
   // anything in it until the log says so.
   const [sectorExposure, setSectorExposure] = useState<SectorExposure[]>([]);
   const [chainMandate, setChainMandate] = useState<Mandate | null>(null);
+  const [restraint, setRestraint] = useState<Restraint | null>(null);
 
   // Modals (Intro page open initially by default for first-time experience)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(true);
@@ -72,6 +73,7 @@ export default function App() {
         setStats(snap.stats);
         setSectorExposure(snap.exposure);
         setChainMandate(snap.mandate);
+        setRestraint(snap.restraint);
         if (snap.mandate?.text) setMandateSentence(snap.mandate.text);
         setOvernightRefusalCount(
           snap.entries.filter((e) => e.status === 'refused').length,
@@ -283,6 +285,7 @@ export default function App() {
               onToggleEntry={handleToggleEntry}
               onInjectScenario={handleInjectScenario}
               overnightRefusalCount={overnightRefusalCount}
+              restraint={restraint}
             />
           )}
 

@@ -176,6 +176,32 @@ deterministic and on chain, and none of it needs a model. Only the proposing
 side is intelligent. So an agent that runs out of allowance stops having ideas.
 It cannot degrade into guessing and it cannot degrade into acting.
 
+## Where this sits, according to somebody else's index
+
+Colosseum keeps a searchable index of 5,428 Solana hackathon projects, 293 of
+which placed. Searched against it, the nearest neighbours to this are not
+close, and the two closest that actually won each built one half of it.
+
+**Mercantill** took fourth in Stablecoins at Cypherpunk, ten thousand dollars,
+for spending safeguards and audit trails for AI agents. That is the ceiling
+half: an agent with a limit it cannot raise and a record of what it did.
+
+**Umbra** took an honourable mention at Breakout for a confidential compute
+layer over Arcium. That is the blind half: state on chain that the people
+running the system cannot read.
+
+Nothing in the index does both, and nothing does either one against tokenized
+equity. So the combination here is not a claim about being clever. It is that
+the two halves have each already been judged worth a prize separately, by
+people who had five thousand other things to compare them to, and nobody had
+put them together.
+
+Worth saying what that evidence is and is not: it is a similarity search over
+Colosseum's own tagging, run on 14 September 2026. It is not a patent search
+and it is not proof that nobody anywhere has built this. It is the best
+available answer to "has this been done at a Solana hackathon", and the answer
+was no.
+
 ## What is not true yet, stated plainly
 
 Judges and users should hear this from us rather than find it.

@@ -325,6 +325,20 @@ export function verdictToChartMarker(
   };
 }
 
+/**
+ * What the agent asked for against what the sentence allowed.
+ *
+ * Arithmetic over the log and nothing else: every proposal's size added up,
+ * and every allowance added up. No interpretation, no counterfactual about
+ * what would have been bought, which is why it can be said without hedging.
+ * It is the shortest true answer to what the boundary is worth.
+ */
+export interface Restraint {
+  askedBps: number;
+  allowedBps: number;
+  heldBps: number;
+}
+
 export interface SectorExposure {
   sector: string;
   bps: number;
@@ -338,6 +352,7 @@ export interface ChainSnapshot {
   markers: ChartMarker[];
   /** Sectors that have something in them, against the cap they run to. */
   exposure: SectorExposure[];
+  restraint: Restraint;
 }
 
 /**
@@ -374,6 +389,14 @@ export async function loadChainSnapshot(
       ),
       // Only the sectors with something in them. An empty one is not a fact
       // worth a row, and the list is short enough to read at a glance.
+      restraint: log.entries.reduce(
+        (acc, v) => ({
+          askedBps: acc.askedBps + v.proposedBps,
+          allowedBps: acc.allowedBps + v.allowedBps,
+          heldBps: acc.heldBps + (v.proposedBps - v.allowedBps),
+        }),
+        { askedBps: 0, allowedBps: 0, heldBps: 0 },
+      ),
       exposure: log.exposureBps
         .map((bps, i) => ({
           sector: SECTORS[i] ?? "Unspecified",

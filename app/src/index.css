@@ -2164,3 +2164,47 @@ h1, h2, h3, h4, h5, h6,
 @media (prefers-reduced-motion: reduce) {
   .data-origin.is-live .data-origin-pip { animation: none; }
 }
+
+
+/* ── What the boundary is worth ──────────────────────────────────────
+   One figure, at the top of the record, in the one place a reader looks
+   first. Deliberately not a card: it is a statement about everything
+   below it rather than another object in the list, so it gets a rule and
+   a ground tint instead of a border on four sides. */
+.restraint-band {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    var(--verdigris-chip-bg) 0%,
+    transparent 100%
+  );
+  border: 1px solid var(--card-border-subtle);
+  border-left-width: 1px;
+}
+
+.restraint-figure {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  margin: 0;
+}
+
+.restraint-held {
+  font-size: clamp(30px, 11vw, 42px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--verdigris);
+  font-variant-numeric: tabular-nums;
+}
+
+.restraint-tail {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
