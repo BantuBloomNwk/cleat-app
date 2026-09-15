@@ -939,7 +939,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         >
           {showKernelLayers
             ? 'Hide Cryptographic Execution Layers'
-            : 'Inspect 3D Cryptographic Execution Layers'}
+            : 'Inspect 3D Cryptographic Execution Layers (drawn)'}
         </button>
 
         {showKernelLayers && (
@@ -991,6 +991,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           }}
         >
           <span>Granular Tick Stream Intercepts</span>
+          <DataOrigin origin="sample" />
         </button>
       </div>
 

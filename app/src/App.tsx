@@ -122,6 +122,14 @@ export default function App() {
   const handleAdoptCommunityMandate = (sentence: string) => {
     setMandateSentence(sentence);
     setActiveTab('diary');
+    // The adopted sentence appears in the card at the very top, and switching
+    // tabs keeps whatever scroll position the last one had, so without this
+    // the change happens off screen and the tap looks like it did nothing.
+    requestAnimationFrame(() => {
+      document
+        .querySelector('.app-content')
+        ?.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   };
 
   return (

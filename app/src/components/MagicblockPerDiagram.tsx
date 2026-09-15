@@ -51,7 +51,7 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
    * number however many runs happen.
    */
   const measured = (i: number): string => {
-    if (!run) return '—';
+    if (!run) return 'send one';
     if (i === 2) return 'gate not live';
     const ms = i === 0 ? run.submittedMs : i === 1 ? run.confirmedMs : run.readMs;
     return ms === null ? 'no answer' : `${ms}ms`;

@@ -636,7 +636,13 @@ export async function loadPublishedMandates(): Promise<PublishedMandate[]> {
         };
       })
       .filter((m: PublishedMandate) => m.text.length > 0)
-      .sort((a: PublishedMandate, b: PublishedMandate) => b.updatedAt - a.updatedAt);
+      .sort((a: PublishedMandate, b: PublishedMandate) => b.updatedAt - a.updatedAt)
+      // One row per distinct sentence. Test runs left nine copies of the same
+      // one, and an exchange showing the same rule nine times reads as a bug
+      // rather than as a market. The newest author of a sentence keeps it.
+      .filter((m: PublishedMandate, _i: number, all: PublishedMandate[]) =>
+        all.findIndex((o) => o.text === m.text) === _i,
+      );
   } catch {
     return [];
   }

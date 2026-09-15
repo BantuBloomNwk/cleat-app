@@ -14,6 +14,13 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
 }) => {
   const [isListening, setIsListening] = useState(false);
   const [transcription, setTranscription] = useState('');
+  const [lang, setLang] = useState(() => {
+    try {
+      return localStorage.getItem('cleat.voice.lang') || 'en-US';
+    } catch {
+      return 'en-US';
+    }
+  });
   const [micError, setMicError] = useState<string | null>(null);
   const [barHeights, setBarHeights] = useState<number[]>([12, 18, 24, 14, 28, 16, 22, 10, 26, 15]);
 
@@ -84,7 +91,15 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = 'en-US';
+        // The browser does the recognising, so a language is one property
+        // rather than a model. What is available depends on the device: Chrome
+        // uses Google's recogniser, Safari uses Apple's, and neither is good
+        // at Pidgin or Yoruba yet. Offering the ones that do work is honest;
+        // offering ones that do not would put a misheard number into a cap.
+        recognition.lang =
+          (typeof localStorage !== 'undefined' &&
+            localStorage.getItem('cleat.voice.lang')) ||
+          'en-US';
 
         recognition.onresult = (event: any) => {
           let interim = '';
@@ -223,11 +238,50 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
         {/* Status prompt */}
         <div className="text-center font-sans text-[12px] text-[var(--text-secondary)]">
           {isListening ? (
-            <span>Speak your plain English boundary into your microphone...</span>
+            <span>Say the boundary out loud. It writes a rule, never a trade.</span>
           ) : (
             <span>Microphone paused. Tap below to resume or pick a preset.</span>
           )}
         </div>
+
+        {/* Which recogniser the browser should use. The device supplies it,
+            so this is a choice among what it already does well rather than a
+            claim that we support a language. */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <label
+            htmlFor="voiceLang"
+            className="text-[10.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]"
+          >
+            Language
+          </label>
+          <select
+            id="voiceLang"
+            className="select-headline max-w-[200px]"
+            value={lang}
+            onChange={(e) => {
+              setLang(e.target.value);
+              try {
+                localStorage.setItem('cleat.voice.lang', e.target.value);
+              } catch {
+                // a refused write means it resets next time, which is fine
+              }
+            }}
+          >
+            <option value="en-US">English, United States</option>
+            <option value="en-GB">English, United Kingdom</option>
+            <option value="en-NG">English, Nigeria</option>
+            <option value="ms-MY">Bahasa Malaysia</option>
+            <option value="es-ES">Español</option>
+            <option value="fr-FR">Français</option>
+            <option value="ar-AE">العربية</option>
+            <option value="zh-CN">中文</option>
+          </select>
+        </div>
+        <p className="text-center text-[10.5px] leading-[1.6] text-[var(--text-tertiary)] px-2">
+          Whichever you pick, the sentence is shown back to you in writing and
+          you confirm it before anything is signed. A misheard number would
+          otherwise become a spending limit.
+        </p>
 
         {/* Spoken Text Display & Editor */}
         <div className="w-full">
