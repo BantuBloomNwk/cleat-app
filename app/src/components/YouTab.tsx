@@ -37,10 +37,15 @@ export const YouTab: React.FC<YouTabProps> = ({
     <section className="tab-screen active flex flex-col gap-3.5 w-full pb-12" id="view-you">
       <div className="section-row-header">
         <h2 className="section-heading text-[16px] font-bold">Your Enforcer Profile</h2>
-        <span className="flex items-center gap-2">
+        <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
           <span className="section-hint text-[11px]">Cryptographic Identity</span>
-          <DataOrigin origin="sample" />
         </span>
+      </div>
+
+      {/* Three counters, and they are the log's own totals rather than a
+          decoration. They come off the chain snapshot the diary reads. */}
+      <div className="flex items-center justify-end">
+        <DataOrigin origin="chain" />
       </div>
 
       {/* 3 Metric Summary Boxes */}
@@ -74,6 +79,10 @@ export const YouTab: React.FC<YouTabProps> = ({
       </div>
 
       {/* Security & Enclave Card */}
+      <div className="flex items-center justify-end -mb-1">
+        <DataOrigin origin="sample" />
+      </div>
+
       <article className="glass-card flex flex-col gap-3" id="security-enclave-card">
         <div className="card-topbar">
           <span className="meta-kicker">Settings &amp; Privacy</span>

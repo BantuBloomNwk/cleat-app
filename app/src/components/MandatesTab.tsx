@@ -146,9 +146,8 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
       <div className="section-row-header flex-wrap gap-2">
         <div>
           <h2 className="section-heading text-[16px] font-bold">Mandate Exchange</h2>
-          <span className="flex items-center gap-2">
+          <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
             <span className="section-hint text-[11px]">Sentences, never positions</span>
-            <DataOrigin origin="sample" />
           </span>
         </div>
 

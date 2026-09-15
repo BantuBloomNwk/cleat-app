@@ -435,3 +435,50 @@ touch targets. Legible at 320px width and at 200% text zoom. Tested against brig
 outdoor ambient light, which is the stated primary context.
 
 Onboarding uses passkeys, so no seed phrase and no wallet vocabulary reaches the user.
+
+
+## Names, and why the address is the identity
+
+The mandate exchange shows an address, not a handle, and that is the whole
+identity system rather than a gap in one. A mandate lives at an address
+derived from its author's key, so nobody can publish somebody else's
+sentence: the address would not derive. Nothing has to be trusted for that to
+hold, and no profile, domain or login is involved.
+
+Which settles a question that looked harder than it was. Somebody without a
+.sol domain is not locked out of anything, because a name here is a label
+sitting on top of a proof that already works without it. So a label should
+accept whatever a person wants to be called, an X handle included, and none
+of it needs to be verified for the product to be correct.
+
+Verifying one is still worth doing, and it is two directions rather than one.
+The key says "I am @someone", which is an owner signed write and easy. The
+handle says "I am this key", which means posting the address publicly and
+having something read it back. Both halves are needed; either alone proves
+only that one side made a claim.
+
+Neither is built. The first needs somewhere on chain to put the label, which
+is a new account and another deploy. The second needs to read a post from X,
+and X now charges for that. So the honest position for now is that the
+address is shown, it is the thing that actually proves authorship, and a
+label is an addition rather than a prerequisite.
+
+## Ranking, and the number not to rank on
+
+Adoption count is the obvious leaderboard and the wrong one. `SECURITY.md`
+records why: the child account is seeded by the adopter, so a point costs one
+funded wallet and one account's rent. Ranking on it ranks whoever will spend
+a few dollars.
+
+The standings rank on held back share instead, which is everything the agent
+asked for against everything the sentence allowed. Every point of that came
+from a real proposal that cost a signature and a fee and went through the
+same program as everyone else's. Faking a high score means running proposals
+and being refused, which is the behaviour being measured rather than a way
+around it, and a wallet farm produces empty logs that score nothing.
+
+Two things keep it honest. A log needs four decisions before it ranks at all,
+and one below that is shown with a dash rather than hidden, because new and
+empty are different states. And the screen says outright that this is not
+Sybil proof, which costs nothing and is more than the category usually
+manages.
