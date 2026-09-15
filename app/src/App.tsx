@@ -20,6 +20,7 @@ import {
 } from './data/initialData';
 import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
 import { loadChainSnapshot } from './lib/chain';
+import { useWallet } from './hooks/useWallet';
 import type { Mandate, Restraint, SealState, SectorExposure } from './lib/chain';
 
 export default function App() {
@@ -50,6 +51,9 @@ export default function App() {
   const [sectorExposure, setSectorExposure] = useState<SectorExposure[]>([]);
   const [chainMandate, setChainMandate] = useState<Mandate | null>(null);
   const [restraint, setRestraint] = useState<Restraint | null>(null);
+  // One wallet for the whole app, so every screen sees the same state and a
+  // passkey made in onboarding shows up everywhere without a reload.
+  const wallet = useWallet();
   // Open until the chain says otherwise. Nothing is sealed by default.
   const [sealed, setSealed] = useState<SealState>('open');
 
@@ -197,6 +201,7 @@ export default function App() {
               stats={stats}
               onOpenOnboarding={() => setIsOnboardingOpen(true)}
               activeMandate={mandateSentence}
+              wallet={wallet.state}
             />
           )}
         </main>

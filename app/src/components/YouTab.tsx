@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
+import type { WalletState as WalletStatus } from '../hooks/useWallet';
 import { DEMO_OWNER } from '../lib/chain';
 import { Vibrate, VibrateOff, ShieldCheck, Sparkles } from 'lucide-react';
 import { EnforcerStats } from '../types';
@@ -10,12 +11,15 @@ interface YouTabProps {
   stats: EnforcerStats;
   onOpenOnboarding: () => void;
   activeMandate: string;
+  /** Live wallet state, so these rows follow a passkey being made. */
+  wallet: WalletStatus;
 }
 
 export const YouTab: React.FC<YouTabProps> = ({
   stats,
   onOpenOnboarding,
   activeMandate,
+  wallet,
 }) => {
   const [vibrationEnabled, setVibrationEnabled] = useState<boolean>(() => tactile.isVibrationEnabled());
   const [testPulseNotice, setTestPulseNotice] = useState<string | null>(null);
@@ -81,7 +85,7 @@ export const YouTab: React.FC<YouTabProps> = ({
       </div>
 
       {/* Security & Enclave Card */}
-      <WalletState owner={DEMO_OWNER} />
+      <WalletState wallet={wallet} fallbackOwner={DEMO_OWNER} />
 
       <div className="flex items-center justify-end -mb-1">
         <DataOrigin origin="sample" />

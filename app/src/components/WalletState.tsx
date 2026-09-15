@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { hasWallet, passkeySupported, platformAuthenticatorAvailable } from '../lib/passkey';
 import { connection, mandatePda, vaultPda, verdictLogPda } from '../lib/chain';
 import { DataOrigin } from './DataOrigin';
+import type { WalletState as WalletStatus } from '../hooks/useWallet';
 import { PublicKey } from '@solana/web3.js';
 
 /**
@@ -25,17 +25,23 @@ interface OnChain {
   lamports: number;
 }
 
-export const WalletState: React.FC<{ owner?: PublicKey }> = ({ owner }) => {
-  const [wallet, setWallet] = useState<boolean | null>(null);
-  const [supported, setSupported] = useState<boolean | null>(null);
-  const [platform, setPlatform] = useState<boolean | null>(null);
+export const WalletState: React.FC<{
+  /** The live wallet state, so this follows a passkey being made. */
+  wallet: WalletStatus;
+  /** Read when nobody is signed in, so the screen has something true to show. */
+  fallbackOwner: PublicKey;
+}> = ({ wallet, fallbackOwner }) => {
   const [chain, setChain] = useState<OnChain | null>(null);
 
-  useEffect(() => {
-    setWallet(hasWallet());
-    setSupported(passkeySupported());
-    platformAuthenticatorAvailable().then(setPlatform).catch(() => setPlatform(false));
-  }, []);
+  // Whose account these rows describe. Signed in it is yours; otherwise it is
+  // the devnet account the rest of the app reads, and the screen says which,
+  // because rows about somebody else's vault presented as yours would be the
+  // worst kind of wrong on the one tab that is about you.
+  const mine = wallet.status === 'ready';
+  const owner = mine ? wallet.address : fallbackOwner;
+
+  const supported = wallet.status !== 'unsupported';
+  const exists = wallet.status === 'ready' || wallet.status === 'locked';
 
   useEffect(() => {
     if (!owner) return;
@@ -94,29 +100,35 @@ export const WalletState: React.FC<{ owner?: PublicKey }> = ({ owner }) => {
   return (
     <article className="glass-card flex flex-col gap-2.5" id="wallet-state">
       <div className="card-topbar">
-        <span className="meta-kicker">What you actually have</span>
+        <span className="meta-kicker">
+          {mine ? 'What you actually have' : 'Reading the devnet demo account'}
+        </span>
         <DataOrigin origin="chain" />
       </div>
 
       <Row
         label="This device can hold a key"
-        yes={supported === null ? null : supported && platform !== false}
+        yes={supported}
         detail={
-          supported === false
-            ? 'This browser has no passkey support, so a wallet would have to live somewhere less safe. Try a current Chrome, Safari or Edge.'
-            : platform === false
-              ? 'No fingerprint or face unlock is available here, so a key could be made but not held by the hardware.'
-              : 'A key can be created and kept by the hardware, never leaving the device and never written down as a phrase.'
+          wallet.status === 'unsupported'
+            ? wallet.reason
+            : 'A key can be created and kept by the hardware, never leaving the device and never written down as a phrase.'
         }
       />
 
       <Row
         label="You have a wallet on this device"
-        yes={wallet}
+        yes={exists}
         detail={
-          wallet
-            ? 'Created here and unlocked by your own fingerprint or face. Nobody at this company holds it and there is no copy on a server.'
-            : 'Not yet. One is made the first time you set up, and it is the only thing that can move money out of a vault.'
+          wallet.status === 'ready'
+            ? `Unlocked, and the rows below are your own account. ${wallet.address
+                .toBase58()
+                .slice(0, 4)}…${wallet.address.toBase58().slice(-4)}`
+            : wallet.status === 'locked'
+              ? 'One exists here. Unlock it with your fingerprint or face and the rows below become yours rather than the demo account.'
+              : wallet.status === 'unlocking'
+                ? 'Waiting for your fingerprint or face.'
+                : 'Not yet. One is made the first time you set up, and it is the only thing that can move money out of a vault.'
         }
       />
 
