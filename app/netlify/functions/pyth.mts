@@ -100,7 +100,11 @@ async function series(symbol: string) {
     price,
     dayBps: prev > 0 ? ((price - prev) / prev) * 10_000 : 0,
     monthBps: first > 0 ? ((price - first) / first) * 10_000 : 0,
-    points: c.length,
+    // The whole series, because it was already fetched and thrown away. A
+    // markets screen with no chart on it is a strange thing, and the data
+    // for one has been arriving in this response the entire time.
+    series: c,
+    at: (b?.t ?? []).slice(-c.length),
   };
 }
 

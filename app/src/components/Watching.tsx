@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DataOrigin } from './DataOrigin';
+import { Spark } from './Spark';
 
 /**
  * What the agent is looking at, and what the sentence makes of it.
@@ -18,6 +19,8 @@ interface Row {
   denied?: boolean;
   price?: number;
   dayBps?: number;
+  monthBps?: number;
+  series?: number[];
   error?: string;
 }
 
@@ -54,10 +57,11 @@ export const Watching: React.FC = () => {
       </div>
 
       <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-        Six asset classes from one oracle, none of which keep New York's hours.
-        The interesting row is the oil: the sentence rules out fossil fuels by
-        name, so a crude price moving is a real reason to want energy exposure
-        and the mandate refuses it regardless. Tap any row.
+        Six asset classes from one oracle, none of which keep New York's
+        hours. Thirty days of closes on every row. The interesting one is the
+        oil: the sentence rules out fossil fuels by name, so a crude price
+        moving is a real reason to want energy exposure and the mandate
+        refuses it regardless. Tap a row for the month.
       </p>
 
       <div className="flex flex-col gap-1.5">
@@ -90,32 +94,78 @@ export const Watching: React.FC = () => {
                     {r.klass}
                   </span>
                 </span>
-                <span className="flex items-baseline gap-2.5 shrink-0 font-mono text-[11.5px] tabular-nums">
-                  {r.price !== undefined ? (
-                    <>
-                      <span className="text-[var(--text-primary)] font-bold">
-                        {money(r.price)}
-                      </span>
-                      <span
-                        style={{
-                          color: up ? 'var(--verdigris)' : 'var(--refused-rust)',
-                        }}
-                      >
-                        {up ? '+' : '−'}
-                        {Math.abs((r.dayBps ?? 0) / 100).toFixed(2)}%
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-[var(--text-tertiary)] text-[10.5px]">
-                      not entitled
-                    </span>
+                <span className="flex items-center gap-2.5 shrink-0">
+                  {r.series && r.series.length > 1 && (
+                    <Spark
+                      series={r.series}
+                      stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
+                    />
                   )}
+                  <span className="flex flex-col items-end font-mono text-[11.5px] tabular-nums">
+                    {r.price !== undefined ? (
+                      <>
+                        <span className="text-[var(--text-primary)] font-bold">
+                          {money(r.price)}
+                        </span>
+                        <span
+                          className="text-[10.5px]"
+                          style={{
+                            color: up ? 'var(--verdigris)' : 'var(--refused-rust)',
+                          }}
+                        >
+                          {up ? '+' : '−'}
+                          {Math.abs((r.dayBps ?? 0) / 100).toFixed(2)}%
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[var(--text-tertiary)] text-[10.5px]">
+                        not entitled
+                      </span>
+                    )}
+                  </span>
                 </span>
               </button>
               {isOpen && (
-                <p className="px-2.5 pb-2.5 text-[11px] leading-[1.6] text-[var(--text-secondary)] border-t border-[var(--card-border-subtle)] pt-2">
-                  {r.note}
-                </p>
+                <div className="px-2.5 pb-2.5 pt-2.5 border-t border-[var(--card-border-subtle)] flex flex-col gap-2">
+                  {r.series && r.series.length > 1 && (
+                    <>
+                      <div className="w-full">
+                        <Spark
+                          series={r.series}
+                          width={320}
+                          height={72}
+                          stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
+                          fill
+                        />
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 font-mono text-[10.5px] text-[var(--text-tertiary)] tabular-nums">
+                        <span>{money(Math.min(...r.series))} low</span>
+                        <span>{r.series.length} days</span>
+                        <span>{money(Math.max(...r.series))} high</span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                        <span className="text-[var(--text-secondary)]">
+                          Over the month
+                        </span>
+                        <span
+                          className="font-mono font-bold tabular-nums"
+                          style={{
+                            color:
+                              (r.monthBps ?? 0) >= 0
+                                ? 'var(--verdigris)'
+                                : 'var(--refused-rust)',
+                          }}
+                        >
+                          {(r.monthBps ?? 0) >= 0 ? '+' : '−'}
+                          {Math.abs((r.monthBps ?? 0) / 100).toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)]">
+                    {r.note}
+                  </p>
+                </div>
               )}
             </div>
           );
