@@ -588,6 +588,7 @@ export interface PublishedMandate {
 }
 
 const MANDATE_DISCRIMINATOR_B58 = "L3ScUhMvnTK";
+const VERDICT_LOG_DISCRIMINATOR_B58 = "J6HutyaA5qQ";
 
 /**
  * Every mandate anyone has created, newest activity first.
@@ -665,4 +666,100 @@ function decodeMandateTail(data: Uint8Array) {
   const createdAt = Number(c.u64());
   const updatedAt = Number(c.u64());
   return { adoptedFrom, createdAt, updatedAt };
+}
+
+// ── The leaderboard, and why it is not ranked on adoptions ───────────
+//
+// SECURITY.md already says adoption counts cost one funded wallet and one
+// account's rent per point, so ranking on them is ranking on who is willing
+// to spend a few dollars. The obvious consumer metric is the gameable one.
+//
+// Held back share is not. Every point of it came from a real proposal, which
+// cost its author a signature and a fee and went through the same program as
+// everybody else's. Manufacturing a high score means actually running
+// proposals and actually being refused, which is the behaviour the number is
+// supposed to measure rather than a way around it.
+//
+// This is not Sybil proof and the screen says so. What it is, is a number
+// that costs the same to earn honestly as to fake.
+
+export interface StandingRow {
+  owner: string;
+  logAddress: string;
+  decisions: number;
+  askedBps: number;
+  allowedBps: number;
+  heldBps: number;
+  /** Share of everything asked for that the sentence refused or trimmed. */
+  heldPct: number;
+  cleared: number;
+  clamped: number;
+  refused: number;
+}
+
+/** Below this a log has not done enough for the ratio to mean anything. */
+export const MIN_DECISIONS_TO_RANK = 4;
+
+/**
+ * Every verdict log on the program, ranked by how much was held back.
+ *
+ * One scan, same fence as the mandates. Logs with too few decisions are
+ * carried but marked rather than dropped, because "new" and "empty" are
+ * different states and hiding the difference is how a leaderboard starts
+ * lying.
+ */
+export async function loadStandings(): Promise<StandingRow[]> {
+  try {
+    const res = await (connection as any)._rpcRequest("getProgramAccounts", [
+      PROGRAM_ID.toBase58(),
+      {
+        encoding: "base64",
+        filters: [
+          { memcmp: { offset: 0, bytes: VERDICT_LOG_DISCRIMINATOR_B58 } },
+        ],
+      },
+    ]);
+    const rows = res?.result ?? [];
+
+    return rows
+      .map((r: any) => {
+        const raw = Uint8Array.from(atob(r.account.data[0]), (ch) =>
+          ch.charCodeAt(0),
+        );
+        const c = new Cursor(raw);
+        c.skip(8);
+        const owner = new PublicKey(c.slice(32)).toBase58();
+        const log = decodeVerdictLog(raw);
+        const totals = log.entries.reduce(
+          (a, v) => ({
+            asked: a.asked + v.proposedBps,
+            allowed: a.allowed + v.allowedBps,
+          }),
+          { asked: 0, allowed: 0 },
+        );
+        const held = totals.asked - totals.allowed;
+        return {
+          owner,
+          logAddress: r.pubkey,
+          decisions: log.entries.length,
+          askedBps: totals.asked,
+          allowedBps: totals.allowed,
+          heldBps: held,
+          heldPct: totals.asked > 0 ? (held / totals.asked) * 100 : 0,
+          cleared: log.cleared,
+          clamped: log.clamped,
+          refused: log.refused,
+        };
+      })
+      .filter((s: StandingRow) => s.decisions > 0)
+      .sort((a: StandingRow, b: StandingRow) => {
+        // Enough decisions to be judged comes first, then by share held.
+        const aRank = a.decisions >= MIN_DECISIONS_TO_RANK ? 1 : 0;
+        const bRank = b.decisions >= MIN_DECISIONS_TO_RANK ? 1 : 0;
+        if (aRank !== bRank) return bRank - aRank;
+        return b.heldPct - a.heldPct;
+      });
+  } catch {
+    return [];
+  }
 }

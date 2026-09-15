@@ -24,6 +24,8 @@ const ALLOWED = new Set(["getAccountInfo", "getSlot", "getProgramAccounts"]);
  */
 const PROGRAM_ID = "2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL";
 const MANDATE_DISCRIMINATOR = "L3ScUhMvnTK"; // base58 of [113,216,98,159,185,63,55,18]
+const VERDICT_LOG_DISCRIMINATOR = "J6HutyaA5qQ"; // base58 of [102,46,139,79,112,179,171,191]
+const SCANNABLE = new Set([MANDATE_DISCRIMINATOR, VERDICT_LOG_DISCRIMINATOR]);
 
 function scanIsFenced(call: any): boolean {
   const [program, opts] = call.params ?? [];
@@ -31,8 +33,7 @@ function scanIsFenced(call: any): boolean {
   const filters = opts?.filters;
   if (!Array.isArray(filters)) return false;
   return filters.some(
-    (f: any) =>
-      f?.memcmp?.offset === 0 && f?.memcmp?.bytes === MANDATE_DISCRIMINATOR,
+    (f: any) => f?.memcmp?.offset === 0 && SCANNABLE.has(f?.memcmp?.bytes),
   );
 }
 

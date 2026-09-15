@@ -4,7 +4,10 @@ import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
 import { CommunityMandate } from '../types';
 import type { Mandate, SectorExposure } from '../lib/chain';
 import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise';
-import { loadPublishedMandates, type PublishedMandate } from '../lib/chain';
+import {
+  loadPublishedMandates, loadStandings, MIN_DECISIONS_TO_RANK,
+  type PublishedMandate, type StandingRow,
+} from '../lib/chain';
 import { tactile } from '../utils/haptics';
 
 interface MandatesTabProps {
@@ -27,11 +30,15 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   // Every mandate anybody has published, read off the program. Empty until
   // the scan lands, and it stays empty rather than inventing anyone.
   const [published, setPublished] = useState<PublishedMandate[]>([]);
+  const [standings, setStandings] = useState<StandingRow[]>([]);
 
   useEffect(() => {
     let live = true;
     loadPublishedMandates().then((rows) => {
       if (live) setPublished(rows);
+    });
+    loadStandings().then((rows) => {
+      if (live) setStandings(rows);
     });
     return () => {
       live = false;
@@ -272,6 +279,62 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
             </p>
           )}
         </article>
+      )}
+
+      {standings.length > 0 && (
+        <section className="flex flex-col gap-2.5" id="standings">
+          <div className="section-row-header">
+            <h3 className="section-heading text-[16px] font-bold">
+              Who held the most back
+            </h3>
+            <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
+              <span className="section-hint text-[11px]">Not ranked on adoptions</span>
+              <DataOrigin origin="chain" />
+            </span>
+          </div>
+
+          <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
+            Ranked by the share of everything asked for that the sentence
+            refused or trimmed. Adoptions would be the obvious number and it is
+            the gameable one: a point of it costs one funded wallet. A point of
+            this costs a real proposal that really got refused, which is the
+            thing being measured rather than a way around it. Not Sybil proof,
+            and saying so is cheaper than pretending.
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            {standings.slice(0, 8).map((row, i) => {
+              const ranked = row.decisions >= MIN_DECISIONS_TO_RANK;
+              return (
+                <div
+                  key={row.logAddress}
+                  className="flex items-baseline justify-between gap-3 px-2.5 py-2 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]"
+                >
+                  <span className="flex items-baseline gap-2 min-w-0">
+                    <span className="font-mono text-[11px] text-[var(--text-tertiary)] w-4 shrink-0">
+                      {ranked ? i + 1 : '—'}
+                    </span>
+                    <span className="font-mono text-[11.5px] text-[var(--text-primary)] truncate">
+                      {row.owner.slice(0, 4)}…{row.owner.slice(-4)}
+                    </span>
+                    <span className="text-[10.5px] font-mono text-[var(--text-tertiary)] whitespace-nowrap">
+                      {row.decisions} decision{row.decisions === 1 ? '' : 's'}
+                      {ranked ? '' : ', too few to rank'}
+                    </span>
+                  </span>
+                  <span
+                    className="font-mono text-[12.5px] font-bold tabular-nums shrink-0"
+                    style={{
+                      color: ranked ? 'var(--verdigris)' : 'var(--text-tertiary)',
+                    }}
+                  >
+                    {row.heldPct.toFixed(0)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {published.length > 0 && (
