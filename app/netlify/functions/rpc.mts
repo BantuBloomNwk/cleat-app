@@ -13,12 +13,37 @@
 //
 // So the method is checked against what the app actually calls, which is two
 // things. Anything else is refused by name rather than forwarded.
-const ALLOWED = new Set(["getAccountInfo", "getSlot"]);
+const ALLOWED = new Set(["getAccountInfo", "getSlot", "getProgramAccounts"]);
+
+/**
+ * getProgramAccounts is the expensive one, so it is fenced rather than just
+ * allowed. It may only ask this program for accounts carrying the Mandate
+ * discriminator, which is what the mandate exchange needs and nothing more. An
+ * unfenced scan of an arbitrary program is a way to make somebody else pay for
+ * an indexer.
+ */
+const PROGRAM_ID = "2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL";
+const MANDATE_DISCRIMINATOR = "L3ScUhMvnTK"; // base58 of [113,216,98,159,185,63,55,18]
+
+function scanIsFenced(call: any): boolean {
+  const [program, opts] = call.params ?? [];
+  if (program !== PROGRAM_ID) return false;
+  const filters = opts?.filters;
+  if (!Array.isArray(filters)) return false;
+  return filters.some(
+    (f: any) =>
+      f?.memcmp?.offset === 0 && f?.memcmp?.bytes === MANDATE_DISCRIMINATOR,
+  );
+}
 
 /** Batched requests are fine, so long as every call in the batch is allowed. */
 function permitted(parsed: unknown): boolean {
-  const one = (c: any) =>
-    c && typeof c === "object" && typeof c.method === "string" && ALLOWED.has(c.method);
+  const one = (c: any) => {
+    if (!c || typeof c !== "object" || typeof c.method !== "string") return false;
+    if (!ALLOWED.has(c.method)) return false;
+    if (c.method === "getProgramAccounts") return scanIsFenced(c);
+    return true;
+  };
   if (Array.isArray(parsed)) {
     return parsed.length > 0 && parsed.length <= 20 && parsed.every(one);
   }
@@ -40,7 +65,7 @@ export default async (req: Request) => {
   const body = await req.text();
   // A body large enough to hold a transaction is already the wrong shape for
   // the two calls this allows, so it is refused before it is parsed.
-  if (body.length > 8192) {
+  if (body.length > 16384) {
     return new Response(JSON.stringify({ error: "too large" }), {
       status: 413,
       headers: { "content-type": "application/json" },

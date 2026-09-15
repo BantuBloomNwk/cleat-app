@@ -4,6 +4,7 @@ import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
 import { CommunityMandate } from '../types';
 import type { Mandate, SectorExposure } from '../lib/chain';
 import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise';
+import { loadPublishedMandates, type PublishedMandate } from '../lib/chain';
 import { tactile } from '../utils/haptics';
 
 interface MandatesTabProps {
@@ -23,6 +24,19 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
 }) => {
   const [adoptedId, setAdoptedId] = useState<string | null>(null);
   const [denied, setDenied] = useState<IdentifiedMint[]>([]);
+  // Every mandate anybody has published, read off the program. Empty until
+  // the scan lands, and it stays empty rather than inventing anyone.
+  const [published, setPublished] = useState<PublishedMandate[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    loadPublishedMandates().then((rows) => {
+      if (live) setPublished(rows);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
 
@@ -259,6 +273,109 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
           )}
         </article>
       )}
+
+      {published.length > 0 && (
+        <section className="flex flex-col gap-2.5" id="published-mandates">
+          <div className="section-row-header">
+            <h3 className="section-heading text-[16px] font-bold">
+              Published on chain
+            </h3>
+            <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
+              <span className="section-hint text-[11px]">
+                {published.length} mandate{published.length === 1 ? '' : 's'}
+              </span>
+              <DataOrigin origin="chain" />
+            </span>
+          </div>
+
+          <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
+            Every one of these lives at an address derived from its author's own
+            key, so nobody can publish somebody else's sentence. That is the
+            whole of the identity system, and it needs no profile, no handle and
+            no domain. A name, when there is one, is a label on top of a proof
+            that already holds without it.
+          </p>
+
+          {published.map((m) => (
+            <article key={m.address} className="glass-card flex flex-col gap-2">
+              <div className="card-topbar">
+                <span className="meta-kicker font-mono text-[10.5px]">
+                  {m.owner.slice(0, 4)}…{m.owner.slice(-4)}
+                </span>
+                <span className="flex items-center gap-2 flex-wrap">
+                  {m.halted && (
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--refused-rust)] font-bold">
+                      halted
+                    </span>
+                  )}
+                  <span className="text-[10.5px] font-mono text-[var(--text-tertiary)]">
+                    v{m.version}
+                  </span>
+                </span>
+              </div>
+
+              <p className="text-[13px] leading-[1.6] text-[var(--text-primary)] italic">
+                “{m.text}”
+              </p>
+
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
+                <span>
+                  <strong className="text-[var(--text-primary)]">
+                    {(m.maxPositionBps / 100).toFixed(0)}%
+                  </strong>{' '}
+                  a sector
+                </span>
+                <span>
+                  <strong className="text-[var(--text-primary)]">
+                    {(m.maxTradeBps / 100).toFixed(0)}%
+                  </strong>{' '}
+                  a trade
+                </span>
+                {m.maxSpreadBps > 0 && (
+                  <span>
+                    <strong className="text-[var(--text-primary)]">
+                      {(m.maxSpreadBps / 100).toFixed(2)}%
+                    </strong>{' '}
+                    widest book
+                  </span>
+                )}
+                {m.deniedCount > 0 && (
+                  <span>
+                    <strong className="text-[var(--text-primary)]">
+                      {m.deniedCount}
+                    </strong>{' '}
+                    ruled out by name
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] font-mono text-[var(--text-tertiary)]">
+                <span>unchanged {m.heldDays}d</span>
+                <span>{m.adoptCount} adopted</span>
+                {m.adoptedFrom && <span>forked</span>}
+                <a
+                  href={`https://explorer.solana.com/address/${m.address}?cluster=devnet`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-[var(--verdigris)] underline underline-offset-2"
+                >
+                  read it on chain
+                </a>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
+      <div className="section-row-header">
+        <h3 className="section-heading text-[16px] font-bold">
+          What this looks like with people on it
+        </h3>
+        <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
+          <span className="section-hint text-[11px]">Written, not read</span>
+          <DataOrigin origin="sample" />
+        </span>
+      </div>
 
       <div className="flex flex-col gap-3.5">
         {mandates.map((m) => {

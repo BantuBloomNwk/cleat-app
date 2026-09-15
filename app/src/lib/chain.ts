@@ -555,3 +555,114 @@ export async function loadChainSnapshot(
     return null;
   }
 }
+
+// ── The mandate exchange, for real ───────────────────────────────────
+//
+// The copier room shipped with invented handles like @alex_trader.sol. The
+// real version needs no profile system at all, because the proof is already
+// on chain: a mandate lives at an address derived from its owner's key, so
+// only that key can have written it. Nobody can claim somebody else's
+// sentence, because the address would not derive.
+//
+// A display name is therefore a label rather than a credential, and it should
+// accept whatever somebody wants to be called. Tying identity to a .sol domain
+// would lock out most people for no security gain.
+
+/** A mandate somebody published, read off the program. */
+export interface PublishedMandate {
+  address: string;
+  owner: string;
+  version: number;
+  halted: boolean;
+  text: string;
+  maxPositionBps: number;
+  maxTradeBps: number;
+  maxSpreadBps: number;
+  deniedCount: number;
+  adoptedFrom: string | null;
+  adoptCount: number;
+  createdAt: number;
+  updatedAt: number;
+  /** Days since it was written, which is the "held for" number. */
+  heldDays: number;
+}
+
+const MANDATE_DISCRIMINATOR_B58 = "L3ScUhMvnTK";
+
+/**
+ * Every mandate anyone has created, newest activity first.
+ *
+ * One getProgramAccounts against the Mandate discriminator. The proxy only
+ * permits that exact scan, because an unfenced one is a way to make somebody
+ * else pay for an indexer.
+ */
+export async function loadPublishedMandates(): Promise<PublishedMandate[]> {
+  try {
+    const res = await (connection as any)._rpcRequest("getProgramAccounts", [
+      PROGRAM_ID.toBase58(),
+      {
+        encoding: "base64",
+        filters: [{ memcmp: { offset: 0, bytes: MANDATE_DISCRIMINATOR_B58 } }],
+      },
+    ]);
+    const rows = res?.result ?? [];
+    const now = Date.now() / 1000;
+
+    return rows
+      .map((r: any) => {
+        const raw = Uint8Array.from(atob(r.account.data[0]), (ch) => ch.charCodeAt(0));
+        const m = decodeMandate(raw);
+        const c = new Cursor(raw);
+        c.skip(8);
+        const owner = new PublicKey(c.slice(32)).toBase58();
+        // Walk to the timestamps, which decodeMandate does not return.
+        const tail = decodeMandateTail(raw);
+        return {
+          address: r.pubkey,
+          owner,
+          version: m.version,
+          halted: m.halted,
+          text: m.text,
+          maxPositionBps: m.maxPositionBps,
+          maxTradeBps: m.maxTradeBps,
+          maxSpreadBps: m.maxSpreadBps,
+          deniedCount: m.denied.length,
+          adoptedFrom: tail.adoptedFrom,
+          adoptCount: m.adoptCount,
+          createdAt: tail.createdAt,
+          updatedAt: tail.updatedAt,
+          heldDays: Math.max(0, Math.floor((now - tail.updatedAt) / 86400)),
+        };
+      })
+      .filter((m: PublishedMandate) => m.text.length > 0)
+      .sort((a: PublishedMandate, b: PublishedMandate) => b.updatedAt - a.updatedAt);
+  } catch {
+    return [];
+  }
+}
+
+/** The fields after the deny list, which the card needs and the reader skipped. */
+function decodeMandateTail(data: Uint8Array) {
+  const WITHOUT_SPREAD = 676;
+  const hasSpread = data.length >= WITHOUT_SPREAD + 2;
+  const hasHalt = data.length >= WITHOUT_SPREAD + 3;
+  const c = new Cursor(data);
+  c.skip(8 + 32);
+  c.u16();
+  if (hasHalt) c.u8();
+  const textLen = c.u32();
+  c.skip(textLen + 32);
+  c.u16();
+  c.u16();
+  if (hasSpread) c.u16();
+  const deniedLen = c.u32();
+  c.skip(deniedLen * 32);
+  const hasParent = c.u8();
+  const adoptedFrom = hasParent
+    ? new PublicKey(c.slice(32)).toBase58()
+    : null;
+  c.u32(); // adopt count, already read
+  const createdAt = Number(c.u64());
+  const updatedAt = Number(c.u64());
+  return { adoptedFrom, createdAt, updatedAt };
+}
