@@ -117,7 +117,7 @@ export const WalletState: React.FC<{
       />
 
       <Row
-        label="You have a wallet on this device"
+        label="You have a key on this device"
         yes={exists}
         detail={
           wallet.status === 'ready'

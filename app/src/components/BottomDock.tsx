@@ -12,7 +12,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
 }) => {
   return (
     <nav aria-label="App Navigation" className="bottom-dock" id="bottom-navigation-dock">
-      {/* TAB 1: DIARY */}
+      {/* TAB 1: LOG */}
       <button
         id="tabNav-diary"
         type="button"
@@ -24,7 +24,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
         </svg>
-        <span>Diary</span>
+        <span>Log</span>
       </button>
 
       {/* TAB 2: CHART */}
@@ -43,7 +43,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
         <span>Chart</span>
       </button>
 
-      {/* TAB 3: MANDATES */}
+      {/* TAB 3: SENTENCES */}
       <button
         id="tabNav-mandates"
         type="button"
@@ -52,15 +52,15 @@ export const BottomDock: React.FC<BottomDockProps> = ({
         onClick={() => onSelectTab('mandates')}
       >
         <svg viewBox="0 0 24 24">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+          <path d="M15 2v5h5" />
+          <line x1="8" x2="16" y1="13" y2="13" />
+          <line x1="8" x2="13" y1="17" y2="17" />
         </svg>
-        <span>Mandates</span>
+        <span>Sentences</span>
       </button>
 
-      {/* TAB 4: YOU */}
+      {/* TAB 4: VAULT */}
       <button
         id="tabNav-you"
         type="button"
@@ -69,10 +69,10 @@ export const BottomDock: React.FC<BottomDockProps> = ({
         onClick={() => onSelectTab('you')}
       >
         <svg viewBox="0 0 24 24">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
+          <rect width="18" height="11" x="3" y="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
-        <span>You</span>
+        <span>Vault</span>
       </button>
     </nav>
   );

@@ -98,7 +98,7 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
       latency: 'measured per run',
       privacy: 'Blinded Refusal Root Recorded',
       status: 'blocked',
-      detail: 'Mandate violation detected. Hard cryptographic gate halts execution. Zero USDC moved, zero gas spent. Permanent refusal signature logged.',
+      detail: 'Mandate violation detected. Hard cryptographic gate halts execution. Zero USDC moved, nothing spent on fees. Permanent refusal signature logged.',
       payload: 'Action: REFUSED_COLD • Proof: 5KwN8v3b...ArciumMPC9x7k',
     },
   ];

@@ -247,7 +247,7 @@ export async function unlockWallet(): Promise<Keypair> {
 
   if (mode === 'stored') {
     const hex = store.get(SEED_KEY);
-    if (!hex) throw new Error('The saved wallet is gone from this browser.');
+    if (!hex) throw new Error('The saved key is gone from this browser.');
     // Still ask for the face, so the key is not usable just by having the tab.
     await deriveViaAssertion(credId).catch(() => null);
     return Keypair.fromSeed(fromHex(hex));
@@ -255,7 +255,7 @@ export async function unlockWallet(): Promise<Keypair> {
 
   const derived = await deriveViaAssertion(credId);
   if (derived) return derived.keypair;
-  throw new Error('This device could not reproduce the wallet from that passkey.');
+  throw new Error('This device could not reproduce the key from that passkey.');
 }
 
 /**
@@ -268,7 +268,7 @@ export async function unlockWallet(): Promise<Keypair> {
 export async function restoreWallet(): Promise<Keypair> {
   const derived = await deriveViaAssertion();
   if (!derived) {
-    throw new Error('That passkey cannot rebuild a wallet on this browser.');
+    throw new Error('That passkey cannot rebuild a key on this browser.');
   }
   store.set(MODE_KEY, 'prf');
   store.set(CRED_KEY, derived.credId);

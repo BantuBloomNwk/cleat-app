@@ -165,4 +165,34 @@ Hard bans, on top of the four product anti-references:
 - Red and green as gain and loss.
 - Confetti, streaks, celebration, progress rings, any nudge toward volume.
 - Crypto vocabulary in the interface: wallet, seed, shielded, zk, MPC, protocol, gas,
-  non-custodial.
+  non-custodial. Scoped by surface, see below.
+
+### Where the vocabulary ban applies, and where it does not
+
+The ban was written flat and that turned out to be wrong in one direction. A
+newcomer bounces off "non-custodial" in the first thirty seconds, which is the
+whole reason for the rule. But the people most likely to check whether any of
+this is real already know what an MPC network is, and hiding the word from them
+reads as evasion rather than as friendliness. Vagueness in the place someone
+went looking for detail is its own kind of dishonesty.
+
+So it applies by surface, in three zones.
+
+**Zone 1, first contact.** Onboarding, the sentence, every primary button, every
+empty state, every label in the dock. Strict ban, no exceptions. Nobody should
+need a glossary to write a mandate.
+
+**Zone 2, the depth behind a verdict.** The expansion on a refusal, the pipeline
+diagram, the security page, anything a reader had to choose to open. Precise
+terms are allowed and wanted here. The pattern is plain language first and the
+name second, in that order: say "a network of machines that each hold a share of
+the answer and none of the number", then say it is Arcium MPC. Somebody who
+already knows gets the confirmation, somebody who does not gets the meaning, and
+neither has to take it on faith.
+
+**Zone 3, machine-facing.** The export file, the submission document, code and
+its comments. Always the precise term. An exported field named for a feeling
+instead of the thing it holds is worse for the only reader who matters there.
+
+The test for which zone something is in: did the reader ask for it? Zone 1 is
+what they get without asking.

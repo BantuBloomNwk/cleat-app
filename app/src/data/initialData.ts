@@ -115,7 +115,7 @@ export const INITIAL_LEDGER_ENTRIES: LedgerEntry[] = [
     action: 'Rejected 48% APY unhedged liquidity farm deposit',
     cause: 'Triggered boundary: "moderate growth" risk ceiling',
     causeDetail: 'High risk smart contract pool with impermanent loss probability exceeded risk tolerances.',
-    agentTrace: 'Agent trace: "Severe tail risk detected in protocol audit. Intercepted by kernel."',
+    agentTrace: 'Agent trace: "Severe tail risk detected in the audit. Intercepted by kernel."',
     period: 'month',
     ticker: 'DEFI-POOL',
     amount: '1,500 USDC',
