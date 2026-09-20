@@ -4,8 +4,7 @@ import { CrossIssuer } from './CrossIssuer';
 import { PreIpo } from './PreIpo';
 import { Watching } from './Watching';
 import { DataOrigin } from './DataOrigin';
-import { VerdictMesh } from './VerdictMesh';
-import { loadAllVerdicts, type PlacedVerdict } from '../lib/chain';
+import { ChartMesh } from './ChartMesh';
 import { symbolTicker, loadTickers, loadDepth, bookQuality } from '../lib/backpack';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
@@ -67,16 +66,6 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   // cannot analyse is a featured instrument in name only.
   const [instrument, setInstrument] = useState('TSLA.US_USDC');
 
-  // Every decision on the program, fetched the first time somebody asks for
-  // the geometry rather than on load. It is one scan, and most visits never
-  // open this view.
-  const [verdicts, setVerdicts] = useState<PlacedVerdict[] | null>(null);
-  useEffect(() => {
-    if (!is3DActive || verdicts !== null) return;
-    let live = true;
-    loadAllVerdicts().then((rows) => { if (live) setVerdicts(rows); });
-    return () => { live = false; };
-  }, [is3DActive, verdicts]);
 
   // What the venue's own book says about the selected name, so the
   // comparison against the other issuers is complete rather than missing
@@ -264,10 +253,8 @@ export const ChartTab: React.FC<ChartTabProps> = ({
       <div className="section-row-header">
         <h2 className="section-heading text-[16px] font-bold">Protection Geometry</h2>
         <span className="flex items-center gap-2">
-          <span className="section-hint text-[11px]">
-            {is3DActive ? 'Every decision on the program' : 'Live price, sample refusals'}
-          </span>
-          <DataOrigin origin={is3DActive ? 'chain' : 'venue'} />
+          <span className="section-hint text-[11px]">Live price, sample refusals</span>
+          <DataOrigin origin="venue" />
         </span>
       </div>
 
@@ -318,13 +305,17 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           className={`chart-wrapper-3d ${is3DActive ? 'showing-geometry' : ''}`}
         >
           {is3DActive ? (
-            // The geometry replaces the price rather than tilting it. Turning a
-            // flat chart was a picture of a space; this is one, and everything
-            // standing in it is a decision that exists on devnet.
-            <VerdictMesh
+            // The same curves, in a space. Not a second drawing of different
+            // data: the paths below are sampled off these exact strings, so
+            // turning it shows the shape that was just being read flat.
+            <ChartMesh
               active={is3DActive}
-              verdicts={verdicts ?? []}
-              ceilingBps={1500}
+              trajectoryPath={currentConfig.trajectoryPath}
+              ceilingPath={currentConfig.ceilingPath}
+              floorPath={currentConfig.floorPath}
+              markers={activeMarkers}
+              selectedId={selectedMarker?.id ?? null}
+              onPickMarker={(m) => setSelectedMarker(m)}
             />
           ) : null}
           <svg

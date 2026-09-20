@@ -1008,62 +1008,38 @@ body {
   padding: 10px 6px 6px 6px;
 }
 
-/* THE VERDICT GEOMETRY */
-.verdict-mesh {
+/* THE CHART, TURNED */
+.chart-mesh {
   position: relative;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
-.verdict-mesh-canvas {
+.chart-mesh-canvas {
   display: block;
   width: 100%;
-  height: 230px;
+  height: 330px;
   border-radius: 12px;
   cursor: grab;
-  /* The gesture is a drag in both axes, so the browser must not claim it for
-     scrolling first. */
+  /* A drag in both axes, so the browser must not claim it for scrolling. */
   touch-action: none;
+  /* The glow is additive, so it wants something dark to add onto. */
+  background:
+    radial-gradient(ellipse 120% 70% at 50% 108%, rgba(78, 194, 165, 0.1), transparent 62%),
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(224, 122, 48, 0.07), transparent 60%),
+    #07090b;
 }
-.verdict-mesh-canvas:active { cursor: grabbing; }
-.verdict-mesh-canvas:focus-visible {
-  outline: 2px solid var(--verdigris);
-  outline-offset: 3px;
-}
-.verdict-mesh-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 0 4px;
-  font-size: 10.5px;
+.chart-mesh-canvas:active { cursor: grabbing; }
+.chart-mesh-canvas:focus-visible { outline: 2px solid var(--verdigris); outline-offset: 3px; }
+.chart-mesh-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
   color: var(--text-tertiary);
+  pointer-events: none;
+  opacity: 0.75;
 }
-.verdict-mesh-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.verdict-mesh-legend i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.verdict-mesh-caption {
-  padding: 0 4px;
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-.verdict-mesh-readout {
-  margin: 0 2px 2px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--card-surface-raised);
-  border: 1px solid var(--card-border-subtle);
-}
-.verdict-mesh-empty {
+.chart-mesh-empty {
   padding: 28px 16px;
   text-align: center;
   font-size: 12px;
