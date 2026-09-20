@@ -35,6 +35,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   // the button does not change its mind under the user's finger mid flow.
   const [existed] = useState(() => hasWallet());
 
+  /* What the sentence turns into, recomputed as it is typed, so the caps on
+     screen are the caps that will be written rather than three fixed chips
+     that never corresponded to anything. */
+  const compiled = React.useMemo(() => compileSentence(mandateText), [mandateText]);
+  const [sealing, setSealing] = useState(false);
+  const [sealError, setSealError] = useState<string | null>(null);
+
+  // Every hook has to run on every render, so they all live above this. The
+  // three above were added below it and the modal then rendered four hooks
+  // closed and seven open, which is React error 300 and a white screen the
+  // moment anybody opened it twice.
   if (!isOpen) return null;
 
   const isVerifying = wallet.state.status === 'unlocking';
@@ -65,13 +76,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     if (wallet.state.status === 'error') return 'Try again';
     return existed ? 'Unlock with Face ID' : 'Create with Face ID';
   })();
-
-  /* What the sentence turns into, recomputed as it is typed, so the caps on
-     screen are the caps that will be written rather than three fixed chips
-     that never corresponded to anything. */
-  const compiled = React.useMemo(() => compileSentence(mandateText), [mandateText]);
-  const [sealing, setSealing] = useState(false);
-  const [sealError, setSealError] = useState<string | null>(null);
 
   /**
    * Seal used to set a string in React state and close.

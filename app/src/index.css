@@ -1153,6 +1153,23 @@ body {
   letter-spacing: 0.06em;
 }
 
+.vault-actions { display: flex; flex-direction: column; gap: 8px; }
+.vault-field {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 11px; border-radius: 12px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+  font-size: 11px; color: var(--text-tertiary);
+}
+.vault-field span { flex: 0 0 auto; }
+.vault-field .unit { color: var(--text-tertiary); }
+.vault-field input {
+  flex: 1 1 auto; min-width: 0; background: transparent; border: 0; outline: none;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-primary);
+}
+.vault-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.vault-buttons .mesh-chip:disabled { opacity: 0.45; }
+
 .mesh-tools {
   display: flex;
   flex-wrap: wrap;

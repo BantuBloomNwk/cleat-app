@@ -24,9 +24,17 @@ import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@sol
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const MANDATE_SEED = Buffer.from("mandate");
 
-/** Off the deployed IDL. These are the only two this relay will ever sign. */
-const D_ADOPT = Buffer.from([210, 106, 122, 112, 155, 35, 71, 36]);
-const D_CREATE = Buffer.from([230, 170, 158, 68, 33, 169, 16, 158]);
+/**
+ * Off the deployed IDL. This is the entire set this relay will ever pass, and
+ * every one of them is something an owner does to their own accounts.
+ */
+const ALLOWED: Record<string, string> = {
+  '210,106,122,112,155,35,71,36': 'adopt_mandate',
+  '230,170,158,68,33,169,16,158': 'create_mandate',
+  '181,248,228,67,6,175,37,167': 'open_vault',
+  '242,35,198,137,82,225,242,182': 'deposit',
+  '183,18,70,156,148,109,161,34': 'withdraw',
+};
 
 /** Rent for a Mandate plus a little for fees, which is what a top up covers. */
 const TOP_UP_LAMPORTS = 12_000_000;
@@ -64,7 +72,9 @@ export default async (req: Request) => {
     ]);
     // Writing a first sentence needs the account free. Adopting needs the same
     // thing, because an adopted sentence lands in exactly that account.
-    if (existing) {
+    // Only a first sentence is blocked by one already existing. Everything
+    // else an owner does to their own accounts is allowed to repeat.
+    if (existing && body.intent === 'mandate') {
       return json({
         error: "This key already speaks for a sentence. One owner, one mandate, which is the point of it.",
         already: true,
@@ -91,31 +101,44 @@ export default async (req: Request) => {
     // Read every instruction back. This is the whole defence: the client has
     // already signed, but nothing leaves here without the server agreeing that
     // what it signed is what it said it would.
+    // Whoever signed first is the person this transaction belongs to.
+    const signer = tx.signatures.find((sg) => sg.signature)?.publicKey
+      ?? tx.feePayer ?? PublicKey.default;
     let sawAdopt = 0, sawTransfer = 0;
     for (const ix of tx.instructions) {
       if (ix.programId.equals(PROGRAM_ID)) {
-        const d = ix.data.subarray(0, 8);
-        if (!d.equals(D_ADOPT) && !d.equals(D_CREATE)) {
-          return json({ error: "that is not a mandate instruction" }, 400);
+        if (!ALLOWED[Array.from(ix.data.subarray(0, 8)).join(',')]) {
+          return json({ error: "that is not an instruction this relay passes" }, 400);
         }
         sawAdopt++;
         continue;
       }
       if (ix.programId.equals(SystemProgram.programId)) {
-        // Only a transfer, only out of the faucet, only up to the top up.
         const kind = ix.data.readUInt32LE(0);
+        if (kind !== 2) {
+          return json({ error: "only a transfer, and that is not one" }, 400);
+        }
         const lamports = Number(ix.data.readBigUInt64LE(4));
         const from = ix.keys[0]?.pubkey;
-        if (kind !== 2 || !from?.equals(faucet.publicKey) || lamports > TOP_UP_LAMPORTS) {
-          return json({ error: "that system instruction is not one we sign" }, 400);
+        if (from?.equals(faucet.publicKey)) {
+          // Out of the faucet is the sponsored top up, and it is capped.
+          if (lamports > TOP_UP_LAMPORTS) {
+            return json({ error: "a top up does not go that far" }, 400);
+          }
+          sawTransfer++;
+          continue;
         }
-        sawTransfer++;
+        // Otherwise it has to be somebody moving their own money, which means
+        // they signed for it and the faucet is not party to it at all.
+        if (!from?.equals(signer)) {
+          return json({ error: "that transfer is not yours to make" }, 400);
+        }
         continue;
       }
       return json({ error: "unexpected program in the transaction" }, 400);
     }
-    if (sawAdopt !== 1 || sawTransfer > 1) {
-      return json({ error: "the transaction is not shaped like a mandate write" }, 400);
+    if (sawAdopt > 3 || sawTransfer > 1) {
+      return json({ error: "too much is happening in one transaction" }, 400);
     }
 
     // Sign only if we are actually party to it.

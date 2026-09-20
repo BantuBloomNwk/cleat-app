@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
 import { VaultKey } from './VaultKey';
+import type { Keypair } from '@solana/web3.js';
 import { AgentSpend } from './AgentSpend';
 import type { WalletState as WalletStatus } from '../hooks/useWallet';
 import { DEMO_OWNER } from '../lib/chain';
@@ -15,6 +16,8 @@ interface YouTabProps {
   activeMandate: string;
   /** Live wallet state, so these rows follow a passkey being made. */
   wallet: WalletStatus;
+  /** The key itself, so the vault can actually move value. */
+  keypair: Keypair | null;
 }
 
 export const YouTab: React.FC<YouTabProps> = ({
@@ -22,6 +25,7 @@ export const YouTab: React.FC<YouTabProps> = ({
   onOpenOnboarding,
   activeMandate,
   wallet,
+  keypair,
 }) => {
   const [vibrationEnabled, setVibrationEnabled] = useState<boolean>(() => tactile.isVibrationEnabled());
   const [testPulseNotice, setTestPulseNotice] = useState<string | null>(null);
@@ -87,7 +91,10 @@ export const YouTab: React.FC<YouTabProps> = ({
       </div>
 
       {/* Security & Enclave Card */}
-      <VaultKey address={wallet.status === 'ready' ? wallet.address : null} />
+      <VaultKey
+        address={wallet.status === 'ready' ? wallet.address : null}
+        keypair={keypair}
+      />
 
       <WalletState wallet={wallet} fallbackOwner={DEMO_OWNER} />
 

@@ -204,6 +204,7 @@ export default function App() {
               onOpenOnboarding={() => setIsOnboardingOpen(true)}
               activeMandate={mandateSentence}
               wallet={wallet.state}
+              keypair={wallet.keypair}
             />
           )}
         </main>

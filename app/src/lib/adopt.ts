@@ -27,6 +27,19 @@ const PROGRAM_ID = new PublicKey('2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL')
 const MANDATE_SEED = new TextEncoder().encode('mandate');
 const D_ADOPT = new Uint8Array([210, 106, 122, 112, 155, 35, 71, 36]);
 const D_CREATE = new Uint8Array([230, 170, 158, 68, 33, 169, 16, 158]);
+const D_OPEN_VAULT = new Uint8Array([181, 248, 228, 67, 6, 175, 37, 167]);
+const D_DEPOSIT = new Uint8Array([242, 35, 198, 137, 82, 225, 242, 182]);
+const D_WITHDRAW = new Uint8Array([183, 18, 70, 156, 148, 109, 161, 34]);
+const VAULT_SEED = new TextEncoder().encode('vault');
+
+const u64le = (n: bigint) => {
+  const b = new Uint8Array(8);
+  new DataView(b.buffer).setBigUint64(0, n, true);
+  return b;
+};
+
+export const vaultPda = (owner: PublicKey) =>
+  PublicKey.findProgramAddressSync([VAULT_SEED, owner.toBuffer()], PROGRAM_ID)[0];
 
 const u16le = (n: number) => {
   const b = new Uint8Array(2);
@@ -146,7 +159,7 @@ export async function adoptMandate(
   parent: PublicKey,
   text: string,
 ): Promise<AdoptResult> {
-  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), intent: 'mandate' });
   if (prep.error) throw new Error(prep.error);
 
   const child = mandatePda(owner.publicKey);
@@ -205,7 +218,7 @@ export async function createMandate(
   text: string,
   compiled: Compiled,
 ): Promise<AdoptResult> {
-  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), intent: 'mandate' });
   if (prep.error) throw new Error(prep.error);
 
   const mandate = mandatePda(owner.publicKey);
@@ -252,6 +265,137 @@ export async function createMandate(
     sponsored: !!sent.sponsored,
     child: mandate.toBase58(),
   };
+}
+
+/**
+ * Moving value, which the program has always been able to do and the app never
+ * offered.
+ *
+ * A vault that can be paid into and never out of is not a vault, and the
+ * reason to have one at all is that an agent trading inside your sentence
+ * eventually makes something you want to take home. `withdraw` is owner only
+ * in the program, which is the guarantee: the agent has no path to this at
+ * any point, expired grant or not.
+ *
+ * Opening happens on the first deposit rather than as a separate chore, since
+ * a vault with nothing in it is not a thing anybody wanted for its own sake.
+ */
+export type VaultAction = 'deposit' | 'withdraw';
+
+export async function moveVault(
+  owner: Keypair,
+  action: VaultAction,
+  lamports: bigint,
+  opts: { needsOpen: boolean },
+): Promise<AdoptResult> {
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+  if (prep.error) throw new Error(prep.error);
+
+  const vault = vaultPda(owner.publicKey);
+  const mandate = mandatePda(owner.publicKey);
+  const tx = new Transaction();
+  if (prep.needsTopUp) {
+    tx.add(SystemProgram.transfer({
+      fromPubkey: new PublicKey(prep.faucet),
+      toPubkey: owner.publicKey,
+      lamports: prep.topUpLamports,
+    }));
+  }
+
+  if (action === 'deposit' && opts.needsOpen) {
+    tx.add(new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+        { pubkey: mandate, isSigner: false, isWritable: false },
+        { pubkey: vault, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data: D_OPEN_VAULT as unknown as Buffer,
+    }));
+  }
+
+  tx.add(action === 'deposit'
+    ? new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+          { pubkey: vault, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: concat(D_DEPOSIT, u64le(lamports)) as unknown as Buffer,
+      })
+    : new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+          { pubkey: vault, isSigner: false, isWritable: true },
+        ],
+        data: concat(D_WITHDRAW, u64le(lamports)) as unknown as Buffer,
+      }));
+
+  tx.feePayer = new PublicKey(prep.feePayer);
+  tx.recentBlockhash = prep.blockhash;
+  tx.partialSign(owner);
+
+  const sent = await post({
+    phase: 'send',
+    tx: toBase64(new Uint8Array(tx.serialize({ requireAllSignatures: false }))),
+  });
+  if (sent.error) throw new Error(readable(sent.error));
+  return { signature: sent.signature, explorer: sent.explorer, sponsored: !!sent.sponsored, child: vault.toBase58() };
+}
+
+/**
+ * Send from the key itself, which is the other half of getting value out.
+ *
+ * This is a plain system transfer signed by the person whose money it is. The
+ * relay will pass it precisely because they signed it and the demo faucet is
+ * not party to it.
+ */
+export async function sendFromKey(
+  owner: Keypair,
+  to: PublicKey,
+  lamports: bigint,
+): Promise<AdoptResult> {
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+  if (prep.error) throw new Error(prep.error);
+
+  const tx = new Transaction();
+  tx.add(SystemProgram.transfer({
+    fromPubkey: owner.publicKey, toPubkey: to, lamports: Number(lamports),
+  }));
+  tx.feePayer = owner.publicKey;
+  tx.recentBlockhash = prep.blockhash;
+  tx.partialSign(owner);
+
+  const sent = await post({
+    phase: 'send',
+    tx: toBase64(new Uint8Array(tx.serialize({ requireAllSignatures: false }))),
+  });
+  if (sent.error) throw new Error(readable(sent.error));
+  return { signature: sent.signature, explorer: sent.explorer, sponsored: false, child: to.toBase58() };
+}
+
+/**
+ * Chain errors, said in words.
+ *
+ * The one that will actually happen: Solana will not let an account exist
+ * holding less than it costs to store, so a small first payment to a fresh
+ * address fails with a sentence about rent that means nothing to the person
+ * who typed the amount.
+ */
+function readable(msg: string): string {
+  if (/insufficient funds for rent/i.test(msg)) {
+    return 'Too small for a new address. Solana will not keep an account holding less than about 0.0009 SOL, so send at least that, or send to an address that already exists.';
+  }
+  if (/insufficient lamports|debit an account but found no record/i.test(msg)) {
+    return 'Not enough in the key to cover that and the fee.';
+  }
+  if (/blockhash not found/i.test(msg)) {
+    return 'That took too long to sign and the network moved on. Try it again.';
+  }
+  return msg;
 }
 
 /** Whether this key already speaks for a sentence. One owner, one mandate. */

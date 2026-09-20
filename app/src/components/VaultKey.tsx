@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import type { PublicKey } from '@solana/web3.js';
+import { PublicKey, type Keypair } from '@solana/web3.js';
 import { connection } from '../lib/chain';
 import { tactile } from '../utils/haptics';
+import { moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
 
 /**
  * The key, its balance, and how to put something in it.
@@ -11,27 +12,40 @@ import { tactile } from '../utils/haptics';
  * address of is not a wallet, it is a secret the app is keeping from the
  * person it belongs to.
  *
- * Receive only. Sending from here is not offered because nothing in this
- * product moves value out of a vault toward anybody, and a send box would
- * suggest otherwise.
+ * It moves value too. A vault that can be paid into and never out of is not a
+ * vault, and the reason to have one is that an agent trading inside your
+ * sentence eventually makes something you want to take home. Withdraw is owner
+ * only in the program, which is the actual guarantee: the agent has no path to
+ * it at any point, live grant or not.
  */
-export const VaultKey: React.FC<{ address: PublicKey | null }> = ({ address }) => {
+export const VaultKey: React.FC<{ address: PublicKey | null; keypair: Keypair | null }> = ({
+  address, keypair,
+}) => {
   const [lamports, setLamports] = useState<number | null>(null);
+  const [vaultLamports, setVaultLamports] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<{ ok: boolean; text: string; url?: string } | null>(null);
+  const [amount, setAmount] = useState('0.05');
+  const [to, setTo] = useState('');
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     if (!address) { setLamports(null); return; }
     let live = true;
-    const read = () =>
+    const vault = vaultPda(address);
+    const read = () => {
       connection.getBalance(address)
-        .then((b) => { if (live) setLamports(b); })
-        .catch(() => {});
+        .then((b) => { if (live) setLamports(b); }).catch(() => {});
+      connection.getAccountInfo(vault)
+        .then((a) => { if (live) setVaultLamports(a ? a.lamports : null); }).catch(() => {});
+    };
     read();
     // Slow on purpose. A balance that updates every second is a balance being
     // watched, and the proxy behind it is not a subscription.
     const t = setInterval(read, 20_000);
     return () => { live = false; clearInterval(t); };
-  }, [address]);
+  }, [address, nonce]);
 
   if (!address) {
     return (
@@ -46,6 +60,41 @@ export const VaultKey: React.FC<{ address: PublicKey | null }> = ({ address }) =
 
   const b58 = address.toBase58();
   const sol = lamports === null ? null : lamports / 1e9;
+  const vaultSol = vaultLamports === null ? null : vaultLamports / 1e9;
+
+  const run = async (label: string, fn: () => Promise<{ explorer: string }>) => {
+    if (!keypair) return;
+    tactile.mandateAction();
+    setBusy(label);
+    setNote(null);
+    try {
+      const r = await fn();
+      setNote({ ok: true, text: `${label} sent.`, url: r.explorer });
+      setTimeout(() => setNonce((n) => n + 1), 3500);
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const lamportsFromInput = () => {
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) throw new Error('That is not an amount.');
+    return BigInt(Math.round(n * 1e9));
+  };
+
+  const move = (action: VaultAction) =>
+    run(action === 'deposit' ? 'Deposit' : 'Withdrawal', async () =>
+      moveVault(keypair!, action, lamportsFromInput(), { needsOpen: vaultLamports === null }));
+
+  const send = () =>
+    run('Send', async () => {
+      let dest: PublicKey;
+      try { dest = new PublicKey(to.trim()); }
+      catch { throw new Error('That is not a Solana address.'); }
+      return sendFromKey(keypair!, dest, lamportsFromInput());
+    });
 
   const copy = async () => {
     try {
@@ -86,9 +135,67 @@ export const VaultKey: React.FC<{ address: PublicKey | null }> = ({ address }) =
         </p>
       )}
 
+      <div className="vault-key-row">
+        <span className="vault-key-label">Your vault</span>
+        <span className="vault-key-balance">
+          {vaultSol === null ? 'not open yet' : `${vaultSol.toFixed(4)} SOL`}
+        </span>
+      </div>
+
+      <div className="vault-actions">
+        <label className="vault-field">
+          <span>Amount</span>
+          <input
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            aria-label="Amount in SOL"
+          />
+          <span className="unit">SOL</span>
+        </label>
+        <div className="vault-buttons">
+          <button type="button" className="mesh-chip" disabled={!keypair || !!busy}
+            onClick={() => move('deposit')}>
+            {busy === 'Deposit' ? 'Signing…' : vaultLamports === null ? 'Open and deposit' : 'Deposit'}
+          </button>
+          <button type="button" className="mesh-chip" disabled={!keypair || !!busy || vaultLamports === null}
+            onClick={() => move('withdraw')}>
+            {busy === 'Withdrawal' ? 'Signing…' : 'Withdraw'}
+          </button>
+        </div>
+        <label className="vault-field">
+          <span>Send to</span>
+          <input
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="a Solana address"
+            aria-label="Destination address"
+          />
+        </label>
+        <div className="vault-buttons">
+          <button type="button" className="mesh-chip" disabled={!keypair || !!busy || !to.trim()}
+            onClick={send}>
+            {busy === 'Send' ? 'Signing…' : 'Send from your key'}
+          </button>
+        </div>
+      </div>
+
+      {note && (
+        <p className={`text-[11px] leading-[1.6] ${note.ok ? 'text-[var(--text-secondary)]' : 'text-[var(--refused-rust)]'}`}>
+          {note.text}{' '}
+          {note.url && (
+            <a href={note.url} target="_blank" rel="noreferrer noopener"
+               className="text-[var(--verdigris)] underline underline-offset-2">
+              check the transaction
+            </a>
+          )}
+        </p>
+      )}
+
       <p className="text-[10.5px] leading-[1.6] text-[var(--text-tertiary)]">
-        Receive only. Nothing in this product moves value out of a vault toward
-        an agent, an owner or us, so there is no send here to imply otherwise.
+        Withdrawing is owner only in the program. An agent cannot reach this
+        whatever its grant says, which is the part that matters rather than the
+        button being here.
       </p>
     </div>
   );
