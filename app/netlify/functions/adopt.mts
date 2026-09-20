@@ -24,8 +24,9 @@ import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@sol
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const MANDATE_SEED = Buffer.from("mandate");
 
-/** `adopt_mandate`, off the deployed IDL. */
+/** Off the deployed IDL. These are the only two this relay will ever sign. */
 const D_ADOPT = Buffer.from([210, 106, 122, 112, 155, 35, 71, 36]);
+const D_CREATE = Buffer.from([230, 170, 158, 68, 33, 169, 16, 158]);
 
 /** Rent for a Mandate plus a little for fees, which is what a top up covers. */
 const TOP_UP_LAMPORTS = 12_000_000;
@@ -61,9 +62,11 @@ export default async (req: Request) => {
       connection.getAccountInfo(mandatePda(owner)),
       connection.getLatestBlockhash("confirmed"),
     ]);
+    // Writing a first sentence needs the account free. Adopting needs the same
+    // thing, because an adopted sentence lands in exactly that account.
     if (existing) {
       return json({
-        error: "This key already has a mandate. One sentence per owner, which is the point of it.",
+        error: "This key already speaks for a sentence. One owner, one mandate, which is the point of it.",
         already: true,
       });
     }
@@ -91,8 +94,9 @@ export default async (req: Request) => {
     let sawAdopt = 0, sawTransfer = 0;
     for (const ix of tx.instructions) {
       if (ix.programId.equals(PROGRAM_ID)) {
-        if (!ix.data.subarray(0, 8).equals(D_ADOPT)) {
-          return json({ error: "that is not an adopt" }, 400);
+        const d = ix.data.subarray(0, 8);
+        if (!d.equals(D_ADOPT) && !d.equals(D_CREATE)) {
+          return json({ error: "that is not a mandate instruction" }, 400);
         }
         sawAdopt++;
         continue;
@@ -111,7 +115,7 @@ export default async (req: Request) => {
       return json({ error: "unexpected program in the transaction" }, 400);
     }
     if (sawAdopt !== 1 || sawTransfer > 1) {
-      return json({ error: "the transaction is not shaped like an adopt" }, 400);
+      return json({ error: "the transaction is not shaped like a mandate write" }, 400);
     }
 
     // Sign only if we are actually party to it.

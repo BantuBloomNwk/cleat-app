@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tactile } from '../utils/haptics';
+import { compileSentence, createMandate } from '../lib/adopt';
 import { useWallet } from '../hooks/useWallet';
 import { hasWallet } from '../lib/passkey';
 import emblemDark from '../assets/emblem-dark.png';
@@ -12,6 +13,8 @@ interface OnboardingModalProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onSealMandate: (sentence: string) => void;
+  /** Fired only when a sentence actually reached the chain. */
+  onSealed?: (r: { signature: string; explorer: string; sponsored: boolean }) => void;
   initialSentence: string;
 }
 
@@ -21,6 +24,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   theme,
   onToggleTheme,
   onSealMandate,
+  onSealed,
   initialSentence,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -62,12 +66,49 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     return existed ? 'Unlock with Face ID' : 'Create with Face ID';
   })();
 
-  const handleSeal = () => {
+  /* What the sentence turns into, recomputed as it is typed, so the caps on
+     screen are the caps that will be written rather than three fixed chips
+     that never corresponded to anything. */
+  const compiled = React.useMemo(() => compileSentence(mandateText), [mandateText]);
+  const [sealing, setSealing] = useState(false);
+  const [sealError, setSealError] = useState<string | null>(null);
+
+  /**
+   * Seal used to set a string in React state and close.
+   *
+   * The button said "Seal Mandate on Solana" and nothing went to Solana. It
+   * writes the mandate to an account under the person's own key now, which
+   * means the passkey is asked to sign, which is the first time in this app
+   * that a key belonging to the person has ever been used for anything.
+   */
+  const handleSeal = async () => {
+    const text = mandateText.trim();
+    if (!text) return;
     tactile.mandateAction();
-    if (mandateText.trim()) {
-      onSealMandate(mandateText.trim());
+    setSealError(null);
+
+    // No key, no signature. Fall back to the old local behaviour rather than
+    // blocking somebody who skipped the passkey step.
+    if (!wallet.keypair) {
+      onSealMandate(text);
+      onClose();
+      return;
     }
-    onClose();
+
+    setSealing(true);
+    try {
+      const r = await createMandate(wallet.keypair, text, compiled);
+      onSealMandate(text);
+      onSealed?.(r);
+      onClose();
+    } catch (e) {
+      const m = (e as Error).message;
+      // Already having one is not a failure, it is the rule working.
+      if (/already speaks/i.test(m)) { onSealMandate(text); onClose(); return; }
+      setSealError(m);
+    } finally {
+      setSealing(false);
+    }
   };
 
   return createPortal(
@@ -282,7 +323,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   and the key it binds to should be on screen together. */}
               {wallet.state.status === 'ready' && (
                 <p className="font-mono text-[10px] text-[var(--verdigris)] mt-1.5 break-all">
-                  Sealing to {wallet.state.address.toBase58().slice(0, 8)}…
+                  Writing to {wallet.state.address.toBase58().slice(0, 8)}…
                   {wallet.state.address.toBase58().slice(-6)}
                 </p>
               )}
@@ -298,17 +339,37 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               />
             </div>
             <div className="live-caps-row mt-2.5">
-              <span className="live-cap-chip whitespace-nowrap">15% Max Single Name</span>
-              <span className="live-cap-chip whitespace-nowrap">Fossil Fuels: 0%</span>
-              <span className="live-cap-chip whitespace-nowrap">Risk Band: Moderate</span>
+              <span className="live-cap-chip whitespace-nowrap">
+                {(compiled.maxPositionBps / 100).toFixed(0)}% max single name
+              </span>
+              <span className="live-cap-chip whitespace-nowrap">
+                {(compiled.maxTradeBps / 100).toFixed(0)}% one trade
+              </span>
+              <span className="live-cap-chip whitespace-nowrap">
+                {compiled.denied.length} ruled out by name
+              </span>
             </div>
+            <p className="text-[10.5px] leading-[1.6] text-[var(--text-tertiary)] mt-1.5">
+              What it compiles to: {compiled.notes.join(', ')}. The program cannot
+              read English, so this is the part it enforces.
+            </p>
+            {sealError && (
+              <p className="text-[11px] text-[var(--refused-rust)] mt-1.5">{sealError}</p>
+            )}
             <button
               id="btn-seal-onboarding-mandate"
               type="button"
               className="btn-inject w-full rounded-2xl p-3.5 mt-3.5 justify-center whitespace-nowrap"
               onClick={handleSeal}
+              disabled={sealing || !mandateText.trim()}
             >
-              <span>Seal Mandate on Solana</span>
+              <span>
+                {sealing
+                  ? 'Signing and sending…'
+                  : wallet.keypair
+                    ? 'Write it on chain'
+                    : 'Write it down'}
+              </span>
               <svg className="w-4 h-4 stroke-[2.2] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>

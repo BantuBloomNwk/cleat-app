@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
+import { VaultKey } from './VaultKey';
 import { AgentSpend } from './AgentSpend';
 import type { WalletState as WalletStatus } from '../hooks/useWallet';
 import { DEMO_OWNER } from '../lib/chain';
@@ -86,6 +87,8 @@ export const YouTab: React.FC<YouTabProps> = ({
       </div>
 
       {/* Security & Enclave Card */}
+      <VaultKey address={wallet.status === 'ready' ? wallet.address : null} />
+
       <WalletState wallet={wallet} fallbackOwner={DEMO_OWNER} />
 
       <AgentSpend owner={wallet.status === 'ready' ? wallet.address : DEMO_OWNER} />

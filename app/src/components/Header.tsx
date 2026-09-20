@@ -47,10 +47,14 @@ const SEAL_COPY: Record<
     title: 'A delegation is in flight. Nothing is sealed until it lands.',
   },
   open: {
-    label: 'OPEN',
-    color: 'var(--refused-rust)',
+    // This is about the vault being delegated to the rollup, not about whether
+    // a mandate exists. Both used to be called sealing, so writing a sentence
+    // and then seeing a red OPEN read as a contradiction when it was two
+    // different facts about two different accounts.
+    label: 'NOT DELEGATED',
+    color: 'var(--text-tertiary)',
     title:
-      'Nothing is sealed. The vault is still owned by the program on the main chain, which is what an unsealed vault looks like from here.',
+      'The vault has not been delegated to the attested rollup, so it is still owned by the program on the main chain. Nothing to do with whether a mandate is written.',
   },
 };
 
