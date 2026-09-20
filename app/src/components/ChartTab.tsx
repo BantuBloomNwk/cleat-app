@@ -4,7 +4,8 @@ import { CrossIssuer } from './CrossIssuer';
 import { PreIpo } from './PreIpo';
 import { Watching } from './Watching';
 import { DataOrigin } from './DataOrigin';
-import { useTilt3D } from '../utils/useTilt3D';
+import { VerdictMesh } from './VerdictMesh';
+import { loadAllVerdicts, type PlacedVerdict } from '../lib/chain';
 import { symbolTicker, loadTickers, loadDepth, bookQuality } from '../lib/backpack';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
@@ -65,7 +66,17 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   // chart somebody can read a price off. A featured instrument a trader
   // cannot analyse is a featured instrument in name only.
   const [instrument, setInstrument] = useState('TSLA.US_USDC');
-  const tilt = useTilt3D(is3DActive);
+
+  // Every decision on the program, fetched the first time somebody asks for
+  // the geometry rather than on load. It is one scan, and most visits never
+  // open this view.
+  const [verdicts, setVerdicts] = useState<PlacedVerdict[] | null>(null);
+  useEffect(() => {
+    if (!is3DActive || verdicts !== null) return;
+    let live = true;
+    loadAllVerdicts().then((rows) => { if (live) setVerdicts(rows); });
+    return () => { live = false; };
+  }, [is3DActive, verdicts]);
 
   // What the venue's own book says about the selected name, so the
   // comparison against the other issuers is complete rather than missing
@@ -253,8 +264,10 @@ export const ChartTab: React.FC<ChartTabProps> = ({
       <div className="section-row-header">
         <h2 className="section-heading text-[16px] font-bold">Protection Geometry</h2>
         <span className="flex items-center gap-2">
-          <span className="section-hint text-[11px]">Live price, sample refusals</span>
-          <DataOrigin origin="venue" />
+          <span className="section-hint text-[11px]">
+            {is3DActive ? 'Every decision on the program' : 'Live price, sample refusals'}
+          </span>
+          <DataOrigin origin={is3DActive ? 'chain' : 'venue'} />
         </span>
       </div>
 
@@ -270,9 +283,9 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               type="button"
               className={`mode-switch-pill ${is3DActive ? 'active border-[var(--ember)] text-[var(--ember)]' : ''}`}
               onClick={() => setIs3DActive(!is3DActive)}
-              title="Toggle 3D View"
+              title={is3DActive ? 'Back to the price' : 'Draw the geometry of every decision'}
             >
-              <span>3D Mesh</span>
+              <span>{is3DActive ? 'Price' : 'Geometry'}</span>
             </button>
             <span className="immutable-chip" id="refusalsCountChip">
               {currentConfig.refusalsCountText}
@@ -296,32 +309,27 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           ))}
         </div>
 
-        {/* The plot, and in 3D mode something you can actually turn.
-            The scrubbing gestures stay with the svg, marked data-no-tilt,
-            so reading a day and turning the panel do not fight. */}
+        {/* The price, or the geometry of what the sentence decided. Only one at
+            a time: they answer different questions and stacking them was how
+            the old version ended up turning a sample. The canvas owns its own
+            gesture, so there is one drag here rather than two that disagree. */}
         <div
-          ref={tilt.ref}
           id="chartWrapper3D"
-          className={`chart-wrapper-3d ${is3DActive ? 'perspective-active' : ''} ${
-            tilt.isDragging ? 'is-turning' : ''
-          }`}
-          role={is3DActive ? 'application' : undefined}
-          aria-label={is3DActive ? 'Three dimensional chart. Drag or use the arrow keys to turn it, Escape to reset.' : undefined}
-          tabIndex={is3DActive ? 0 : undefined}
-          onPointerDown={tilt.onPointerDown}
-          onPointerMove={tilt.onPointerMove}
-          onPointerUp={tilt.onPointerUp}
-          onPointerCancel={tilt.onPointerUp}
-          onKeyDown={tilt.onKeyDown}
-          onDoubleClick={tilt.reset}
+          className={`chart-wrapper-3d ${is3DActive ? 'showing-geometry' : ''}`}
         >
-          {is3DActive && (
-            <div className="tilt-hint" aria-hidden="true">
-              drag to turn · double tap to reset
-            </div>
-          )}
+          {is3DActive ? (
+            // The geometry replaces the price rather than tilting it. Turning a
+            // flat chart was a picture of a space; this is one, and everything
+            // standing in it is a decision that exists on devnet.
+            <VerdictMesh
+              active={is3DActive}
+              verdicts={verdicts ?? []}
+              ceilingBps={1500}
+            />
+          ) : null}
           <svg
             ref={svgRef}
+            hidden={is3DActive}
             id="chartSvgBox"
             data-no-tilt
             aria-label="Interactive simulated wave price chart"

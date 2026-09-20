@@ -16,6 +16,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * Bounded on the X axis because past about fifty degrees the plot is edge
  * on and unreadable, and unbounded on Y because turning all the way round
  * is the natural thing to try and there is no reason to stop it.
+ *
+ * The same gesture drives the WebGL mesh. It has to be this hook rather than
+ * its own handlers, or the card ends up with two drags that disagree about
+ * where they are pointing. `onTilt` gets the angles every frame; pass
+ * `cssTransform: false` when the consumer paints them itself.
  */
 export interface Tilt {
   x: number;
@@ -26,7 +31,17 @@ const MAX_X = 52;
 const FRICTION = 0.94;
 const REST = 0.02;
 
-export function useTilt3D(enabled: boolean) {
+export interface TiltOptions {
+  /** Called with the current angles on every frame that changes them. */
+  onTilt?: (t: Tilt) => void;
+  /** Write a CSS transform to the ref. Off when a renderer owns the camera. */
+  cssTransform?: boolean;
+}
+
+export function useTilt3D(enabled: boolean, opts: TiltOptions = {}) {
+  const { onTilt, cssTransform = true } = opts;
+  const emit = useRef(onTilt);
+  emit.current = onTilt;
   const ref = useRef<HTMLDivElement | null>(null);
   const tilt = useRef<Tilt>({ x: 0, y: 0 });
   const velocity = useRef<Tilt>({ x: 0, y: 0 });
@@ -40,9 +55,10 @@ export function useTilt3D(enabled: boolean) {
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   const paint = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
     const { x, y } = tilt.current;
+    emit.current?.({ x, y });
+    const el = ref.current;
+    if (!el || !cssTransform) return;
     el.style.transform = enabled
       ? `perspective(900px) rotateX(${x.toFixed(2)}deg) rotateY(${y.toFixed(2)}deg)`
       : '';
@@ -51,7 +67,7 @@ export function useTilt3D(enabled: boolean) {
     // meant to sit behind the price, the more it lags.
     const lean = Math.abs(x) + Math.abs(y % 360);
     el.style.setProperty('--tilt-depth', String(Math.min(lean / 60, 1)));
-  }, [enabled]);
+  }, [enabled, cssTransform]);
 
   const settle = useCallback(() => {
     const v = velocity.current;

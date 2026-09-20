@@ -743,6 +743,51 @@ export const MIN_DECISIONS_TO_RANK = 4;
  * different states and hiding the difference is how a leaderboard starts
  * lying.
  */
+/** One decision, with enough about it to place it in space. */
+export interface PlacedVerdict extends Verdict {
+  owner: string;
+  logAddress: string;
+}
+
+/**
+ * Every decision the program has ever recorded, across every log.
+ *
+ * One log holds sixteen. The ring wraps, so asking a single vault for more
+ * history gets you nothing and asking it to make more history destroys what it
+ * has. Breadth is the only axis that grows: eleven logs, and each new mandate
+ * somebody writes adds another.
+ *
+ * Same fenced scan as the standings, one request, no indexer.
+ */
+export async function loadAllVerdicts(): Promise<PlacedVerdict[]> {
+  try {
+    const res = await (connection as any)._rpcRequest("getProgramAccounts", [
+      PROGRAM_ID.toBase58(),
+      {
+        encoding: "base64",
+        filters: [
+          { memcmp: { offset: 0, bytes: VERDICT_LOG_DISCRIMINATOR_B58 } },
+        ],
+      },
+    ]);
+    const rows = res?.result ?? [];
+    const out: PlacedVerdict[] = [];
+    for (const r of rows) {
+      const raw = Uint8Array.from(atob(r.account.data[0]), (ch) => ch.charCodeAt(0));
+      const c = new Cursor(raw);
+      c.skip(8);
+      const owner = new PublicKey(c.slice(32)).toBase58();
+      for (const v of decodeVerdictLog(raw).entries) {
+        out.push({ ...v, owner, logAddress: r.pubkey });
+      }
+    }
+    // Oldest first, so time reads left to right.
+    return out.sort((a, b) => Number(a.slot - b.slot));
+  } catch {
+    return [];
+  }
+}
+
 export async function loadStandings(): Promise<StandingRow[]> {
   try {
     const res = await (connection as any)._rpcRequest("getProgramAccounts", [

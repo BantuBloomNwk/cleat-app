@@ -997,6 +997,80 @@ body {
   transform: perspective(700px) translateZ(0);
   transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease;
 }
+/* Showing the geometry rather than the price. The wrapper stops pretending to
+   be dimensional, because the thing inside it now genuinely is, and a CSS
+   perspective wrapped around a WebGL canvas would only skew the projection the
+   canvas already computed correctly. */
+.chart-wrapper-3d.showing-geometry {
+  background: radial-gradient(circle at 50% 0%, rgba(78, 194, 165, 0.1) 0%, transparent 72%);
+  box-shadow: 0 28px 56px -12px rgba(0, 0, 0, 0.55);
+  transform: none;
+  padding: 10px 6px 6px 6px;
+}
+
+/* THE VERDICT GEOMETRY */
+.verdict-mesh {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.verdict-mesh-canvas {
+  display: block;
+  width: 100%;
+  height: 230px;
+  border-radius: 12px;
+  cursor: grab;
+  /* The gesture is a drag in both axes, so the browser must not claim it for
+     scrolling first. */
+  touch-action: none;
+}
+.verdict-mesh-canvas:active { cursor: grabbing; }
+.verdict-mesh-canvas:focus-visible {
+  outline: 2px solid var(--verdigris);
+  outline-offset: 3px;
+}
+.verdict-mesh-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+.verdict-mesh-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.verdict-mesh-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.verdict-mesh-caption {
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.verdict-mesh-readout {
+  margin: 0 2px 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+}
+.verdict-mesh-empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 /* Turning is driven from javascript, which writes the transform straight
    onto the element, so this must not declare one of its own or it would
    fight every pointer move. It sets the room the turn happens in and the
