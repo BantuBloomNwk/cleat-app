@@ -158,6 +158,37 @@ export function useTilt3D(enabled: boolean, opts: TiltOptions = {}) {
     paint();
   }, [enabled, paint, maxX]);
 
+  /**
+   * Travel to an angle rather than jump to it.
+   *
+   * Snapping the camera to a useful viewpoint is only useful if you can see
+   * how you got there. An instant cut loses the relationship between the view
+   * you had and the view you asked for, which is the whole reason for offering
+   * the shortcut.
+   */
+  const to = useCallback((x: number, y: number, ms = 620) => {
+    velocity.current = { x: 0, y: 0 };
+    if (reduced) {
+      tilt.current = { x: clamp(x, maxX), y };
+      paint();
+      return;
+    }
+    const from = { ...tilt.current };
+    // Take the short way round. Turning 350 degrees to reach something ten
+    // degrees away is technically correct and looks broken.
+    let dy = y - from.y;
+    dy -= Math.round(dy / 360) * 360;
+    const start = performance.now();
+    const step = () => {
+      const t = Math.min(1, (performance.now() - start) / ms);
+      const e = 1 - Math.pow(1 - t, 3);
+      tilt.current = { x: clamp(from.x + (x - from.x) * e, maxX), y: from.y + dy * e };
+      paint();
+      if (t < 1 && !dragging.current) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [paint, maxX, reduced]);
+
   const reset = useCallback(() => {
     velocity.current = { x: 0, y: 0 };
     tilt.current = { x: 0, y: 0 };
@@ -180,5 +211,5 @@ export function useTilt3D(enabled: boolean, opts: TiltOptions = {}) {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
   }, []);
 
-  return { ref, isDragging, onPointerDown, onPointerMove, onPointerUp, onKeyDown, reset };
+  return { ref, isDragging, onPointerDown, onPointerMove, onPointerUp, onKeyDown, reset, to };
 }

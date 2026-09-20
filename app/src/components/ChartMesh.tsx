@@ -31,6 +31,18 @@ interface Props {
   markers: ChartMarker[];
   onPickMarker?: (m: ChartMarker) => void;
   selectedId?: string | null;
+  /** Turns a y in the chart's own coordinates into the price it stands for. */
+  priceAt?: (svgY: number) => number;
+}
+
+type Series = 'ceiling' | 'price' | 'floor';
+
+/** What the scrub found, in the chart's own units, not invented. */
+interface Scrub {
+  i: number;
+  price: number | null;
+  ceiling: number | null;
+  floor: number | null;
 }
 
 /* The viewBox the chart is authored in. */
@@ -487,12 +499,18 @@ function segmentsToRibbon(segs: Array<[number[], number[]]>, colour: RGB) {
 }
 
 export const ChartMesh: React.FC<Props> = ({
-  active, trajectoryPath, ceilingPath, floorPath, markers, onPickMarker, selectedId,
+  active, trajectoryPath, ceilingPath, floorPath, markers, onPickMarker, selectedId, priceAt,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [failed, setFailed] = useState(false);
   /** Flipped on one frame after mount, so the opacity transition has a start. */
   const [shown, setShown] = useState(false);
+  const [isolated, setIsolated] = useState<Series | null>(null);
+  const [scrub, setScrub] = useState<Scrub | null>(null);
+  const scrubRef = useRef<Scrub | null>(null);
+  scrubRef.current = scrub;
+  const isolatedRef = useRef<Series | null>(null);
+  isolatedRef.current = isolated;
   useEffect(() => {
     if (!active) { setShown(false); return; }
     const r = requestAnimationFrame(() => setShown(true));
@@ -514,6 +532,10 @@ export const ChartMesh: React.FC<Props> = ({
   }, []);
   const tilt = useTilt3D(active, { onTilt, cssTransform: false, maxX: 88 });
 
+  const curvesRef = useRef<{ price: Array<[number, number]>; ceiling: Array<[number, number]>; floor: Array<[number, number]> } | null>(null);
+  const priceAtRef = useRef(priceAt);
+  priceAtRef.current = priceAt;
+
   const curves = useMemo(() => {
     if (!active) return null;
     return {
@@ -522,6 +544,7 @@ export const ChartMesh: React.FC<Props> = ({
       floor: samplePath(floorPath ?? ''),
     };
   }, [active, trajectoryPath, ceilingPath, floorPath]);
+  curvesRef.current = curves;
 
   /** Where a press began, so a turn does not end in a selection. */
   const press = useRef<{ x: number; y: number; t: number; coarse: boolean } | null>(null);
@@ -564,11 +587,47 @@ export const ChartMesh: React.FC<Props> = ({
     tilt.onPointerDown(e);
   }, [tilt]);
 
+  /**
+   * Read the three curves at one moment in time.
+   *
+   * This is the interaction that is genuinely better here than flat. The
+   * ceiling, the price and the floor sit on separate planes precisely so they
+   * stop overlapping, and reading all three at the same instant is the
+   * question the separation exists to answer: where is the price relative to
+   * both of its boundaries right now.
+   *
+   * It snaps to a sample that already exists rather than interpolating one, so
+   * the number is a point on the curve and not something worked out about it.
+   */
+  const doScrub = useCallback((cx: number, cy: number) => {
+    const canvas = canvasRef.current;
+    const c = curvesRef.current;
+    if (!canvas || !c || c.price.length === 0) return;
+    const r = canvas.getBoundingClientRect();
+    const nx = ((cx - r.left) / r.width) * 2 - 1;
+    const ny = -(((cy - r.top) / r.height) * 2 - 1);
+    let bi = -1, bd = 0.22;
+    for (let i = 0; i < c.price.length; i++) {
+      const w = toWorld(c.price[i][0], c.price[i][1], Z.price);
+      const p = project(mvpRef.current, w[0], w[1], w[2]);
+      if (p.w <= 0) continue;
+      const d = Math.hypot(p.x - nx, p.y - ny);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    if (bi < 0) { setScrub(null); return; }
+    const at = (arr: Array<[number, number]>) =>
+      arr.length ? (priceAtRef.current?.(arr[Math.min(bi, arr.length - 1)][1]) ?? null) : null;
+    setScrub({ i: bi, price: at(c.price), ceiling: at(c.ceiling), floor: at(c.floor) });
+  }, []);
+
   const onMove = useCallback((e: React.PointerEvent) => {
     const p0 = press.current;
     if (p0 && Math.hypot(e.clientX - p0.x, e.clientY - p0.y) > 7) dragging.current = true;
     tilt.onPointerMove(e);
-  }, [tilt]);
+    // Hovering reads the curves. Dragging turns them. A finger can only do one
+    // at a time, so on touch the read happens on the tap instead.
+    if (!dragging.current && e.pointerType === 'mouse') doScrub(e.clientX, e.clientY);
+  }, [tilt, doScrub]);
 
   const onUp = useCallback((e: React.PointerEvent) => {
     const p0 = press.current;
@@ -576,8 +635,9 @@ export const ChartMesh: React.FC<Props> = ({
     press.current = null;
     if (!p0 || dragging.current) return;
     if (performance.now() - p0.t > 600) return;
+    if (p0.coarse) doScrub(e.clientX, e.clientY);
     pick(e.clientX, e.clientY, p0.coarse);
-  }, [tilt, pick]);
+  }, [tilt, pick, doScrub]);
 
   useEffect(() => {
     if (!active || !curves) return;
@@ -651,11 +711,11 @@ export const ChartMesh: React.FC<Props> = ({
       exposure: gl.getUniformLocation(compProg, 'uExposure'),
     } : null;
 
-    const verdigris = cssRgb('--verdigris', [0.31, 0.76, 0.65]);
-    const ember = cssRgb('--ember', [0.91, 0.55, 0.23]);
-    const rust = cssRgb('--refused-rust', [0.79, 0.31, 0.23]);
-    const amber = cssRgb('--trimmed-amber', [0.85, 0.65, 0.23]);
-    const dim = cssRgb('--text-tertiary', [0.45, 0.45, 0.44]);
+    const verdigris = cssRgb('--mesh-price', [0.31, 0.76, 0.65]);
+    const ember = cssRgb('--mesh-ember', [0.91, 0.55, 0.23]);
+    const rust = cssRgb('--mesh-rust', [0.79, 0.31, 0.23]);
+    const amber = cssRgb('--mesh-amber', [0.85, 0.65, 0.23]);
+    const dim = cssRgb('--mesh-haze', [0.45, 0.45, 0.44]);
 
     /* The price carries the same gradient the flat chart uses, so the eye
        recognises it as the same object rather than a second drawing. */
@@ -667,14 +727,14 @@ export const ChartMesh: React.FC<Props> = ({
                      : mix(ember, verdigris, (t - 0.8) / 0.2);
     });
 
-    const layers: Array<{ data: Float32Array; count: number; wide: number; core: number; alpha: number }> = [];
-    const addCurve = (pts: Array<[number, number]>, z: number, cols: RGB[], weight: number) => {
+    const layers: Array<{ data: Float32Array; count: number; wide: number; core: number; alpha: number; name: Series }> = [];
+    const addCurve = (name: Series, pts: Array<[number, number]>, z: number, cols: RGB[], weight: number) => {
       if (pts.length < 2) return;
-      layers.push({ data: ribbonBuffer(pts, z, cols), count: pts.length * 2, wide: weight * 7, core: weight, alpha: 1 });
+      layers.push({ name, data: ribbonBuffer(pts, z, cols), count: pts.length * 2, wide: weight * 7, core: weight, alpha: 1 });
     };
-    addCurve(curves.ceiling, Z.ceiling, curves.ceiling.map(() => rust), 0.0075);
-    addCurve(curves.floor, Z.floor, curves.floor.map(() => verdigris), 0.0068);
-    addCurve(curves.price, Z.price, priceColours, 0.0125);
+    addCurve('ceiling', curves.ceiling, Z.ceiling, curves.ceiling.map(() => rust), 0.0075);
+    addCurve('floor', curves.floor, Z.floor, curves.floor.map(() => verdigris), 0.0068);
+    addCurve('price', curves.price, Z.price, priceColours, 0.0125);
 
     const vaos = layers.map((l) => {
       const vao = gl.createVertexArray()!;
@@ -761,7 +821,7 @@ export const ChartMesh: React.FC<Props> = ({
     const selBuf = gl.createBuffer()!;
     gl.bindVertexArray(selVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, selBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, selData, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, selData, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0);
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 12);
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 28, 24);
@@ -983,22 +1043,26 @@ export const ChartMesh: React.FC<Props> = ({
       gl.drawArrays(gl.TRIANGLES, 0, stemCount);
 
       // Each curve twice: a wide soft pass for the glow, a narrow bright core.
+      const solo = isolatedRef.current;
       for (const l of vaos) {
+        // Ghosted rather than hidden. A comparison needs the thing you are
+        // comparing against to still be somewhere on the screen.
+        const iso = !solo || solo === l.name ? 1 : 0.13;
         gl.bindVertexArray(l.vao);
         gl.uniform1f(uR.reveal, revealEased);
-        gl.uniform1f(uR.flow, flow);
+        gl.uniform1f(uR.flow, flow * (iso > 0.5 ? 1 : 0));
         // A third, very wide, very dim pass. Not real bloom, it still cannot
         // spread onto anything but itself, but it buys reach for one call.
         gl.uniform1f(uR.half, l.wide * 2.3);
-        gl.uniform1f(uR.alpha, 0.1);
+        gl.uniform1f(uR.alpha, 0.1 * iso);
         gl.uniform1f(uR.soft, 2.6);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, l.count);
         gl.uniform1f(uR.half, l.wide);
-        gl.uniform1f(uR.alpha, 0.42);
+        gl.uniform1f(uR.alpha, 0.42 * iso);
         gl.uniform1f(uR.soft, 1.7);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, l.count);
         gl.uniform1f(uR.half, l.core);
-        gl.uniform1f(uR.alpha, 0.95);
+        gl.uniform1f(uR.alpha, 0.95 * iso);
         gl.uniform1f(uR.soft, 0.5);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, l.count);
       }
@@ -1029,6 +1093,36 @@ export const ChartMesh: React.FC<Props> = ({
       gl.uniform1f(uP.pulse, reduced ? 1 : 1 + Math.sin(now / 420) * 0.06);
       gl.drawArrays(gl.POINTS, 0, markers.length);
 
+      // Where the scrub is reading, marked on all three curves at once.
+      const sc = scrubRef.current;
+      if (sc && ringProg && uRing && curves) {
+        const at: Array<[Array<[number, number]>, number, RGB]> = [
+          [curves.ceiling, Z.ceiling, rust],
+          [curves.price, Z.price, verdigris],
+          [curves.floor, Z.floor, verdigris],
+        ];
+        gl.useProgram(ringProg);
+        gl.uniformMatrix4fv(uRing.mvp, false, mvp);
+        gl.uniform1f(uRing.scale, dpr);
+        gl.uniform1f(uRing.pulse, 1);
+        gl.uniform1f(uRing.time, now / 1000);
+        gl.uniform1f(uRing.life, 0);
+        gl.uniform1f(uRing.tonemap, post ? 0 : 1);
+        gl.uniform1f(uRing.core, 0.62);
+        gl.uniform1f(uRing.gain, 1.1);
+        const buf = new Float32Array(7);
+        for (const [arr, z, col] of at) {
+          if (!arr.length) continue;
+          const pt = arr[Math.min(sc.i, arr.length - 1)];
+          const w = toWorld(pt[0], pt[1], z);
+          buf.set([w[0], w[1], w[2], col[0], col[1], col[2], 92]);
+          gl.bindVertexArray(selVao);
+          gl.bindBuffer(gl.ARRAY_BUFFER, selBuf);
+          gl.bufferSubData(gl.ARRAY_BUFFER, 0, buf);
+          gl.drawArrays(gl.POINTS, 0, 1);
+        }
+      }
+
       // The tap ring, while it is still travelling.
       const ringAge = (now - flowAt.current) / 700;
       if (sel && ringProg && uRing && ringAge >= 0 && ringAge < 1 && !reduced) {
@@ -1042,6 +1136,8 @@ export const ChartMesh: React.FC<Props> = ({
         gl.uniform1f(uRing.core, 0.15 + ringAge * 0.85);
         gl.uniform1f(uRing.gain, (1 - ringAge) * 1.6);
         gl.bindVertexArray(selVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, selBuf);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, selData);
         gl.drawArrays(gl.POINTS, 0, 1);
       }
       gl.bindVertexArray(null);
@@ -1165,6 +1261,73 @@ export const ChartMesh: React.FC<Props> = ({
       <div className="chart-mesh-hint" aria-hidden="true">
         drag to turn · double tap to reset
       </div>
+
+      <div className="mesh-tools" role="group" aria-label="Read and compare">
+        {(['ceiling', 'price', 'floor'] as Series[]).map((k) => (
+          <button
+            key={k}
+            type="button"
+            className="mesh-chip"
+            aria-pressed={isolated === k}
+            onClick={() => setIsolated(isolated === k ? null : k)}
+            title={isolated === k ? 'Show all three again' : `Compare against ${k} alone`}
+          >
+            {k === 'ceiling' ? 'Ceiling' : k === 'price' ? 'Price' : 'Floor'}
+          </button>
+        ))}
+        <span className="spacer" />
+        {([
+          ['Front', 0, 0],
+          ['Side', 8, -68],
+          ['Above', 78, -18],
+        ] as Array<[string, number, number]>).map(([label, x, y]) => (
+          <button
+            key={label}
+            type="button"
+            className="mesh-chip"
+            onClick={() => tilt.to(x, y)}
+            title={`Turn to the ${label.toLowerCase()} view`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {scrub && (
+        <div className="mesh-readout" role="status">
+          <div className="row">
+            <span>Reading all three at one moment</span>
+            <button
+              type="button"
+              className="text-[var(--text-tertiary)] underline underline-offset-2"
+              onClick={() => setScrub(null)}
+            >
+              clear
+            </button>
+          </div>
+          {scrub.ceiling !== null && (
+            <div className="row">
+              <span>Ceiling</span><b>${scrub.ceiling.toFixed(2)}</b>
+            </div>
+          )}
+          {scrub.price !== null && (
+            <div className="row">
+              <span>Price</span><b>${scrub.price.toFixed(2)}</b>
+            </div>
+          )}
+          {scrub.floor !== null && (
+            <div className="row">
+              <span>Floor</span><b>${scrub.floor.toFixed(2)}</b>
+            </div>
+          )}
+          {scrub.price !== null && scrub.ceiling !== null && (
+            <div className="row">
+              <span>Room under the ceiling</span>
+              <b>${(scrub.ceiling - scrub.price).toFixed(2)}</b>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

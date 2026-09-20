@@ -118,6 +118,26 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   };
 
   const currentConfig = TIMEFRAME_CONFIGS[activeTimeframe] || TIMEFRAME_CONFIGS['30D'];
+
+  /**
+   * The chart's own y axis, read backwards.
+   *
+   * The turned view needs to say what a point on a curve is worth, and the
+   * only honest source for that is the same axis the flat chart prints down
+   * its left hand side. Two labelled levels give the scale; everything between
+   * them is the straight line they already imply.
+   */
+  const priceAt = React.useMemo(() => {
+    const lv = (currentConfig.priceLevels ?? [])
+      .map((l) => ({ y: l.y, v: parseFloat(String(l.label).replace(/[^0-9.]/g, '')) }))
+      .filter((l) => Number.isFinite(l.v))
+      .sort((a, b) => a.y - b.y);
+    if (lv.length < 2) return undefined;
+    const top = lv[0], bot = lv[lv.length - 1];
+    const span = bot.y - top.y;
+    if (span === 0) return undefined;
+    return (y: number) => top.v + ((y - top.y) / span) * (bot.v - top.v);
+  }, [currentConfig]);
   const activeMarkers = currentConfig.markers || [];
 
   const [selectedMarker, setSelectedMarker] = useState<ChartMarker>(activeMarkers[0] || null);
@@ -322,6 +342,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               ceilingPath={currentConfig.ceilingPath}
               floorPath={currentConfig.floorPath}
               markers={activeMarkers}
+              priceAt={priceAt}
               selectedId={selectedMarker?.id ?? null}
               onPickMarker={(m) => setSelectedMarker(m)}
             />

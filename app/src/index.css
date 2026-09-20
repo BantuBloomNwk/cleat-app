@@ -88,6 +88,28 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15)) !important;
 }
 
+/* The turned view keeps its own palette in both themes, and that is a
+   decision rather than an oversight.
+
+   The scene is additive: every curve adds light to what is behind it, which is
+   what makes crossings burn and a bloom spread. Adding light to a white page
+   does nothing, so a light mode version would have to be a different renderer
+   drawing dark lines with normal blending and no glow. It would not be the
+   same object. So the panel stays a dark stage in both themes, the way a
+   viewport or a telescope does, and in light mode it is given a border and a
+   deeper shadow so it reads as an inset instrument rather than a hole.
+
+   These are the dark palette's luminous values, pinned here so the mesh cannot
+   pick up the light theme's darker ink and disappear into its own background. */
+:root {
+  --mesh-ink: #07090b;
+  --mesh-price: #4ec2a5;
+  --mesh-ember: #e88d43;
+  --mesh-rust: #c9503a;
+  --mesh-amber: #d8a63a;
+  --mesh-haze: #a89f92;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -1057,7 +1079,13 @@ body {
   background:
     radial-gradient(ellipse 120% 70% at 50% 108%, rgba(78, 194, 165, 0.1), transparent 62%),
     radial-gradient(ellipse 90% 60% at 50% -10%, rgba(224, 122, 48, 0.07), transparent 60%),
-    #07090b;
+    var(--mesh-ink);
+}
+[data-theme="light"] .chart-mesh-canvas {
+  border: 1px solid rgba(12, 11, 10, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 28px -12px rgba(12, 11, 10, 0.45);
 }
 .chart-mesh-canvas:active { cursor: grabbing; }
 
@@ -1088,6 +1116,43 @@ body {
   pointer-events: none;
   opacity: 0.75;
 }
+.mesh-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 2px 0;
+}
+.mesh-chip {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface);
+  color: var(--text-secondary);
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+.mesh-chip[aria-pressed="true"] {
+  border-color: var(--verdigris);
+  color: var(--verdigris);
+}
+.mesh-tools .spacer { flex: 1 1 auto; }
+.mesh-readout {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+.mesh-readout b { color: var(--text-primary); font-weight: 700; }
+.mesh-readout .row { display: flex; justify-content: space-between; gap: 10px; }
+
 .chart-mesh-empty {
   padding: 28px 16px;
   text-align: center;
