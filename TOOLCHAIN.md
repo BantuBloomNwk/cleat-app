@@ -255,6 +255,98 @@ The MXE stays on 4500. Three nodes against 456's two, seven MXEs against
 devnet cluster Arcium's documentation names, which is worth knowing, but
 working beats documented.
 
+### And then 4500 stopped working, 2026-09-20
+
+Reversed. The MXE is back on 456. Recorded because the reversal is more useful
+than the original decision was.
+
+Five days after the move, every computation queued to 4500 sat in its execpool
+and was never executed. Three of them, across two different owners and two
+different scripts, one of which was the unchanged script that had produced
+verdicts on 15 September. Meanwhile `list-clusters` reported 4500 as 3/3 nodes
+active and its mempool as empty, which is exactly the trap named above. The
+nodes accept work and never finish it, and nothing on chain says so directly.
+
+**How to tell a serving cluster from a registered one, cheaply.** Not
+`test-cluster`, which does not work: it generates a temp project and deploys
+against `http://127.0.0.1:8899` whatever `--rpc-url` you hand it, so it fails on
+a local validator it never started and charges you a program deploy first. Read
+the chain instead, which costs nothing:
+
+1. `arcium execpool <cluster>`. Work sitting there is work nobody is doing. An
+   empty execpool on a busy cluster is the healthy shape.
+2. `getSignaturesForAddress` on the cluster account, then read the logs of the
+   recent ones. What you want to see is `Instruction: CallbackComputation`
+   succeeding, and ideally a second one failing right after it with
+   `AlreadyCallbackedComputation` (error 6204). That error is a good sign: it
+   means several nodes raced to deliver a finished result and one won. A cluster
+   producing 6204s is a cluster doing work.
+3. Only then migrate.
+
+On 456 those callbacks were landing about five seconds apart. On 4500 the
+cluster account had not been touched in 110 hours by anyone but us.
+
+**`migrate-cluster` back to 456 cost 0.09 SOL and took a few minutes.** It
+deploys a temporary MXE, waits for recovery peers to submit key shares, runs the
+recovery computation, swaps the cluster on the real MXE and closes the temporary
+program, refunding its rent. The recovered x25519 key was byte identical to the
+old one, which is the documented behaviour and means nothing encrypted to the
+MXE needs redoing.
+
+**What changes in the code on a cluster move.** Only three addresses: the
+mempool, the execpool and the cluster account. The MXE account, the comp def,
+the fee pool, the clock and the sign PDA are all derived from the program or are
+global, so they stay. `node scripts/gate-addresses.mjs <cluster>` prints the
+full set. The three places that hold them are
+`app/netlify/functions/gate.mts`, `scripts/gate-sandbox.mjs` and
+`scripts/gate-run.mjs`.
+
+### Publishing the IDL, which is chunked and lies about succeeding
+
+Anchor 1.x does not update the published IDL when you upgrade a program. It is
+a separate step, against a Program Metadata account (`ProgM6JCC…`) rather than
+the legacy `anchor:idl` PDA, and `anchor idl upgrade` can never work on a
+program that already has one because it tries to initialise what exists.
+
+**The payload is deterministic, so verify instead of believing.** What lands on
+chain is `zlib.compress(target/idl/cleat.json, level 6)` at **byte 96** of the
+account. So:
+
+    python3 -c "import zlib;open('/tmp/want','wb').write(zlib.compress(open('target/idl/cleat.json','rb').read(),6))"
+
+then fetch the account with `getAccountInfo`, take `raw[96:]` and compare byte
+for byte. **Do this every time.** Both of these tools print `[Success]` on writes
+that only partly landed.
+
+**Close and init is not reliable at this size.** It chunks straight into the
+live account and drops writes. Three attempts on 2026-09-20 left 8,773 to 9,740
+bytes of the 15,409 missing, all of them zero-filled holes, and raising the
+priority fee from 50,000 to 500,000 made no difference. It happened to work at
+14,360 bytes earlier the same day, which is the trap: it fails by size and by
+luck rather than by configuration.
+
+**Use the buffer route instead.** The chunking then happens into a buffer you
+can inspect and repair, and the swap into the live account is a single
+instruction:
+
+1. `program-metadata create-buffer target/idl/cleat.json --rpc <url> -k <keypair>`
+   The buffer address is in the output, not the last base58 string on the line,
+   which is the authority. `program-metadata list-buffers <authority>` is the
+   reliable way to find it.
+2. Verify the buffer the same way, at offset 96. Repair with
+   `program-metadata update-buffer <buffer> <file>` and verify again.
+3. `anchor idl write-buffer <program> -b <buffer> --close-buffer`
+4. Verify the metadata account, then `anchor idl fetch` as the outsider's check.
+
+That worked first time where close and init had failed three times.
+
+**The CLI underneath is already on disk** at
+`~/.npm/_npx/336f3017a2a5e128/node_modules/.bin/program-metadata` and exposes
+commands Anchor does not: `list-buffers`, `close-buffer`, `fetch-buffer`,
+`update-buffer` and `--export instruction-list`. Run `list-buffers` after any
+failed attempt; a failed run on 2026-09-20 turned up **five** orphaned buffers
+holding 0.074 SOL each, only two of which anyone knew about.
+
 ### What to take from this
 
 **An upload that reports success is not an upload that happened.** Anything
