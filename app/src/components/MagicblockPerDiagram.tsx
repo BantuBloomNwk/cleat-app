@@ -76,7 +76,7 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
       name: '2. The program decides',
       sub: 'Confidential State Enclave',
       latency: 'measured per run',
-      privacy: 'SEV-SNP Hardware Blinded',
+      privacy: 'Intel TDX, attested rollup',
       status: 'active',
       detail: 'Transaction routes into private ephemeral rollup. State transitions occur in blinded memory; public mempool and front-running searchers see nothing.',
       payload: 'Rollup: per-sol-instance-92 • State: Ephemeral Isolated State',

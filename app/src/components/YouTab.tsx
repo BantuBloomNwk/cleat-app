@@ -153,9 +153,12 @@ export const YouTab: React.FC<YouTabProps> = ({
         <div className="flex flex-col gap-2 font-mono text-[11px]">
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
             <span className="text-[var(--text-secondary)]">Hardware Enclave:</span>
-            <span className="text-[var(--verdigris)] font-bold flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--verdigris)] animate-pulse" />
-              Active (SEV-SNP)
+            {/* This browser is not an enclave and cannot attest that it is one.
+                The attested hardware is the rollup a sealed vault delegates to,
+                which is checkable on chain, unlike anything this tab could
+                claim about the machine it is running on. */}
+            <span className="text-[var(--text-tertiary)] font-bold">
+              Not this device
             </span>
           </div>
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">

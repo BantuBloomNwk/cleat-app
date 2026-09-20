@@ -45,7 +45,7 @@ const PERIOD_CONFIGS = {
     badge: '7-Day Rolling Audit',
     headingSuffix: 'weekly trade interventions (9 Refusals, 5 Trims)',
     description:
-      'Weekly macro enforcement summary: 14 rogue orders intercepted across volatile crude oil spikes and semiconductor rallies. $4,850 USDC shielded from single-stock risk ceiling breaches.',
+      'Weekly macro enforcement summary: 14 rogue orders intercepted across volatile crude oil spikes and semiconductor rallies. $4,850 USDC held back from single-stock risk ceiling breaches.',
     stats: [
       { label: '9 Refusals', value: '$3,820 USDC', type: 'refused' },
       { label: '5 Trims', value: '$1,030 Buffered', type: 'trimmed' },

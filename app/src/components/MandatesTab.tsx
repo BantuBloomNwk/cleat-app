@@ -5,7 +5,7 @@ import { CommunityMandate } from '../types';
 import type { Mandate, SectorExposure } from '../lib/chain';
 import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise';
 import {
-  loadPublishedMandates, loadStandings, MIN_DECISIONS_TO_RANK,
+  loadPublishedMandates, loadStandings, MIN_DECISIONS_TO_RANK, PROGRAM_ID,
   type PublishedMandate, type StandingRow,
 } from '../lib/chain';
 import { tactile } from '../utils/haptics';
@@ -72,49 +72,55 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
     }, 2000);
   };
 
+  // Everything in this file is read off the program before it is written out.
+  // An export that a judge cannot re-derive from devnet is worse than no
+  // export, so nothing here is computed from the sample exchange rows.
   const handleExportHistory = () => {
     tactile.mandateAction();
     setIsExporting(true);
 
     try {
       const exportPayload = {
-        protocol: 'Cleat Autonomous Agent Enforcer',
-        network: 'Solana Mainnet-Beta',
+        source: 'Cleat, read from Solana devnet',
+        cluster: 'devnet',
+        programId: PROGRAM_ID.toBase58(),
         exportTimestampUtc: new Date().toISOString(),
-        enforcerEngine: {
-          version: 'v2.4',
-          mpcVerification: 'Arcium Threshold MPC Cluster (Active)',
-          executionRollup: 'Magicblock Private Ephemeral Rollup (PER)',
-          complianceEngine: 'Plain English Predicate Circuit',
-        },
-        overallStatistics: {
-          totalCommunityMandates: mandates.length,
-          totalActiveEnforcers: mandates.reduce((sum, m) => sum + m.activeEnforcers, 0),
-          totalPeopleRunning: mandates.reduce((sum, m) => sum + m.peopleRunning, 0),
-          portfolioAdherenceRate: '99.8%',
-          zeroLeakageAttested: true,
-        },
-        mandatesHistory: mandates.map((m) => ({
-          id: m.id,
-          sentence: m.sentence,
-          author: m.author,
-          handle: m.handle,
-          origin: m.origin,
-          heldDays: m.heldDays,
+        howToVerify:
+          'Every field below came from one getProgramAccounts scan against the ' +
+          'program id above, filtered on the Mandate and VerdictLog account ' +
+          'discriminators. Re-run the same scan and you get the same rows.',
+        publishedMandates: published.map((m) => ({
+          address: m.address,
+          owner: m.owner,
+          sentence: m.text,
           version: m.version,
-          status: m.statusChip.label,
-          activeEnforcers: m.activeEnforcers,
-          refusalStatistics: {
-            preventedCatastrophicLossesCount: Math.floor(m.activeEnforcers * 0.42),
-            estimatedProtectedCapital: `$${(m.activeEnforcers * 18.5).toLocaleString()} USDC`,
-            primaryInterceptRules: [
-              'Fossil fuel sector restriction (0% allocation)',
-              'Single-name concentration ceiling (15.0%)',
-              'High-risk synthetic yield pool lockout',
-            ],
-            mpcValidationState: 'Verified On-Chain (SEV-SNP)',
-          },
+          halted: m.halted,
+          maxPositionBps: m.maxPositionBps,
+          maxTradeBps: m.maxTradeBps,
+          maxSpreadBps: m.maxSpreadBps,
+          deniedCount: m.deniedCount,
+          adoptedFrom: m.adoptedFrom,
+          adoptCount: m.adoptCount,
+          createdAtUnix: m.createdAt,
+          updatedAtUnix: m.updatedAt,
+          heldDays: m.heldDays,
         })),
+        standings: standings.map((r) => ({
+          owner: r.owner,
+          verdictLog: r.logAddress,
+          decisions: r.decisions,
+          askedBps: r.askedBps,
+          allowedBps: r.allowedBps,
+          heldBps: r.heldBps,
+          heldPct: r.heldPct,
+          cleared: r.cleared,
+          clamped: r.clamped,
+          refused: r.refused,
+        })),
+        notes: [
+          `Standings list logs with at least ${MIN_DECISIONS_TO_RANK} decisions. Below that the ratio does not mean anything yet.`,
+          'Holdings are not in this file because they are not in the computation. The log records what was asked for and what was allowed, never a position.',
+        ],
       };
 
       const jsonStr = JSON.stringify(exportPayload, null, 2);
@@ -123,20 +129,21 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
       const link = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       link.href = url;
-      link.download = `cleat-enforcer-mandates-history-${dateStr}.json`;
+      link.download = `cleat-devnet-mandates-${dateStr}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setExportNotice('JSON Log Exported');
+      const n = published.length;
+      setExportNotice(n > 0 ? `${n} on-chain` : 'Nothing on chain yet');
       setTimeout(() => {
         setIsExporting(false);
         setExportNotice(null);
       }, 2500);
     } catch {
       setIsExporting(false);
-      setExportNotice('Export complete');
+      setExportNotice('Export failed');
       setTimeout(() => setExportNotice(null), 2000);
     }
   };
@@ -157,8 +164,8 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
           type="button"
           onClick={handleExportHistory}
           disabled={isExporting}
-          title="Download cryptographically verifiable JSON log of applied mandates"
-          aria-label="Export Mandate History JSON"
+          title="Download the mandates and verdict logs read off devnet"
+          aria-label="Export on-chain mandates as JSON"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border)] hover:border-[var(--verdigris)] text-[11.5px] font-mono text-[var(--text-primary)] transition-all shadow-sm group active:scale-98"
         >
           {isExporting ? (

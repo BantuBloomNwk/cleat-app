@@ -210,7 +210,7 @@ Autonomous Raw Instruction: ${marker.rawPayload || 'Program: JUP6LkbZbjS1jKKwapd
               className="text-[9.5px] font-mono uppercase tracking-wider font-bold flex items-center gap-1"
               style={{ color: statusColor }}
             >
-              <TrendingDown size={11} /> Capital Shielded
+              <TrendingDown size={11} /> Capital held back
             </span>
             <span
               className="text-[12.5px] font-mono font-extrabold mt-1"
@@ -318,7 +318,7 @@ Autonomous Raw Instruction: ${marker.rawPayload || 'Program: JUP6LkbZbjS1jKKwapd
                   Magicblock PER &amp; Arcium MPC Enforcement
                 </span>
                 <span className="text-[11.5px] text-[var(--text-secondary)]">
-                  Simulated and halted inside Magicblock Private Ephemeral Rollup with Arcium confidential MPC threshold validation before Solana RPC broadcast. 100% shielded against front-running and MEV.
+                  Simulated and halted inside Magicblock Private Ephemeral Rollup with Arcium confidential MPC threshold validation before Solana RPC broadcast. Nothing reached the public mempool, so a front-runner never saw it.
                 </span>
               </div>
             </div>
