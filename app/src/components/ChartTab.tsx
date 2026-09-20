@@ -823,7 +823,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                   </span>
                 </div>
                 <div className="bg-[var(--card-surface)] border border-[var(--card-border-subtle)] p-2 rounded-xl flex flex-col gap-0.5">
-                  <span className="text-[var(--text-tertiary)] text-[10px]">Drawdown Shielded:</span>
+                  <span className="text-[var(--text-tertiary)] text-[10px]">Drawdown avoided:</span>
                   <span className="text-[var(--refused-rust)] font-bold truncate">
                     {selectedMarker.drawdownSaved || '-14.8% peak collapse avoided'}
                   </span>
@@ -864,7 +864,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                       $0.00 Capital Loss
                     </span>
                     <span className="text-[10px] text-[var(--text-secondary)]">
-                      Halted pre-broadcast. 100% of capital shielded on-chain.
+                      Halted pre-broadcast. None of the capital moved.
                     </span>
                   </div>
                 </div>
@@ -1140,6 +1140,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
             </h3>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <DataOrigin origin="sample" />
             <span className="text-[11px] font-mono text-[var(--text-tertiary)] whitespace-nowrap">
               1,420 Active Copiers
             </span>
@@ -1197,7 +1198,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               <div className="flex items-center justify-between pl-8 pt-1 text-[11px] font-mono">
                 {msg.protectedAmount ? (
                   <span className="text-[var(--verdigris)] font-semibold">
-                    Shielded {msg.protectedAmount}
+                    Held back {msg.protectedAmount}
                   </span>
                 ) : (
                   <span className="text-[var(--text-tertiary)]">Signal Verified</span>

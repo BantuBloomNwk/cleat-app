@@ -275,6 +275,8 @@ const REASONS = [
   "Triggered boundary: this sector is already at its cap",
   "Triggered boundary: the agent's hard ceiling in cash",
   "The owner halted the mandate",
+  "Triggered boundary: an instrument the mandate never declared",
+  "Triggered boundary: the sector does not match the instrument",
 ];
 
 /** The program's reason codes, rendered for a reader. */
@@ -322,6 +324,33 @@ export function decodeVerdictLog(data: Uint8Array): VerdictLog {
   }
 
   return { cleared, clamped, refused, entries, exposureBps };
+}
+
+/** The ring wraps here, same as VERDICT_CAPACITY in the program. */
+export const VERDICT_CAPACITY = 16;
+
+/**
+ * The verdict written most recently, rather than the one stored first.
+ *
+ * `decodeVerdictLog` returns entries in storage order, which is the order the
+ * ring happens to hold them in and not the order they happened. Once the log
+ * has wrapped, the newest is somewhere in the middle. Head is the next slot to
+ * be written, so the newest is the one before it.
+ *
+ * Needed by anything watching for an answer to arrive: the confidential gate
+ * returns through a callback in its own transaction, so the only way to know
+ * the verdict is yours is to have counted before and to read the newest after.
+ */
+export function newestVerdict(data: Uint8Array): Verdict | null {
+  const { entries } = decodeVerdictLog(data);
+  if (entries.length === 0) return null;
+  const head = data[8 + 32 + 32];
+  return entries[(head + VERDICT_CAPACITY - 1) % VERDICT_CAPACITY] ?? entries[entries.length - 1];
+}
+
+/** How many decisions a log holds in total, the cheap way to spot a new one. */
+export function verdictCount(log: VerdictLog): number {
+  return log.cleared + log.clamped + log.refused;
 }
 
 export function decodeMandate(data: Uint8Array): Mandate {

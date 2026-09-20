@@ -29,7 +29,7 @@ const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL")
 // mandate's deny list has something real to be checked against.
 const MINT = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
 const CIRCUIT = "gate_breach_v7";
-const CLUSTER = 4500; // moved off 456 on 2026-09-15, see TOOLCHAIN.md
+const CLUSTER = 456; // back on 456 2026-09-20: 4500 stopped serving, see TOOLCHAIN.md
 
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
 const disc = (n) => {
@@ -84,6 +84,9 @@ async function main() {
   const [mandate] = PublicKey.findProgramAddressSync([Buffer.from("mandate"), owner.publicKey.toBuffer()], PROGRAM_ID);
   const [vault] = PublicKey.findProgramAddressSync([Buffer.from("vault"), owner.publicKey.toBuffer()], PROGRAM_ID);
   const [log] = PublicKey.findProgramAddressSync([Buffer.from("verdicts"), owner.publicKey.toBuffer()], PROGRAM_ID);
+
+  const [universe] = PublicKey.findProgramAddressSync(
+    [Buffer.from("universe"), mandate.toBuffer()], PROGRAM_ID);
 
   const arcium = new PublicKey(ARCIUM_ADDR);
   const mxe = getMXEAccAddress(PROGRAM_ID);
@@ -177,6 +180,7 @@ async function main() {
         meta(vault, false, false),
         meta(mandate, false, false),
         meta(log, false, true),
+        meta(universe, false, false),
         meta(getArciumSignerAccAddress(PROGRAM_ID), false, true),
         meta(mxe, false, false),
         meta(getMempoolAccAddress(CLUSTER), false, true),
