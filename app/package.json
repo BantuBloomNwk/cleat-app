@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run build:functions",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:functions": "node scripts/bundle-functions.mjs"
   },
   "dependencies": {
+    "@arcium-hq/client": "^0.13.2",
     "@google/genai": "^2.4.0",
     "@noble/curves": "^1.8.1",
     "@solana/web3.js": "^1.99.0",

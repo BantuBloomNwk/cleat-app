@@ -3,6 +3,23 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Already bundled by scripts/bundle-functions.mjs. See the note below.
+  functions = "netlify/functions-dist"
+
+# Bundle the functions rather than shipping node_modules.
+#
+# The default packs the dependency tree as it sits on disk, and
+# @solana/web3.js drags in rpc-websockets, whose CommonJS entry requires an
+# ESM-only uuid. Node refuses that at import time, so the confidential gate
+# function returned a 502 with nothing in the body while the functions that
+# avoid web3.js were fine. esbuild resolves the interop at build time, which
+# is also how it behaves locally.
+[functions]
+  node_bundler = "esbuild"
+  # Nothing left to resolve by the time these are packaged, but saying so
+  # keeps Netlify from reaching for node_modules if a bare import ever
+  # survives a bundle.
+  external_node_modules = []
 
 # A single page app: every path has to fall through to index.html or a refresh
 # on any tab returns a 404.
