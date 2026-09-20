@@ -16,8 +16,35 @@ import {
 } from '@solana/web3.js';
 
 const PROGRAM_ID = new PublicKey('2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL');
-const MANDATE_SEED = Buffer.from('mandate');
-const D_ADOPT = Buffer.from([210, 106, 122, 112, 155, 35, 71, 36]);
+
+/**
+ * Bytes without Node's Buffer, the same way chain.ts already does it.
+ *
+ * There is no Buffer in a browser. Reaching for it at module scope does not
+ * fail at the call, it fails the moment the file is imported, which takes the
+ * whole app down on load rather than breaking one button.
+ */
+const MANDATE_SEED = new TextEncoder().encode('mandate');
+const D_ADOPT = new Uint8Array([210, 106, 122, 112, 155, 35, 71, 36]);
+
+const concat = (...parts: Uint8Array[]) => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+};
+
+const u32le = (n: number) => {
+  const b = new Uint8Array(4);
+  new DataView(b.buffer).setUint32(0, n, true);
+  return b;
+};
+
+const toBase64 = (bytes: Uint8Array) => {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+};
 
 export const mandatePda = (owner: PublicKey) =>
   PublicKey.findProgramAddressSync([MANDATE_SEED, owner.toBuffer()], PROGRAM_ID)[0];
@@ -69,9 +96,7 @@ export async function adoptMandate(
   }
 
   // Borsh: a string is its length then its bytes.
-  const body = Buffer.from(text, 'utf8');
-  const len = Buffer.alloc(4);
-  len.writeUInt32LE(body.length);
+  const body = new TextEncoder().encode(text);
 
   tx.add(new TransactionInstruction({
     programId: PROGRAM_ID,
@@ -81,7 +106,7 @@ export async function adoptMandate(
       { pubkey: child, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    data: Buffer.concat([D_ADOPT, len, body]),
+    data: concat(D_ADOPT, u32le(body.length), body) as unknown as Buffer,
   }));
 
   tx.feePayer = feePayer;
@@ -90,7 +115,7 @@ export async function adoptMandate(
 
   const sent = await post({
     phase: 'send',
-    tx: tx.serialize({ requireAllSignatures: false }).toString('base64'),
+    tx: toBase64(new Uint8Array(tx.serialize({ requireAllSignatures: false }))),
   });
   if (sent.error) throw new Error(sent.error);
 
