@@ -44,6 +44,14 @@ pub enum CleatError {
     BadCategory,
     #[msg("The mandate refuses this asset by name.")]
     DeniedAsset,
+    #[msg("A mandate may not declare more instruments than the universe holds.")]
+    UniverseTooLong,
+    #[msg("An instrument appears twice in the declared universe, with no single answer for its sector.")]
+    DuplicateAsset,
+    #[msg("The mandate never declared this instrument, so there is nothing here to size.")]
+    UndeclaredAsset,
+    #[msg("The instrument is declared in a different sector than the one proposed.")]
+    SectorMismatch,
     #[msg("This sector is already at the position cap, so there is nothing left to clear.")]
     SectorCapBreached,
     #[msg("This trade is larger than the hard ceiling the owner set on the agent.")]

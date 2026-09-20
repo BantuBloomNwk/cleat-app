@@ -70,6 +70,13 @@ pub mod cleat {
         instructions::mandate::exec_adopt_mandate(ctx, text)
     }
 
+    pub fn declare_universe(
+        ctx: Context<DeclareUniverse>,
+        entries: Vec<AssetEntry>,
+    ) -> Result<()> {
+        instructions::mandate::exec_declare_universe(ctx, entries)
+    }
+
     pub fn open_vault(ctx: Context<OpenVault>) -> Result<()> {
         instructions::vault::exec_open_vault(ctx)
     }

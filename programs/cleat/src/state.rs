@@ -78,6 +78,49 @@ pub struct Mandate {
     pub bump: u8,
 }
 
+/// One instrument, and the sector the owner says it belongs to.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
+pub struct AssetEntry {
+    pub mint: Pubkey,
+    pub category: u8,
+}
+
+/// The instruments a mandate is allowed to touch, and their sectors.
+///
+/// This exists because `category` and `mint` were two independent things the
+/// agent asserted about the same asset, and nothing on chain made them agree.
+/// An agent could call an energy name a healthcare name to dodge a full sector,
+/// or name an instrument the deny list had never heard of. Both are settled by
+/// the owner writing the mapping down once, in an account the agent cannot
+/// touch.
+///
+/// Kept in its own account rather than on the mandate on purpose. Every mandate
+/// already on chain was written before this existed, and growing the mandate
+/// layout would make all of them unreadable to the program at once. An absent
+/// universe means the mandate predates the feature and is judged the old way,
+/// which is weaker and is recorded as such rather than pretended about.
+#[account]
+#[derive(InitSpace)]
+pub struct AssetUniverse {
+    /// The mandate this describes. Checked, so a universe cannot be pointed at
+    /// somebody else's sentence.
+    pub mandate: Pubkey,
+    pub owner: Pubkey,
+    #[max_len(UNIVERSE_MAX)]
+    pub entries: Vec<AssetEntry>,
+    pub bump: u8,
+}
+
+impl AssetUniverse {
+    /// The sector the owner declared for this mint, or None if undeclared.
+    pub fn category_of(&self, mint: &Pubkey) -> Option<u8> {
+        self.entries
+            .iter()
+            .find(|e| e.mint == *mint)
+            .map(|e| e.category)
+    }
+}
+
 /// The account that holds and acts.
 ///
 /// Custody and authority are deliberately separate fields. `owner` can always

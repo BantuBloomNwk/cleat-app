@@ -4,6 +4,8 @@ use anchor_lang::prelude::*;
 pub const MANDATE_SEED: &[u8] = b"mandate";
 #[constant]
 pub const VAULT_SEED: &[u8] = b"vault";
+#[constant]
+pub const UNIVERSE_SEED: &[u8] = b"universe";
 
 /// Basis points of the portfolio. 10_000 is the whole thing.
 pub const BPS_DENOM: u16 = 10_000;
@@ -17,6 +19,16 @@ pub const MANDATE_TEXT_MAX: usize = 280;
 /// clause "no fossil fuels" resolves off chain into a list, and the list is
 /// what the program enforces, because the program cannot read English.
 pub const DENY_MAX: usize = 8;
+
+/// How many instruments an owner may declare for one mandate.
+///
+/// A declared universe is the answer to the hole the deny list left. A deny
+/// list names what is forbidden and says nothing about everything else, so an
+/// agent that wanted a refused name could propose a different one and be
+/// cleared. A universe inverts it: the owner says which instruments exist for
+/// this mandate and which sector each one belongs to, and anything not on the
+/// list is refused without being judged on size at all.
+pub const UNIVERSE_MAX: usize = 32;
 
 /// An agent's authority always expires. There is no permanent grant, because a
 /// permanent grant is the thing that emptied the Grok wallet.

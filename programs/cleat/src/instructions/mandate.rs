@@ -3,7 +3,7 @@ use solana_sha256_hasher::hash;
 
 use crate::constants::*;
 use crate::error::CleatError;
-use crate::state::Mandate;
+use crate::state::{AssetEntry, AssetUniverse, Mandate};
 
 fn validate_caps(max_position_bps: u16, max_trade_bps: u16, max_spread_bps: u16) -> Result<()> {
     // Zero means the owner did not ask for a spread cap. Anything above the
@@ -222,5 +222,66 @@ pub fn exec_set_halted(ctx: Context<SetHalted>, halted: bool) -> Result<()> {
         halted,
         at,
     });
+    Ok(())
+}
+
+/// Declare which instruments this mandate may touch, and their sectors.
+///
+/// Owner only, and that is the entire point of it. The agent asserts a category
+/// and a mint on every proposal, and before this existed nothing on chain made
+/// the two agree with each other or with anything the owner had said. An agent
+/// could label an energy name as healthcare to get past a full sector, or name
+/// an instrument the deny list had never been told about.
+///
+/// Writing it down once removes both. It is an allow list rather than a deny
+/// list, which is the stronger shape: a deny list has to anticipate every name
+/// worth refusing, and a universe only has to say what is in.
+#[derive(Accounts)]
+pub struct DeclareUniverse<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(
+        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        bump = mandate.bump,
+        has_one = owner @ CleatError::NotOwner
+    )]
+    pub mandate: Account<'info, Mandate>,
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + AssetUniverse::INIT_SPACE,
+        seeds = [UNIVERSE_SEED, mandate.key().as_ref()],
+        bump
+    )]
+    pub universe: Account<'info, AssetUniverse>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn exec_declare_universe(
+    ctx: Context<DeclareUniverse>,
+    entries: Vec<AssetEntry>,
+) -> Result<()> {
+    require!(entries.len() <= UNIVERSE_MAX, CleatError::UniverseTooLong);
+    for e in entries.iter() {
+        require!(
+            (e.category as usize) < CATEGORY_COUNT,
+            CleatError::BadCategory
+        );
+    }
+    // One sector per instrument. Two entries for the same mint would make
+    // "which sector is this" depend on iteration order, and a rule whose answer
+    // depends on iteration order is not a rule.
+    for (i, e) in entries.iter().enumerate() {
+        require!(
+            !entries[..i].iter().any(|o| o.mint == e.mint),
+            CleatError::DuplicateAsset
+        );
+    }
+
+    let u = &mut ctx.accounts.universe;
+    u.mandate = ctx.accounts.mandate.key();
+    u.owner = ctx.accounts.owner.key();
+    u.entries = entries;
+    u.bump = ctx.bumps.universe;
     Ok(())
 }

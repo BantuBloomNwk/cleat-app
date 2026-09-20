@@ -9,7 +9,7 @@ use crate::{ArciumSignerAccount, ID, ID_CONST};
 
 use crate::constants::*;
 use crate::error::CleatError;
-use crate::state::{Mandate, Pending, Vault, Verdict, VerdictLog};
+use crate::state::{AssetUniverse, Mandate, Pending, Vault, Verdict, VerdictLog};
 
 pub const COMP_DEF_OFFSET_GATE_BREACH: u32 = comp_def_offset("gate_breach_v7");
 
@@ -60,6 +60,14 @@ pub struct GateTrade<'info> {
     pub mandate: Box<Account<'info, Mandate>>,
     #[account(mut, seeds = [VERDICT_SEED, vault.owner.as_ref()], bump = log.bump)]
     pub log: Box<Account<'info, VerdictLog>>,
+
+    /// The instruments this mandate declared, if it declared any. Same account
+    /// and same rules as on the public path: the confidential route must not be
+    /// the loose one, or it becomes the way around the boundary rather than the
+    /// thing enforcing it.
+    /// CHECK: address constrained by seeds, contents validated in the handler.
+    #[account(seeds = [UNIVERSE_SEED, mandate.key().as_ref()], bump)]
+    pub universe: UncheckedAccount<'info>,
 
     #[account(
         init_if_needed,
@@ -221,6 +229,27 @@ pub fn exec_gate_trade(
         !ctx.accounts.mandate.denied.contains(&mint),
         CleatError::DeniedAsset
     );
+
+    // And the same on what the owner declared. Both of these refuse before a
+    // computation is queued rather than after one comes back, because paying
+    // the network to decide something already settled on chain is waste, and
+    // because a refusal that never left the program is the cheapest kind.
+    {
+        let info = ctx.accounts.universe.to_account_info();
+        if !info.data_is_empty() {
+            let data = info.try_borrow_data()?;
+            let u = AssetUniverse::try_deserialize(&mut &data[..])?;
+            require_keys_eq!(
+                u.mandate,
+                ctx.accounts.mandate.key(),
+                CleatError::NotOwner
+            );
+            match u.category_of(&mint) {
+                None => return err!(CleatError::UndeclaredAsset),
+                Some(c) => require!(c == category, CleatError::SectorMismatch),
+            }
+        }
+    }
 
     let mandate = &ctx.accounts.mandate;
     let clamp_to = mandate.max_trade_bps;

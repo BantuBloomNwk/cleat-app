@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::constants::*;
 use crate::error::CleatError;
-use crate::state::{Mandate, Treasury, Vault, Verdict, VerdictLog};
+use crate::state::{AssetUniverse, Mandate, Treasury, Vault, Verdict, VerdictLog};
 
 #[derive(Accounts)]
 pub struct OpenVerdictLog<'info> {
@@ -86,6 +86,17 @@ pub struct ProposeTrade<'info> {
         bump = log.bump
     )]
     pub log: Account<'info, VerdictLog>,
+
+    /// The instruments this mandate declared, if it declared any.
+    ///
+    /// Unchecked because it is allowed not to exist: every mandate written
+    /// before universes did is judged the old way rather than bricked. The
+    /// address is still derived from the mandate, so an agent cannot hand over
+    /// a friendlier list, and the contents are deserialised in the handler
+    /// where the absence can be distinguished from the emptiness.
+    /// CHECK: address constrained by seeds, contents validated in the handler.
+    #[account(seeds = [UNIVERSE_SEED, mandate.key().as_ref()], bump)]
+    pub universe: UncheckedAccount<'info>,
     /// Where the fee on a clearance goes. No authority over anything, and
     /// nothing in this program moves value out of it toward a vault, an
     /// agent or an owner.
@@ -155,6 +166,26 @@ pub fn exec_propose_trade(
     // be.
     let headroom = ctx.accounts.log.headroom(category, mandate.max_position_bps);
 
+    // What the owner said this instrument is, if they said anything.
+    //
+    // `declared` is None when the mandate predates declared universes, and the
+    // old behaviour applies. Otherwise it answers two questions the agent used
+    // to answer for itself: whether this instrument is in scope at all, and
+    // which sector it counts against. An agent cannot reach a friendlier answer
+    // by passing a different account, because the address is derived from the
+    // mandate it is already bound to.
+    let declared: Option<Option<u8>> = {
+        let info = ctx.accounts.universe.to_account_info();
+        if info.data_is_empty() {
+            None
+        } else {
+            let data = info.try_borrow_data()?;
+            let u = AssetUniverse::try_deserialize(&mut &data[..])?;
+            require_keys_eq!(u.mandate, mandate.key(), CleatError::NotOwner);
+            Some(u.category_of(&mint))
+        }
+    };
+
     if mandate.halted {
         // First, and above everything. A halted mandate refuses an exit as
         // readily as an entry, because the owner who threw the switch did not
@@ -165,6 +196,21 @@ pub fn exec_propose_trade(
     } else if vault.mandate_version != mandate.version {
         outcome = 2;
         reason = 4;
+        allowed_bps = 0;
+    } else if declared == Some(None) {
+        // The owner never said this instrument exists for this mandate. Refused
+        // without reaching a size check, because an undeclared name is not a
+        // sizing question. This is the hole the deny list left: a list of what
+        // is forbidden says nothing at all about everything else.
+        outcome = 2;
+        reason = 10;
+        allowed_bps = 0;
+    } else if matches!(declared, Some(Some(c)) if c != category) {
+        // The instrument is declared, and the agent called it something else.
+        // Sector caps are only caps if the sector cannot be chosen by the party
+        // the cap is aimed at.
+        outcome = 2;
+        reason = 11;
         allowed_bps = 0;
     } else if side == 0 && mandate.denied.contains(&mint) {
         // The English clause resolved into a list of mints, and this is one of
