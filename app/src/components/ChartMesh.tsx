@@ -68,6 +68,12 @@ const mix = (a: RGB, b: RGB, t: number): RGB =>
 /* ---------- matrices, column major, multiply(a, b) is b * a ---------- */
 
 type M4 = Float32Array;
+/** The GLSL one, because the camera maths needs it on this side too. */
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
 const identity = (): M4 => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
 
 function multiply(a: M4, b: M4): M4 {
@@ -153,25 +159,34 @@ layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNext;
 layout(location = 2) in float aSide;
 layout(location = 3) in vec3 aColour;
+layout(location = 4) in float aT;
 uniform mat4 uMvp;
 uniform float uAspect;
 uniform float uHalf;
 out vec3 vColour;
 out float vEdge;
 out float vDepth;
+out float vT;
 void main() {
   vec4 c0 = uMvp * vec4(aPos, 1.0);
   vec4 c1 = uMvp * vec4(aNext, 1.0);
-  vec2 n0 = c0.xy / c0.w;
-  vec2 n1 = c1.xy / c1.w;
+  // A vertex at or behind the eye divides by something near zero, and the
+  // width offset is then multiplied by that same w, so one grid line swinging
+  // past the camera used to blow up into a quad the size of the screen. That
+  // is what "the grid blocks the view" actually was. Keep w off the floor.
+  float w0 = max(c0.w, 0.06);
+  float w1 = max(c1.w, 0.06);
+  vec2 n0 = c0.xy / w0;
+  vec2 n1 = c1.xy / w1;
   vec2 dir = n1 - n0;
   if (length(dir) < 1e-6) dir = vec2(1.0, 0.0);
   dir = normalize(dir * vec2(uAspect, 1.0));
   vec2 nrm = vec2(-dir.y, dir.x) / vec2(uAspect, 1.0);
-  gl_Position = vec4(c0.xy + nrm * uHalf * aSide * c0.w, c0.z, c0.w);
+  gl_Position = vec4(c0.xy + nrm * uHalf * aSide * w0, c0.z, c0.w);
   vColour = aColour;
   vEdge = aSide;
   vDepth = c0.w;
+  vT = aT;
 }`;
 
 const RIBBON_FS = `#version 300 es
@@ -179,16 +194,40 @@ precision highp float;
 in vec3 vColour;
 in float vEdge;
 in float vDepth;
+in float vT;
 uniform float uAlpha;
 uniform float uSoft;
+uniform float uReveal;
+uniform float uFlow;
+uniform float uTime;
+uniform float uTonemap;
 out vec4 outColour;
 void main() {
+  // Drawn in from the left when the view opens, so the curve arrives rather
+  // than simply being there. The shoulder keeps the leading edge from looking
+  // cut off.
+  float born = smoothstep(uReveal, uReveal - 0.07, vT);
+  if (born <= 0.001) discard;
+
   // Soft shoulders make the wide pass read as glow rather than as a fat line.
-  float a = pow(1.0 - abs(vEdge), uSoft);
-  // Things further away give up light, which is what makes depth legible.
-  float fog = clamp(1.7 - vDepth * 0.22, 0.2, 1.0);
-  float v = a * uAlpha * fog;
-  outColour = vec4(vColour * v, v);
+  float a = pow(1.0 - abs(vEdge), uSoft) * born;
+  // Air swallows light exponentially rather than in a straight line, and the
+  // far end of a curve recedes properly once it is modelled that way.
+  float fog = clamp(exp(-max(vDepth - 2.6, 0.0) * 0.42), 0.12, 1.0);
+
+  // A light running along the curve the way time runs. It carries no number
+  // and claims nothing. It says this is a series and it has a direction,
+  // which a still line does not.
+  float head = fract(vT - uTime * 0.09);
+  float pulse = exp(-pow((head - 0.5) * 7.0, 2.0)) * uFlow;
+
+  float v = a * uAlpha * fog * (1.0 + pulse * 1.9);
+  vec3 lit = vColour * v;
+  // Rolled off here only when drawing straight to the canvas. With a float
+  // target the highlights have to survive intact, because their overshoot is
+  // exactly what the bloom pass is looking for.
+  if (uTonemap > 0.5) lit = lit / (1.0 + lit);
+  outColour = vec4(lit, min(v, 1.0));
 }`;
 
 const POINT_VS = `#version 300 es
@@ -198,31 +237,141 @@ layout(location = 1) in vec3 aColour;
 layout(location = 2) in float aSize;
 uniform mat4 uMvp;
 uniform float uScale;
+uniform float uPulse;
 out vec3 vColour;
 out float vDepth;
+out float vSize;
 void main() {
   vec4 c = uMvp * vec4(aPos, 1.0);
   gl_Position = c;
-  gl_PointSize = clamp(uScale * aSize / max(c.w, 0.25), 2.0, 64.0);
+  float sz = clamp(uScale * aSize * uPulse / max(c.w, 0.25), 2.0, 72.0);
+  gl_PointSize = sz;
   vColour = aColour;
   vDepth = c.w;
+  vSize = sz;
 }`;
 
 const POINT_FS = `#version 300 es
 precision highp float;
 in vec3 vColour;
 in float vDepth;
+in float vSize;
 uniform float uCore;
+uniform float uGain;
+uniform float uTonemap;
 out vec4 outColour;
 void main() {
   float r = length(gl_PointCoord - vec2(0.5)) * 2.0;
   if (r > 1.0) discard;
   // A bright centre inside a wide falloff, which is what a light looks like.
-  float halo = pow(1.0 - r, 2.6);
+  // Bigger means nearer, and nearer means further out of focus, so the edge
+  // softens as the sprite grows. That is most of a depth of field read for
+  // the ambient layer without a blur pass anywhere.
+  float soft = mix(4.0, 1.5, clamp(vSize / 40.0, 0.0, 1.0));
+  float halo = pow(1.0 - r, soft);
   float core = smoothstep(uCore, uCore * 0.35, r);
-  float fog = clamp(1.7 - vDepth * 0.22, 0.2, 1.0);
-  float a = clamp(halo * 0.7 + core * 1.1, 0.0, 1.6) * fog;
-  outColour = vec4(vColour * a, a);
+  float fog = clamp(exp(-max(vDepth - 2.6, 0.0) * 0.42), 0.12, 1.0);
+  float a = clamp(halo * 0.7 + core * 1.1, 0.0, 1.6) * fog * uGain;
+  vec3 lit = vColour * a;
+  if (uTonemap > 0.5) lit = lit / (1.0 + lit);
+  outColour = vec4(lit, min(a, 1.0));
+}`;
+
+/**
+ * Light that spreads onto its neighbours, which is the difference between a
+ * glow and a bloom.
+ *
+ * Everything so far has been a shape with a soft edge. A bright marker could
+ * not throw light onto the curve behind it or onto the haze, because each
+ * shape only ever wrote inside its own geometry. That is what reads as faint.
+ *
+ * So the scene goes into a float target, gets downsampled and blurred a few
+ * times, and comes back added on top. Dual filtering rather than a wide
+ * gaussian: a handful of cheap small kernel passes at shrinking resolution,
+ * which is what mobile games use because it costs a fraction of the fill rate
+ * for a wider spread.
+ */
+const QUAD_VS = `#version 300 es
+precision highp float;
+out vec2 vUv;
+void main() {
+  // One oversized triangle rather than two triangles, so there is no seam
+  // along the diagonal and one fewer vertex to think about.
+  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  vUv = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+const DOWN_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uTex;
+uniform vec2 uTexel;
+uniform float uThreshold;
+out vec4 outColour;
+void main() {
+  // Four diagonal taps, the standard dual filter downsample.
+  vec3 c = texture(uTex, vUv + uTexel * vec2(-1.0, -1.0)).rgb
+         + texture(uTex, vUv + uTexel * vec2( 1.0, -1.0)).rgb
+         + texture(uTex, vUv + uTexel * vec2(-1.0,  1.0)).rgb
+         + texture(uTex, vUv + uTexel * vec2( 1.0,  1.0)).rgb;
+  c *= 0.25;
+  // Only on the first step: keep what is brighter than the scene generally is,
+  // so the bloom comes off the hot parts rather than lifting everything.
+  if (uThreshold > 0.0) {
+    float l = max(max(c.r, c.g), c.b);
+    c *= smoothstep(uThreshold, uThreshold * 2.2, l);
+  }
+  outColour = vec4(c, 1.0);
+}`;
+
+const UP_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uTex;
+uniform vec2 uTexel;
+out vec4 outColour;
+void main() {
+  // Eight taps on the way back up, which is what widens the spread.
+  vec3 c = texture(uTex, vUv + uTexel * vec2(-2.0, 0.0)).rgb
+         + texture(uTex, vUv + uTexel * vec2( 2.0, 0.0)).rgb
+         + texture(uTex, vUv + uTexel * vec2( 0.0,-2.0)).rgb
+         + texture(uTex, vUv + uTexel * vec2( 0.0, 2.0)).rgb;
+  c += 2.0 * (texture(uTex, vUv + uTexel * vec2(-1.0,-1.0)).rgb
+            + texture(uTex, vUv + uTexel * vec2( 1.0,-1.0)).rgb
+            + texture(uTex, vUv + uTexel * vec2(-1.0, 1.0)).rgb
+            + texture(uTex, vUv + uTexel * vec2( 1.0, 1.0)).rgb);
+  outColour = vec4(c / 12.0, 1.0);
+}`;
+
+const COMPOSITE_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uScene;
+uniform sampler2D uBloom;
+uniform float uStrength;
+uniform float uExposure;
+out vec4 outColour;
+void main() {
+  vec3 scene = texture(uScene, vUv).rgb;
+  vec3 bloom = texture(uBloom, vUv).rgb;
+  vec3 c = (scene + bloom * uStrength) * uExposure;
+
+  // Darker toward the corners, which keeps the eye in the middle and hides
+  // the edge of a scene that has no walls.
+  vec2 d = vUv - 0.5;
+  c *= 1.0 - smoothstep(0.30, 0.82, dot(d, d) * 2.0) * 0.4;
+
+  // Roll the highlights off on brightness alone rather than per channel.
+  // Reinhard applied to r, g and b separately pulls every bright colour
+  // toward white, which is how a verdigris curve ends up looking grey. Scale
+  // the colour by how much its own luminance had to give up and the hue
+  // survives the compression.
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  if (l > 0.0001) c *= (l / (1.0 + l)) / l;
+
+  float a = clamp(max(max(c.r, c.g), c.b) * 2.4, 0.0, 1.0);
+  outColour = vec4(c, a);
 }`;
 
 function compile(gl: WebGL2RenderingContext, vs: string, fs: string) {
@@ -244,7 +393,7 @@ function compile(gl: WebGL2RenderingContext, vs: string, fs: string) {
 /** Two vertices per sample, so the strip has a left and a right edge. */
 function ribbonBuffer(pts: Array<[number, number]>, z: number, colours: RGB[]) {
   const n = pts.length;
-  const data = new Float32Array(n * 2 * 10);
+  const data = new Float32Array(n * 2 * 11);
   for (let i = 0; i < n; i++) {
     const [x, y] = pts[i];
     const cur = toWorld(x, y, z);
@@ -261,11 +410,12 @@ function ribbonBuffer(pts: Array<[number, number]>, z: number, colours: RGB[]) {
     const nxt = toWorld(x + dx, y + dy, z);
     const col = colours[i];
     for (const side of [-1, 1]) {
-      const o = (i * 2 + (side === 1 ? 1 : 0)) * 10;
+      const o = (i * 2 + (side === 1 ? 1 : 0)) * 11;
       data[o] = cur[0]; data[o + 1] = cur[1]; data[o + 2] = cur[2];
       data[o + 3] = nxt[0]; data[o + 4] = nxt[1]; data[o + 5] = nxt[2];
       data[o + 6] = side;
       data[o + 7] = col[0]; data[o + 8] = col[1]; data[o + 9] = col[2];
+      data[o + 10] = i / Math.max(1, n - 1);
     }
   }
   return data;
@@ -280,14 +430,15 @@ function ribbonBuffer(pts: Array<[number, number]>, z: number, colours: RGB[]) {
  * the ground was missing entirely. They get the same layout as the curves now.
  */
 function segmentsToRibbon(segs: Array<[number[], number[]]>, colour: RGB) {
-  const data = new Float32Array(segs.length * 6 * 10);
+  const data = new Float32Array(segs.length * 6 * 11);
   let o = 0;
   const put = (p: number[], nx: number[], side: number) => {
     data[o] = p[0]; data[o + 1] = p[1]; data[o + 2] = p[2];
     data[o + 3] = nx[0]; data[o + 4] = nx[1]; data[o + 5] = nx[2];
     data[o + 6] = side;
     data[o + 7] = colour[0]; data[o + 8] = colour[1]; data[o + 9] = colour[2];
-    o += 10;
+    data[o + 10] = 0;
+    o += 11;
   };
   for (const [a, b] of segs) {
     const beyond = [2 * b[0] - a[0], 2 * b[1] - a[1], 2 * b[2] - a[2]];
@@ -306,11 +457,17 @@ export const ChartMesh: React.FC<Props> = ({
   const mvpRef = useRef<M4>(identity());
   const needsPaint = useRef(true);
 
+  /** Set on the first real gesture, which permanently ends the idle drift. */
+  const touched = useRef(false);
+  /** Wall clock of the last thing worth lighting up, for the one shot flow. */
+  const flowAt = useRef(-99);
+
   const onTilt = useCallback((t: Tilt) => {
     angles.current = t;
+    touched.current = true;
     needsPaint.current = true;
   }, []);
-  const tilt = useTilt3D(active, { onTilt, cssTransform: false });
+  const tilt = useTilt3D(active, { onTilt, cssTransform: false, maxX: 88 });
 
   const curves = useMemo(() => {
     if (!active) return null;
@@ -336,7 +493,14 @@ export const ChartMesh: React.FC<Props> = ({
       const d = Math.hypot(p.x - nx, p.y - ny);
       if (d < bestD) { bestD = d; best = m; }
     }
-    if (best) { tactile.selectionTap(); onPickMarker?.(best); }
+    if (best) {
+      tactile.selectionTap();
+      // A light runs from the marker along the curve it interrupted. Once, on
+      // the tap, rather than for ever: a band travelling a price line without
+      // being asked reads as the price moving, and nothing here is live.
+      flowAt.current = performance.now();
+      onPickMarker?.(best);
+    }
   }, [markers, onPickMarker]);
 
   useEffect(() => {
@@ -353,6 +517,62 @@ export const ChartMesh: React.FC<Props> = ({
     const ribbonProg = compile(gl, RIBBON_VS, RIBBON_FS);
     const pointProg = compile(gl, POINT_VS, POINT_FS);
     if (!ribbonProg || !pointProg) { setFailed(true); return; }
+
+    /* The post chain. Optional on purpose: if a device will not give us a
+       float target we draw straight to the canvas and tonemap in place, which
+       loses the spread but keeps the picture. */
+    const hdr = gl.getExtension('EXT_color_buffer_float');
+    const downProg = hdr ? compile(gl, QUAD_VS, DOWN_FS) : null;
+    const upProg = hdr ? compile(gl, QUAD_VS, UP_FS) : null;
+    const compProg = hdr ? compile(gl, QUAD_VS, COMPOSITE_FS) : null;
+    const post = !!(downProg && upProg && compProg);
+    const quadVao = gl.createVertexArray()!;
+
+    type Target = { fb: WebGLFramebuffer; tex: WebGLTexture; w: number; h: number };
+    const targets: Target[] = [];
+    const makeTarget = (w: number, h: number): Target => {
+      const tex = gl.createTexture()!;
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const fb = gl.createFramebuffer()!;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return { fb, tex, w, h };
+    };
+    const disposeTargets = () => {
+      for (const t of targets) { gl.deleteFramebuffer(t.fb); gl.deleteTexture(t.tex); }
+      targets.length = 0;
+    };
+    /** Full size for the scene, then three halvings for the blur chain. */
+    const buildTargets = (w: number, h: number) => {
+      disposeTargets();
+      let cw = w, ch = h;
+      for (let i = 0; i < 4; i++) {
+        targets.push(makeTarget(Math.max(2, cw), Math.max(2, ch)));
+        cw = Math.max(2, cw >> 1); ch = Math.max(2, ch >> 1);
+      }
+    };
+
+    const uD = downProg ? {
+      tex: gl.getUniformLocation(downProg, 'uTex'),
+      texel: gl.getUniformLocation(downProg, 'uTexel'),
+      threshold: gl.getUniformLocation(downProg, 'uThreshold'),
+    } : null;
+    const uU = upProg ? {
+      tex: gl.getUniformLocation(upProg, 'uTex'),
+      texel: gl.getUniformLocation(upProg, 'uTexel'),
+    } : null;
+    const uC = compProg ? {
+      scene: gl.getUniformLocation(compProg, 'uScene'),
+      bloom: gl.getUniformLocation(compProg, 'uBloom'),
+      strength: gl.getUniformLocation(compProg, 'uStrength'),
+      exposure: gl.getUniformLocation(compProg, 'uExposure'),
+    } : null;
 
     const verdigris = cssRgb('--verdigris', [0.31, 0.76, 0.65]);
     const ember = cssRgb('--ember', [0.91, 0.55, 0.23]);
@@ -385,39 +605,47 @@ export const ChartMesh: React.FC<Props> = ({
       gl.bindVertexArray(vao);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, l.data, gl.STATIC_DRAW);
-      const S = 40;
+      const S = 44;
       gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, S, 0);
       gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, S, 12);
       gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, S, 24);
       gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 3, gl.FLOAT, false, S, 28);
+      gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 1, gl.FLOAT, false, S, 40);
       return { vao, buf, ...l };
     });
 
     /* The ground. Lines running away from the eye are what make a flat screen
        read as a room, and every reference for this look is built on one. */
-    const GY = -0.92, ZN = -3.2, ZF = 1.6;
+    // Bound to what the data occupies rather than to the viewport. The old
+    // plane ran to x = 3 and z = 1.6 against a camera 4.45 away, so turning it
+    // swung lines through the near plane. Half the density too: this is an
+    // anchor for the eye near the resting angle, not a surface that has to
+    // survive being looked at from every side.
+    const GY = -0.86, ZN = -1.9, ZF = 0.9;
     const gridSegs: Array<[number[], number[]]> = [];
-    for (let i = 0; i <= 30; i++) {
-      const x = -3.0 + (i / 30) * 6.0;
+    for (let i = 0; i <= 14; i++) {
+      const x = -1.6 + (i / 14) * 3.2;
       gridSegs.push([[x, GY, ZN], [x, GY, ZF]]);
     }
-    for (let i = 0; i <= 18; i++) {
+    for (let i = 0; i <= 9; i++) {
       // Squared toward the horizon, so the spacing tightens with distance the
       // way it does on a real surface instead of marching evenly away.
-      const t = i / 18;
+      const t = i / 9;
       const z = ZN + (1 - (1 - t) * (1 - t)) * (ZF - ZN);
-      gridSegs.push([[-3.0, GY, z], [3.0, GY, z]]);
+      gridSegs.push([[-1.6, GY, z], [1.6, GY, z]]);
     }
-    const gridData = segmentsToRibbon(gridSegs, mix(verdigris, dim, 0.45));
+    // Subordinate on purpose. It is a horizon for the eye to sit on, and the
+    // depth work is done by the fog, the parallax and the bloom.
+    const gridData = segmentsToRibbon(gridSegs, mix(verdigris, dim, 0.62));
     const gridCount = gridSegs.length * 6;
     const gridVao = gl.createVertexArray()!;
     const gridBuf = gl.createBuffer()!;
     gl.bindVertexArray(gridVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, gridBuf);
     gl.bufferData(gl.ARRAY_BUFFER, gridData, gl.STATIC_DRAW);
-    for (const [loc, size, off] of [[0,3,0],[1,3,12],[2,1,24],[3,3,28]] as const) {
+    for (const [loc, size, off] of [[0,3,0],[1,3,12],[2,1,24],[3,3,28],[4,1,40]] as const) {
       gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 40, off);
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 44, off);
     }
     gl.bindVertexArray(null);
 
@@ -456,9 +684,9 @@ export const ChartMesh: React.FC<Props> = ({
     gl.bindVertexArray(stemVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, stemBuf);
     gl.bufferData(gl.ARRAY_BUFFER, stemData, gl.STATIC_DRAW);
-    for (const [loc, size, off] of [[0,3,0],[1,3,12],[2,1,24],[3,3,28]] as const) {
+    for (const [loc, size, off] of [[0,3,0],[1,3,12],[2,1,24],[3,3,28],[4,1,40]] as const) {
       gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 40, off);
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 44, off);
     }
     gl.bindVertexArray(null);
 
@@ -492,20 +720,31 @@ export const ChartMesh: React.FC<Props> = ({
       half: gl.getUniformLocation(ribbonProg, 'uHalf'),
       alpha: gl.getUniformLocation(ribbonProg, 'uAlpha'),
       soft: gl.getUniformLocation(ribbonProg, 'uSoft'),
+      reveal: gl.getUniformLocation(ribbonProg, 'uReveal'),
+      flow: gl.getUniformLocation(ribbonProg, 'uFlow'),
+      time: gl.getUniformLocation(ribbonProg, 'uTime'),
+      tonemap: gl.getUniformLocation(ribbonProg, 'uTonemap'),
     };
     const uP = {
       mvp: gl.getUniformLocation(pointProg, 'uMvp'),
       scale: gl.getUniformLocation(pointProg, 'uScale'),
       core: gl.getUniformLocation(pointProg, 'uCore'),
+      gain: gl.getUniformLocation(pointProg, 'uGain'),
+      pulse: gl.getUniformLocation(pointProg, 'uPulse'),
+      tonemap: gl.getUniformLocation(pointProg, 'uTonemap'),
     };
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const resize = () => {
       const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
       const cw = Math.round(w * dpr), ch = Math.round(h * dpr);
-      if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw; canvas.height = ch;
+        if (post) buildTargets(cw, ch);
+      }
       needsPaint.current = true;
     };
+    if (post) buildTargets(Math.max(2, canvas.width), Math.max(2, canvas.height));
     resize();
 
     gl.enable(gl.BLEND);
@@ -513,6 +752,13 @@ export const ChartMesh: React.FC<Props> = ({
     // crossings burn where the curves pass through one another.
     gl.blendFunc(gl.ONE, gl.ONE);
     gl.disable(gl.DEPTH_TEST);
+
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const t0 = performance.now();
+    // Opening the view draws the curves in along their length. Every reporting
+    // tool on earth does this and nobody reads it as data arriving, which
+    // makes it the one animation here with no honesty cost at all.
+    const REVEAL_MS = reduced ? 0 : 1100;
 
     let raf = 0, visible = true;
     const draw = () => {
@@ -527,39 +773,90 @@ export const ChartMesh: React.FC<Props> = ({
       // the tab is in the background.
       if (!visible) return;
 
+      const now = performance.now();
+      const age = now - t0;
+      const reveal = REVEAL_MS > 0 ? Math.min(1, age / REVEAL_MS) : 1;
+      // Eased, so the curve arrives rather than being wiped on at a constant
+      // rate, which always looks mechanical.
+      const revealEased = 1 - Math.pow(1 - reveal, 3);
+
+      // A few degrees of drift until the first touch, so there is something
+      // moving before anybody does anything. It never comes back.
+      const drift = !touched.current && !reduced
+        ? Math.sin(age / 2600) * 7 - (age / 2600) * 1.6
+        : 0;
+
       const aspect = canvas.width / Math.max(1, canvas.height);
       const proj = perspective((42 * Math.PI) / 180, aspect, 0.1, 40);
-      const view = multiply(
+      const camera = (yawScale: number) => multiply(
         multiply(rotateX((angles.current.x * Math.PI) / 180),
-                 rotateY((angles.current.y * Math.PI) / 180)),
+                 rotateY(((angles.current.y + drift) * yawScale * Math.PI) / 180)),
         translate(0, 0.06, -4.45),
       );
-      const mvp = multiply(view, proj);
+      const mvp = multiply(camera(1), proj);
       mvpRef.current = mvp;
+      // The haze turns at half the rate of the scene, so it visibly lags as
+      // you drag. Parallax during the gesture that is meant to show depth is
+      // worth more than any amount of idle movement.
+      const dustMvp = multiply(camera(0.5), proj);
 
+      const sinceFlow = (now - flowAt.current) / 1000;
+      const flow = reduced ? 0
+        : age < REVEAL_MS + 400 ? 1
+        : sinceFlow < 1.4 ? 1 - sinceFlow / 1.4
+        : 0;
+
+      const sceneTarget = post ? targets[0] : null;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget ? sceneTarget.fb : null);
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
 
       gl.useProgram(ribbonProg);
+      gl.uniform1f(uR.tonemap, post ? 0 : 1);
       gl.uniformMatrix4fv(uR.mvp, false, mvp);
       gl.uniform1f(uR.aspect, aspect);
+      gl.uniform1f(uR.time, now / 1000);
 
-      // Ground first, faint, so everything else sits above it.
-      gl.bindVertexArray(gridVao);
-      gl.uniform1f(uR.half, 0.0055);
-      gl.uniform1f(uR.alpha, 0.5);
-      gl.uniform1f(uR.soft, 0.8);
-      gl.drawArrays(gl.TRIANGLES, 0, gridCount);
+      // The ground, faded by how steeply it is being looked through.
+      //
+      // The first attempt at this had it backwards. Seen edge on, at a pitch
+      // near zero, the plane is a thin line and costs nothing. Turned toward
+      // ninety it is underfoot and fills the frame, which is exactly the angle
+      // somebody reaches for when they want to see the markers from above. So
+      // it has to dissolve as the pitch grows, not arrive.
+      const pitch = Math.abs(((angles.current.x + 180) % 360 + 360) % 360 - 180);
+      const groundFade = 1 - smoothstep(48, 82, pitch);
+      if (groundFade > 0.02) {
+        gl.bindVertexArray(gridVao);
+        gl.uniform1f(uR.half, 0.0045);
+        gl.uniform1f(uR.alpha, 0.26 * groundFade);
+        gl.uniform1f(uR.soft, 0.8);
+        gl.uniform1f(uR.reveal, 2);
+        gl.uniform1f(uR.flow, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, gridCount);
+      }
 
       gl.bindVertexArray(stemVao);
       gl.uniform1f(uR.half, 0.0042);
-      gl.uniform1f(uR.alpha, 0.7);
+      gl.uniform1f(uR.alpha, 0.7 * revealEased);
+      gl.uniform1f(uR.reveal, 2);
+      gl.uniform1f(uR.flow, 0);
       gl.drawArrays(gl.TRIANGLES, 0, stemCount);
 
       // Each curve twice: a wide soft pass for the glow, a narrow bright core.
       for (const l of vaos) {
         gl.bindVertexArray(l.vao);
+        gl.uniform1f(uR.reveal, revealEased);
+        gl.uniform1f(uR.flow, flow);
+        // A third, very wide, very dim pass. Not real bloom, it still cannot
+        // spread onto anything but itself, but it buys reach for one call.
+        gl.uniform1f(uR.half, l.wide * 2.3);
+        gl.uniform1f(uR.alpha, 0.13);
+        gl.uniform1f(uR.soft, 2.6);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, l.count);
         gl.uniform1f(uR.half, l.wide);
         gl.uniform1f(uR.alpha, 0.5);
         gl.uniform1f(uR.soft, 1.7);
@@ -571,15 +868,80 @@ export const ChartMesh: React.FC<Props> = ({
       }
 
       gl.useProgram(pointProg);
-      gl.uniformMatrix4fv(uP.mvp, false, mvp);
+      gl.uniform1f(uP.tonemap, post ? 0 : 1);
       gl.uniform1f(uP.scale, dpr);
+      // Haze on its own lagging camera.
+      gl.uniformMatrix4fv(uP.mvp, false, dustMvp);
       gl.bindVertexArray(dVao);
       gl.uniform1f(uP.core, 0.25);
+      gl.uniform1f(uP.gain, 0.85 * revealEased);
+      gl.uniform1f(uP.pulse, 1);
       gl.drawArrays(gl.POINTS, 0, DUST);
+      // The markers arrive after the curves they sit on.
+      const markIn = smoothstep(0.55, 1, revealEased);
+      gl.uniformMatrix4fv(uP.mvp, false, mvp);
       gl.bindVertexArray(mVao);
       gl.uniform1f(uP.core, 0.55);
+      gl.uniform1f(uP.gain, markIn);
+      // The selected one breathes. Only that one, because a field of pulsing
+      // dots is decoration and a single one is an affordance.
+      gl.uniform1f(uP.pulse, reduced ? 1 : 1 + Math.sin(now / 420) * 0.06);
       gl.drawArrays(gl.POINTS, 0, markers.length);
       gl.bindVertexArray(null);
+
+      if (!post || !uD || !uU || !uC) return;
+
+      /* Down the chain, blurring as it shrinks, then back up, adding each
+         level into the one above it. Blending is off for these: every pass
+         writes its whole target. */
+      gl.disable(gl.BLEND);
+      gl.bindVertexArray(quadVao);
+      gl.activeTexture(gl.TEXTURE0);
+
+      gl.useProgram(downProg!);
+      gl.uniform1i(uD.tex, 0);
+      for (let i = 1; i < targets.length; i++) {
+        const src = targets[i - 1], dst = targets[i];
+        gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+        gl.viewport(0, 0, dst.w, dst.h);
+        gl.bindTexture(gl.TEXTURE_2D, src.tex);
+        gl.uniform2f(uD.texel, 1 / src.w, 1 / src.h);
+        // Only the first step cuts the dim parts away, or each level would
+        // threshold again and eat the spread it just created.
+        gl.uniform1f(uD.threshold, i === 1 ? 0.55 : 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      gl.useProgram(upProg!);
+      gl.uniform1i(uU.tex, 0);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      for (let i = targets.length - 1; i > 1; i--) {
+        const src = targets[i], dst = targets[i - 1];
+        gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+        gl.viewport(0, 0, dst.w, dst.h);
+        gl.bindTexture(gl.TEXTURE_2D, src.tex);
+        gl.uniform2f(uU.texel, 1 / src.w, 1 / src.h);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+      gl.disable(gl.BLEND);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(compProg!);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, targets[0].tex);
+      gl.uniform1i(uC.scene, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, targets[1].tex);
+      gl.uniform1i(uC.bloom, 1);
+      gl.uniform1f(uC.strength, 0.9);
+      gl.uniform1f(uC.exposure, 2.1);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindVertexArray(null);
+      gl.activeTexture(gl.TEXTURE0);
     };
     raf = requestAnimationFrame(draw);
 
@@ -602,6 +964,11 @@ export const ChartMesh: React.FC<Props> = ({
       gl.deleteBuffer(mBuf); gl.deleteVertexArray(mVao);
       gl.deleteBuffer(dBuf); gl.deleteVertexArray(dVao);
       gl.deleteProgram(ribbonProg); gl.deleteProgram(pointProg);
+      if (downProg) gl.deleteProgram(downProg);
+      if (upProg) gl.deleteProgram(upProg);
+      if (compProg) gl.deleteProgram(compProg);
+      gl.deleteVertexArray(quadVao);
+      disposeTargets();
       if (!canvas.isConnected) gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
   }, [active, curves, markers, selectedId]);

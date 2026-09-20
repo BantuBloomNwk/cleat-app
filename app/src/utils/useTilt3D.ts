@@ -28,6 +28,10 @@ export interface Tilt {
 }
 
 const MAX_X = 52;
+
+/** Bounded turn, or free when the limit is not finite. */
+const clamp = (v: number, limit: number) =>
+  Number.isFinite(limit) ? Math.max(-limit, Math.min(limit, v)) : v;
 const FRICTION = 0.94;
 const REST = 0.02;
 
@@ -36,10 +40,21 @@ export interface TiltOptions {
   onTilt?: (t: Tilt) => void;
   /** Write a CSS transform to the ref. Off when a renderer owns the camera. */
   cssTransform?: boolean;
+  /**
+   * How far the X axis may turn, in degrees.
+   *
+   * A flat panel has to stop before it goes edge on, because past that there
+   * is nothing to look at. A scene does not: turning all the way over and
+   * looking at it from underneath is a thing people try immediately, and
+   * stopping them at fifty two degrees is what makes a full orbit feel like
+   * two thirds of one. Pass Infinity for a renderer that can be looked at
+   * from any side.
+   */
+  maxX?: number;
 }
 
 export function useTilt3D(enabled: boolean, opts: TiltOptions = {}) {
-  const { onTilt, cssTransform = true } = opts;
+  const { onTilt, cssTransform = true, maxX = MAX_X } = opts;
   const emit = useRef(onTilt);
   emit.current = onTilt;
   const ref = useRef<HTMLDivElement | null>(null);
@@ -79,13 +94,13 @@ export function useTilt3D(enabled: boolean, opts: TiltOptions = {}) {
       frame.current = null;
       return;
     }
-    tilt.current.x = Math.max(-MAX_X, Math.min(MAX_X, tilt.current.x + v.x));
+    tilt.current.x = clamp(tilt.current.x + v.x, maxX);
     tilt.current.y += v.y;
     v.x *= FRICTION;
     v.y *= FRICTION;
     paint();
     frame.current = requestAnimationFrame(settle);
-  }, [paint]);
+  }, [paint, maxX]);
 
   const kick = useCallback(() => {
     if (reduced) return;
@@ -110,11 +125,11 @@ export function useTilt3D(enabled: boolean, opts: TiltOptions = {}) {
     last.current = { x: e.clientX, y: e.clientY };
     // Vertical drag turns it towards you, horizontal turns it about its
     // own axis, which is what a hand expects of a panel on a table.
-    tilt.current.x = Math.max(-MAX_X, Math.min(MAX_X, tilt.current.x - dy * 0.35));
+    tilt.current.x = clamp(tilt.current.x - dy * 0.35, maxX);
     tilt.current.y += dx * 0.35;
     velocity.current = { x: -dy * 0.06, y: dx * 0.06 };
     paint();
-  }, [paint]);
+  }, [paint, maxX]);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
@@ -133,15 +148,15 @@ export function useTilt3D(enabled: boolean, opts: TiltOptions = {}) {
     switch (e.key) {
       case 'ArrowLeft': t.y -= step; break;
       case 'ArrowRight': t.y += step; break;
-      case 'ArrowUp': t.x = Math.max(-MAX_X, t.x - step); break;
-      case 'ArrowDown': t.x = Math.min(MAX_X, t.x + step); break;
+      case 'ArrowUp': t.x = clamp(t.x - step, maxX); break;
+      case 'ArrowDown': t.x = clamp(t.x + step, maxX); break;
       case 'Home':
       case 'Escape': t.x = 0; t.y = 0; break;
       default: return;
     }
     e.preventDefault();
     paint();
-  }, [enabled, paint]);
+  }, [enabled, paint, maxX]);
 
   const reset = useCallback(() => {
     velocity.current = { x: 0, y: 0 };
