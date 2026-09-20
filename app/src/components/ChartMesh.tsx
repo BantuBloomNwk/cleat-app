@@ -453,6 +453,13 @@ export const ChartMesh: React.FC<Props> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [failed, setFailed] = useState(false);
+  /** Flipped on one frame after mount, so the opacity transition has a start. */
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!active) { setShown(false); return; }
+    const r = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(r);
+  }, [active]);
   const angles = useRef<Tilt>({ x: 24, y: -30 });
   const mvpRef = useRef<M4>(identity());
   const needsPaint = useRef(true);
@@ -758,7 +765,12 @@ export const ChartMesh: React.FC<Props> = ({
     // Opening the view draws the curves in along their length. Every reporting
     // tool on earth does this and nobody reads it as data arriving, which
     // makes it the one animation here with no honesty cost at all.
-    const REVEAL_MS = reduced ? 0 : 1100;
+    const REVEAL_MS = reduced ? 0 : 850;
+    // The camera arrives. It starts well back and comes in to its resting
+    // distance, which is what makes opening the view feel like being pulled
+    // into the scene rather than being shown a different picture of it.
+    const DOLLY_MS = reduced ? 0 : 1500;
+    const FAR = -11.5, NEAR = -4.45;
 
     let raf = 0, visible = true;
     const draw = () => {
@@ -788,10 +800,18 @@ export const ChartMesh: React.FC<Props> = ({
 
       const aspect = canvas.width / Math.max(1, canvas.height);
       const proj = perspective((42 * Math.PI) / 180, aspect, 0.1, 40);
+      // Expo out: most of the travel happens immediately and it settles into
+      // the last of it, which reads as momentum rather than as a slide.
+      const dolly = DOLLY_MS > 0 ? Math.min(1, age / DOLLY_MS) : 1;
+      const dollyEased = 1 - Math.pow(2, -10 * dolly);
+      const camZ = FAR + (NEAR - FAR) * dollyEased;
+      // It also swings a little as it comes in, so the arrival has a direction.
+      const swing = (1 - dollyEased) * 26;
+
       const camera = (yawScale: number) => multiply(
-        multiply(rotateX((angles.current.x * Math.PI) / 180),
-                 rotateY(((angles.current.y + drift) * yawScale * Math.PI) / 180)),
-        translate(0, 0.06, -4.45),
+        multiply(rotateX(((angles.current.x - swing * 0.5) * Math.PI) / 180),
+                 rotateY(((angles.current.y + drift + swing) * yawScale * Math.PI) / 180)),
+        translate(0, 0.06, camZ),
       );
       const mvp = multiply(camera(1), proj);
       mvpRef.current = mvp;
@@ -828,7 +848,9 @@ export const ChartMesh: React.FC<Props> = ({
       // somebody reaches for when they want to see the markers from above. So
       // it has to dissolve as the pitch grows, not arrive.
       const pitch = Math.abs(((angles.current.x + 180) % 360 + 360) % 360 - 180);
-      const groundFade = 1 - smoothstep(48, 82, pitch);
+      // Faded by angle, and held back until the curves have arrived, so the
+      // floor settles under a scene that already exists.
+      const groundFade = (1 - smoothstep(48, 82, pitch)) * smoothstep(0.04, 0.45, revealEased);
       if (groundFade > 0.02) {
         gl.bindVertexArray(gridVao);
         gl.uniform1f(uR.half, 0.0045);
@@ -874,7 +896,10 @@ export const ChartMesh: React.FC<Props> = ({
       gl.uniformMatrix4fv(uP.mvp, false, dustMvp);
       gl.bindVertexArray(dVao);
       gl.uniform1f(uP.core, 0.25);
-      gl.uniform1f(uP.gain, 0.85 * revealEased);
+      // The haze is up almost at once. Something has to be there while the
+      // curves are still drawing themselves, or the first frames are an empty
+      // card, which is the flash this whole transition exists to remove.
+      gl.uniform1f(uP.gain, 0.85 * smoothstep(0, 0.18, revealEased));
       gl.uniform1f(uP.pulse, 1);
       gl.drawArrays(gl.POINTS, 0, DUST);
       // The markers arrive after the curves they sit on.
@@ -984,7 +1009,7 @@ export const ChartMesh: React.FC<Props> = ({
   }
 
   return (
-    <div className="chart-mesh">
+    <div className={`chart-mesh ${shown ? "is-in" : ""}`}>
       <canvas
         ref={canvasRef}
         className="chart-mesh-canvas"

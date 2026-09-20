@@ -46,6 +46,14 @@ export const ChartTab: React.FC<ChartTabProps> = ({
 }) => {
   const [activeTimeframe, setActiveTimeframe] = useState<'1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL'>('30D');
   const [is3DActive, setIs3DActive] = useState(false);
+  // Mounted a little longer than it is active, so the canvas can fade out
+  // instead of vanishing the instant the toggle flips.
+  const [meshMounted, setMeshMounted] = useState(false);
+  useEffect(() => {
+    if (is3DActive) { setMeshMounted(true); return; }
+    const t = setTimeout(() => setMeshMounted(false), 560);
+    return () => clearTimeout(t);
+  }, [is3DActive]);
   const [showKernelLayers, setShowKernelLayers] = useState(false);
   const [isCopiedAlert, setIsCopiedAlert] = useState(false);
   // which card has been opened for a closer look, if any
@@ -304,7 +312,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           id="chartWrapper3D"
           className={`chart-wrapper-3d ${is3DActive ? 'showing-geometry' : ''}`}
         >
-          {is3DActive ? (
+          {meshMounted ? (
             // The same curves, in a space. Not a second drawing of different
             // data: the paths below are sampled off these exact strings, so
             // turning it shows the shape that was just being read flat.
@@ -320,7 +328,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           ) : null}
           <svg
             ref={svgRef}
-            hidden={is3DActive}
+            aria-hidden={is3DActive}
             id="chartSvgBox"
             data-no-tilt
             aria-label="Interactive simulated wave price chart"
