@@ -221,7 +221,11 @@ void main() {
   float head = fract(vT - uTime * 0.09);
   float pulse = exp(-pow((head - 0.5) * 7.0, 2.0)) * uFlow;
 
-  float v = a * uAlpha * fog * (1.0 + pulse * 1.9);
+  // Capped per fragment. At a sharp peak the strip doubles back on itself and
+  // three passes of three curves land in the same pixels, and an unbounded sum
+  // of a teal, an amber and a red is grey. That is the white spot: not a
+  // highlight, an overflow. Bloom carries the sense of brightness instead.
+  float v = min(a * uAlpha * fog * (1.0 + pulse * 1.9), 1.15);
   vec3 lit = vColour * v;
   // Rolled off here only when drawing straight to the canvas. With a float
   // target the highlights have to survive intact, because their overshoot is
@@ -238,13 +242,19 @@ layout(location = 2) in float aSize;
 uniform mat4 uMvp;
 uniform float uScale;
 uniform float uPulse;
+uniform float uTime;
+uniform float uLife;
 out vec3 vColour;
 out float vDepth;
 out float vSize;
 void main() {
   vec4 c = uMvp * vec4(aPos, 1.0);
   gl_Position = c;
-  float sz = clamp(uScale * aSize * uPulse / max(c.w, 0.25), 2.0, 72.0);
+  // Golden angle off the vertex index, so no two markers are in step and the
+  // field never reads as one blinking thing.
+  float phase = float(gl_VertexID) * 2.39996;
+  float own = 1.0 + sin(uTime * 1.1 + phase) * 0.05 * uLife;
+  float sz = clamp(uScale * aSize * uPulse * own / max(c.w, 0.25), 2.0, 72.0);
   gl_PointSize = sz;
   vColour = aColour;
   vDepth = c.w;
@@ -271,7 +281,7 @@ void main() {
   float halo = pow(1.0 - r, soft);
   float core = smoothstep(uCore, uCore * 0.35, r);
   float fog = clamp(exp(-max(vDepth - 2.6, 0.0) * 0.42), 0.12, 1.0);
-  float a = clamp(halo * 0.7 + core * 1.1, 0.0, 1.6) * fog * uGain;
+  float a = clamp(halo * 0.7 + core * 1.1, 0.0, 1.25) * fog * uGain;
   vec3 lit = vColour * a;
   if (uTonemap > 0.5) lit = lit / (1.0 + lit);
   outColour = vec4(lit, min(a, 1.0));
@@ -372,6 +382,34 @@ void main() {
 
   float a = clamp(max(max(c.r, c.g), c.b) * 2.4, 0.0, 1.0);
   outColour = vec4(c, a);
+}`;
+
+/**
+ * The ring a tap throws off.
+ *
+ * On a phone there is no cursor and no hover, so the only way to know a tap
+ * landed is for something to happen where the finger was. This is that: an
+ * annulus on the selected marker that expands once and fades, drawn through
+ * the bloom so it throws light onto whatever it passes.
+ */
+const RING_FS = `#version 300 es
+precision highp float;
+in vec3 vColour;
+in float vDepth;
+in float vSize;
+uniform float uCore;
+uniform float uGain;
+uniform float uTonemap;
+out vec4 outColour;
+void main() {
+  float r = length(gl_PointCoord - vec2(0.5)) * 2.0;
+  if (r > 1.0) discard;
+  // uCore carries how far out the ring has travelled, 0 to 1.
+  float band = exp(-pow((r - uCore) * 7.0, 2.0));
+  float a = band * uGain;
+  vec3 lit = vColour * a;
+  if (uTonemap > 0.5) lit = lit / (1.0 + lit);
+  outColour = vec4(lit, min(a, 1.0));
 }`;
 
 function compile(gl: WebGL2RenderingContext, vs: string, fs: string) {
@@ -485,14 +523,20 @@ export const ChartMesh: React.FC<Props> = ({
     };
   }, [active, trajectoryPath, ceilingPath, floorPath]);
 
-  const pick = useCallback((cx: number, cy: number) => {
+  /** Where a press began, so a turn does not end in a selection. */
+  const press = useRef<{ x: number; y: number; t: number; coarse: boolean } | null>(null);
+  const dragging = useRef(false);
+
+  const pick = useCallback((cx: number, cy: number, coarse: boolean) => {
     const canvas = canvasRef.current;
     if (!canvas || markers.length === 0) return;
     const r = canvas.getBoundingClientRect();
     const nx = ((cx - r.left) / r.width) * 2 - 1;
     const ny = -(((cy - r.top) / r.height) * 2 - 1);
     let best: ChartMarker | null = null;
-    let bestD = 0.09;
+    // A fingertip is about nine millimetres across and a mouse pointer is one
+    // pixel, so they do not get the same target.
+    let bestD = coarse ? 0.17 : 0.09;
     for (const m of markers) {
       const w = toWorld(m.cx, m.cy, Z.marks);
       const p = project(mvpRef.current, w[0], w[1], w[2]);
@@ -502,13 +546,38 @@ export const ChartMesh: React.FC<Props> = ({
     }
     if (best) {
       tactile.selectionTap();
-      // A light runs from the marker along the curve it interrupted. Once, on
-      // the tap, rather than for ever: a band travelling a price line without
-      // being asked reads as the price moving, and nothing here is live.
+      // A light runs from the marker along the curve it interrupted, and a
+      // ring goes out from where the finger landed. Once, on the tap, rather
+      // than for ever: a band travelling a price line without being asked
+      // reads as the price moving, and nothing here is live.
       flowAt.current = performance.now();
       onPickMarker?.(best);
     }
   }, [markers, onPickMarker]);
+
+  /* A drag that ends on a marker is still a drag. Without this, turning the
+     scene on a phone selects whatever happened to be under the finger when it
+     lifted, which is the most annoying possible behaviour. */
+  const onDown = useCallback((e: React.PointerEvent) => {
+    press.current = { x: e.clientX, y: e.clientY, t: performance.now(), coarse: e.pointerType !== 'mouse' };
+    dragging.current = false;
+    tilt.onPointerDown(e);
+  }, [tilt]);
+
+  const onMove = useCallback((e: React.PointerEvent) => {
+    const p0 = press.current;
+    if (p0 && Math.hypot(e.clientX - p0.x, e.clientY - p0.y) > 7) dragging.current = true;
+    tilt.onPointerMove(e);
+  }, [tilt]);
+
+  const onUp = useCallback((e: React.PointerEvent) => {
+    const p0 = press.current;
+    tilt.onPointerUp(e);
+    press.current = null;
+    if (!p0 || dragging.current) return;
+    if (performance.now() - p0.t > 600) return;
+    pick(e.clientX, e.clientY, p0.coarse);
+  }, [tilt, pick]);
 
   useEffect(() => {
     if (!active || !curves) return;
@@ -529,6 +598,7 @@ export const ChartMesh: React.FC<Props> = ({
        float target we draw straight to the canvas and tonemap in place, which
        loses the spread but keeps the picture. */
     const hdr = gl.getExtension('EXT_color_buffer_float');
+    const ringProg = compile(gl, POINT_VS, RING_FS);
     const downProg = hdr ? compile(gl, QUAD_VS, DOWN_FS) : null;
     const upProg = hdr ? compile(gl, QUAD_VS, UP_FS) : null;
     const compProg = hdr ? compile(gl, QUAD_VS, COMPOSITE_FS) : null;
@@ -679,6 +749,24 @@ export const ChartMesh: React.FC<Props> = ({
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 12);
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 28, 24);
 
+    /* The selected marker on its own, for the tap ring. */
+    const sel = markers.find((m) => m.id === selectedId) ?? null;
+    const selData = new Float32Array(7);
+    if (sel) {
+      const w = toWorld(sel.cx, sel.cy, Z.marks);
+      const c = sel.status === 'refused' ? rust : sel.status === 'trimmed' ? amber : verdigris;
+      selData.set([w[0], w[1], w[2], c[0], c[1], c[2], 150]);
+    }
+    const selVao = gl.createVertexArray()!;
+    const selBuf = gl.createBuffer()!;
+    gl.bindVertexArray(selVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, selBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, selData, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 12);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 28, 24);
+    gl.bindVertexArray(null);
+
     /* Stems from each marker down to the curve it interrupted, so it is clear
        which point on the price each intervention belongs to. */
     const stemSegs: Array<[number[], number[]]> = markers.map((m) => [
@@ -732,12 +820,24 @@ export const ChartMesh: React.FC<Props> = ({
       time: gl.getUniformLocation(ribbonProg, 'uTime'),
       tonemap: gl.getUniformLocation(ribbonProg, 'uTonemap'),
     };
+    const uRing = ringProg ? {
+      mvp: gl.getUniformLocation(ringProg, 'uMvp'),
+      scale: gl.getUniformLocation(ringProg, 'uScale'),
+      pulse: gl.getUniformLocation(ringProg, 'uPulse'),
+      time: gl.getUniformLocation(ringProg, 'uTime'),
+      life: gl.getUniformLocation(ringProg, 'uLife'),
+      core: gl.getUniformLocation(ringProg, 'uCore'),
+      gain: gl.getUniformLocation(ringProg, 'uGain'),
+      tonemap: gl.getUniformLocation(ringProg, 'uTonemap'),
+    } : null;
     const uP = {
       mvp: gl.getUniformLocation(pointProg, 'uMvp'),
       scale: gl.getUniformLocation(pointProg, 'uScale'),
       core: gl.getUniformLocation(pointProg, 'uCore'),
       gain: gl.getUniformLocation(pointProg, 'uGain'),
       pulse: gl.getUniformLocation(pointProg, 'uPulse'),
+      time: gl.getUniformLocation(pointProg, 'uTime'),
+      life: gl.getUniformLocation(pointProg, 'uLife'),
       tonemap: gl.getUniformLocation(pointProg, 'uTonemap'),
     };
 
@@ -794,9 +894,18 @@ export const ChartMesh: React.FC<Props> = ({
 
       // A few degrees of drift until the first touch, so there is something
       // moving before anybody does anything. It never comes back.
-      const drift = !touched.current && !reduced
+      const intro = !touched.current && !reduced
         ? Math.sin(age / 2600) * 7 - (age / 2600) * 1.6
         : 0;
+      // And underneath that, a breath that never stops. Amplitudes small
+      // enough that nobody catches it moving and large enough that the scene
+      // is never quite still, which is most of the difference between a place
+      // and a picture. Three periods that do not divide into each other, so it
+      // never visibly repeats.
+      const breathe = reduced ? 0 : 1;
+      const drift = intro + breathe * Math.sin(now / 7300) * 1.25;
+      const pitchBreath = breathe * Math.sin(now / 9700) * 0.75;
+      const zBreath = breathe * Math.sin(now / 6100) * 0.055;
 
       const aspect = canvas.width / Math.max(1, canvas.height);
       const proj = perspective((42 * Math.PI) / 180, aspect, 0.1, 40);
@@ -804,12 +913,12 @@ export const ChartMesh: React.FC<Props> = ({
       // the last of it, which reads as momentum rather than as a slide.
       const dolly = DOLLY_MS > 0 ? Math.min(1, age / DOLLY_MS) : 1;
       const dollyEased = 1 - Math.pow(2, -10 * dolly);
-      const camZ = FAR + (NEAR - FAR) * dollyEased;
+      const camZ = FAR + (NEAR - FAR) * dollyEased + zBreath * dollyEased;
       // It also swings a little as it comes in, so the arrival has a direction.
       const swing = (1 - dollyEased) * 26;
 
       const camera = (yawScale: number) => multiply(
-        multiply(rotateX(((angles.current.x - swing * 0.5) * Math.PI) / 180),
+        multiply(rotateX(((angles.current.x + pitchBreath - swing * 0.5) * Math.PI) / 180),
                  rotateY(((angles.current.y + drift + swing) * yawScale * Math.PI) / 180)),
         translate(0, 0.06, camZ),
       );
@@ -818,7 +927,12 @@ export const ChartMesh: React.FC<Props> = ({
       // The haze turns at half the rate of the scene, so it visibly lags as
       // you drag. Parallax during the gesture that is meant to show depth is
       // worth more than any amount of idle movement.
-      const dustMvp = multiply(camera(0.5), proj);
+      const dustMvp = multiply(
+        multiply(
+          multiply(rotateX(((angles.current.x + pitchBreath) * Math.PI) / 180),
+                   rotateY((((angles.current.y + drift) * 0.5 + (breathe ? now / 260 * 0.012 : 0)) * Math.PI) / 180)),
+          translate(0, 0.06, camZ),
+        ), proj);
 
       const sinceFlow = (now - flowAt.current) / 1000;
       const flow = reduced ? 0
@@ -876,15 +990,15 @@ export const ChartMesh: React.FC<Props> = ({
         // A third, very wide, very dim pass. Not real bloom, it still cannot
         // spread onto anything but itself, but it buys reach for one call.
         gl.uniform1f(uR.half, l.wide * 2.3);
-        gl.uniform1f(uR.alpha, 0.13);
+        gl.uniform1f(uR.alpha, 0.1);
         gl.uniform1f(uR.soft, 2.6);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, l.count);
         gl.uniform1f(uR.half, l.wide);
-        gl.uniform1f(uR.alpha, 0.5);
+        gl.uniform1f(uR.alpha, 0.42);
         gl.uniform1f(uR.soft, 1.7);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, l.count);
         gl.uniform1f(uR.half, l.core);
-        gl.uniform1f(uR.alpha, 1.35);
+        gl.uniform1f(uR.alpha, 0.95);
         gl.uniform1f(uR.soft, 0.5);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, l.count);
       }
@@ -892,6 +1006,8 @@ export const ChartMesh: React.FC<Props> = ({
       gl.useProgram(pointProg);
       gl.uniform1f(uP.tonemap, post ? 0 : 1);
       gl.uniform1f(uP.scale, dpr);
+      gl.uniform1f(uP.time, now / 1000);
+      gl.uniform1f(uP.life, reduced ? 0 : 1);
       // Haze on its own lagging camera.
       gl.uniformMatrix4fv(uP.mvp, false, dustMvp);
       gl.bindVertexArray(dVao);
@@ -912,6 +1028,22 @@ export const ChartMesh: React.FC<Props> = ({
       // dots is decoration and a single one is an affordance.
       gl.uniform1f(uP.pulse, reduced ? 1 : 1 + Math.sin(now / 420) * 0.06);
       gl.drawArrays(gl.POINTS, 0, markers.length);
+
+      // The tap ring, while it is still travelling.
+      const ringAge = (now - flowAt.current) / 700;
+      if (sel && ringProg && uRing && ringAge >= 0 && ringAge < 1 && !reduced) {
+        gl.useProgram(ringProg);
+        gl.uniformMatrix4fv(uRing.mvp, false, mvp);
+        gl.uniform1f(uRing.scale, dpr);
+        gl.uniform1f(uRing.pulse, 1);
+        gl.uniform1f(uRing.time, now / 1000);
+        gl.uniform1f(uRing.life, 0);
+        gl.uniform1f(uRing.tonemap, post ? 0 : 1);
+        gl.uniform1f(uRing.core, 0.15 + ringAge * 0.85);
+        gl.uniform1f(uRing.gain, (1 - ringAge) * 1.6);
+        gl.bindVertexArray(selVao);
+        gl.drawArrays(gl.POINTS, 0, 1);
+      }
       gl.bindVertexArray(null);
 
       if (!post || !uD || !uU || !uC) return;
@@ -962,8 +1094,13 @@ export const ChartMesh: React.FC<Props> = ({
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, targets[1].tex);
       gl.uniform1i(uC.bloom, 1);
-      gl.uniform1f(uC.strength, 0.9);
-      gl.uniform1f(uC.exposure, 2.1);
+      // Light lifts while something is happening: brighter through a tap and
+      // a little brighter while a finger is down. The scene answers rather
+      // than sitting at one setting.
+      const react = (ringAge >= 0 && ringAge < 1 ? (1 - ringAge) * 0.55 : 0)
+                  + (dragging.current ? 0.18 : 0);
+      gl.uniform1f(uC.strength, 0.9 + react);
+      gl.uniform1f(uC.exposure, 2.35 + react * 0.35);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindVertexArray(null);
       gl.activeTexture(gl.TEXTURE0);
@@ -987,6 +1124,8 @@ export const ChartMesh: React.FC<Props> = ({
       gl.deleteBuffer(gridBuf); gl.deleteVertexArray(gridVao);
       gl.deleteBuffer(stemBuf); gl.deleteVertexArray(stemVao);
       gl.deleteBuffer(mBuf); gl.deleteVertexArray(mVao);
+      gl.deleteBuffer(selBuf); gl.deleteVertexArray(selVao);
+      if (ringProg) gl.deleteProgram(ringProg);
       gl.deleteBuffer(dBuf); gl.deleteVertexArray(dVao);
       gl.deleteProgram(ribbonProg); gl.deleteProgram(pointProg);
       if (downProg) gl.deleteProgram(downProg);
@@ -1016,13 +1155,12 @@ export const ChartMesh: React.FC<Props> = ({
         role="application"
         aria-label="The chart in three dimensions. Drag or use the arrow keys to turn it, Escape to reset, tap an intervention to read it."
         tabIndex={0}
-        onPointerDown={tilt.onPointerDown}
-        onPointerMove={tilt.onPointerMove}
-        onPointerUp={tilt.onPointerUp}
-        onPointerCancel={tilt.onPointerUp}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={(e) => { press.current = null; tilt.onPointerUp(e); }}
         onKeyDown={tilt.onKeyDown}
         onDoubleClick={tilt.reset}
-        onClick={(e) => pick(e.clientX, e.clientY)}
       />
       <div className="chart-mesh-hint" aria-hidden="true">
         drag to turn · double tap to reset

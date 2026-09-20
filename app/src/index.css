@@ -1060,6 +1060,23 @@ body {
     #07090b;
 }
 .chart-mesh-canvas:active { cursor: grabbing; }
+
+/* No grey flash under the finger, and no text selection while turning.
+   Mobile Safari and Chrome both paint a highlight rectangle on tap and both
+   start a selection on a drag, which on a dark canvas shows up as a pale
+   patch appearing and disappearing under the thumb. Neither belongs on a
+   surface whose whole job is to be dragged. */
+.chart-mesh,
+.chart-mesh-canvas,
+.chart-mesh-hint {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* The canvas takes focus on tap so the arrow keys work. A pointer should not
+   see a ring for that; a keyboard still does. */
+.chart-mesh-canvas:focus { outline: none; }
 .chart-mesh-canvas:focus-visible { outline: 2px solid var(--verdigris); outline-offset: 3px; }
 .chart-mesh-hint {
   position: absolute;
