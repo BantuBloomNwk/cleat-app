@@ -4,11 +4,14 @@ import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
 import { CommunityMandate } from '../types';
 import type { Mandate, SectorExposure } from '../lib/chain';
 import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise';
+import { PublicKey } from '@solana/web3.js';
 import {
   loadPublishedMandates, loadStandings, MIN_DECISIONS_TO_RANK, PROGRAM_ID,
   type PublishedMandate, type StandingRow,
 } from '../lib/chain';
 import { tactile } from '../utils/haptics';
+import { adoptMandate } from '../lib/adopt';
+import type { Keypair } from '@solana/web3.js';
 
 interface MandatesTabProps {
   mandates: CommunityMandate[];
@@ -17,6 +20,9 @@ interface MandatesTabProps {
   exposure: SectorExposure[];
   /** The mandate that log answers to, or null before the read lands. */
   chainMandate: Mandate | null;
+  /** The person's own key, once the passkey has been unlocked. */
+  keypair: Keypair | null;
+  onNeedWallet: () => void;
 }
 
 export const MandatesTab: React.FC<MandatesTabProps> = ({
@@ -24,6 +30,8 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   onAdoptMandate,
   exposure,
   chainMandate,
+  keypair,
+  onNeedWallet,
 }) => {
   const [adoptedId, setAdoptedId] = useState<string | null>(null);
   const [denied, setDenied] = useState<IdentifiedMint[]>([]);
@@ -31,6 +39,27 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   // the scan lands, and it stays empty rather than inventing anyone.
   const [published, setPublished] = useState<PublishedMandate[]>([]);
   const [standings, setStandings] = useState<StandingRow[]>([]);
+
+  /* Taking a sentence on chain. One at a time, and the result stays on the
+     row it came from rather than in a toast that vanishes before it is read. */
+  const [takingId, setTakingId] = useState<string | null>(null);
+  const [taken, setTaken] = useState<Record<string, { url: string; sponsored: boolean } | string>>({});
+
+  const takeOnChain = async (m: PublishedMandate) => {
+    if (!keypair) { onNeedWallet(); return; }
+    tactile.mandateAction();
+    setTakingId(m.address);
+    try {
+      const r = await adoptMandate(keypair, new PublicKey(m.address), m.text);
+      setTaken((t) => ({ ...t, [m.address]: { url: r.explorer, sponsored: r.sponsored } }));
+      onAdoptMandate(m.text);
+      loadPublishedMandates().then(setPublished);
+    } catch (e) {
+      setTaken((t) => ({ ...t, [m.address]: (e as Error).message }));
+    } finally {
+      setTakingId(null);
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -417,6 +446,45 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                   </span>
                 )}
               </div>
+
+              {(() => {
+                const done = taken[m.address];
+                const busy = takingId === m.address;
+                const mine = keypair?.publicKey.toBase58() === m.owner;
+                if (typeof done === 'object') {
+                  return (
+                    <p className="text-[11px] text-[var(--text-secondary)]">
+                      Taken. It is your sentence now, on a child account under
+                      your own key.{' '}
+                      {done.sponsored && 'Devnet rent was covered for the demo. '}
+                      <a
+                        href={done.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="text-[var(--verdigris)] underline underline-offset-2"
+                      >
+                        check the transaction
+                      </a>
+                    </p>
+                  );
+                }
+                return (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-inject"
+                      disabled={busy || mine}
+                      onClick={() => takeOnChain(m)}
+                      title={mine ? 'This one is already yours' : 'Write this sentence to your own account'}
+                    >
+                      {busy ? 'Signing…' : mine ? 'Yours' : 'Take this sentence'}
+                    </button>
+                    {typeof done === 'string' && (
+                      <p className="text-[11px] text-[var(--refused-rust)]">{done}</p>
+                    )}
+                  </>
+                );
+              })()}
 
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] font-mono text-[var(--text-tertiary)]">
                 <span>unchanged {m.heldDays}d</span>

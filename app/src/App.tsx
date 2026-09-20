@@ -191,6 +191,8 @@ export default function App() {
             <MandatesTab
               mandates={communityMandates}
               onAdoptMandate={handleAdoptCommunityMandate}
+              keypair={wallet.keypair}
+              onNeedWallet={() => setIsOnboardingOpen(true)}
               exposure={sectorExposure}
               chainMandate={chainMandate}
             />
