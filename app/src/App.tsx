@@ -63,12 +63,25 @@ export default function App() {
   const [isTickDrawerOpen, setIsTickDrawerOpen] = useState(false);
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
 
-  // Pull the real verdict log off devnet. The sample data stays on screen if
-  // there is nothing on chain yet or the endpoint is unreachable, because a
-  // blank app is a worse answer than an illustrative one.
+  /* Pull the real verdict log off devnet.
+   *
+   * Whose log matters, and this used to not say. `loadChainSnapshot()` takes
+   * an owner and defaults to the demo account when called with nothing, so
+   * every screen fed by this, the header badge, the diary, the chart markers,
+   * the sealed state, was reading somebody else's vault no matter who was
+   * signed in. That is why sealing a sentence changed nothing anywhere: the
+   * app was not looking at the account it had just written to.
+   *
+   * It follows the signed in owner now, and re-reads when one arrives, rather
+   * than running once on mount and never again. Sample data still stands in
+   * when there is nothing on chain, because a blank app is a worse answer than
+   * an illustrative one, but `isLive` says which of the two you are looking
+   * at.
+   */
+  const owner = wallet.state.status === 'ready' ? wallet.state.address : null;
   useEffect(() => {
     let cancelled = false;
-    loadChainSnapshot()
+    loadChainSnapshot(owner ?? undefined)
       .then((snap) => {
         if (cancelled || !snap) {
           if (!cancelled) setIsLive(false);
@@ -93,7 +106,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [owner]);
 
   // Sync theme with HTML root attribute and body, and persist in localStorage
   useEffect(() => {

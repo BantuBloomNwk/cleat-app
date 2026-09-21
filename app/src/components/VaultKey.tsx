@@ -3,6 +3,7 @@ import { PublicKey, type Keypair } from '@solana/web3.js';
 import { connection } from '../lib/chain';
 import { tactile } from '../utils/haptics';
 import { moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
+import { walletSyncMode } from '../lib/passkey';
 
 /**
  * The key, its balance, and how to put something in it.
@@ -150,6 +151,16 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
           {sol === null ? 'reading…' : `${sol.toFixed(4)} SOL`}
         </span>
       </div>
+
+      {walletSyncMode() === 'stored' && (
+        <p className="text-[11px] leading-[1.6] text-[var(--trimmed-amber)]">
+          This authenticator would not derive the key from the passkey itself,
+          so the seed is kept in this browser. It will not follow you to another
+          device, and a browser that clears its storage takes it with it. Use
+          the same passkey on a device that supports it and you get the same key
+          back.
+        </p>
+      )}
 
       <button type="button" className="vault-key-address" onClick={copy} title="Copy the address">
         <span>{b58}</span>

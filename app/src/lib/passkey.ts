@@ -121,6 +121,21 @@ export async function platformAuthenticatorAvailable(): Promise<boolean> {
   }
 }
 
+/**
+ * Which kind of key this browser ended up with.
+ *
+ * `prf` means the seed is reproduced from the passkey itself, so the same
+ * passkey on another device gives the same key. `stored` means the
+ * authenticator would not do PRF and the seed lives in this browser's
+ * storage, which iOS will eventually evict. The app quietly downgraded between
+ * the two and never said which one had happened, which is the difference
+ * between a key that follows you and one that does not.
+ */
+export function walletSyncMode(): 'prf' | 'stored' | null {
+  const m = store.get(MODE_KEY);
+  return m === 'prf' || m === 'stored' ? m : null;
+}
+
 export function hasWallet(): boolean {
   const mode = store.get(MODE_KEY);
   return (mode === 'prf' && !!store.get(CRED_KEY)) || !!store.get(SEED_KEY);
@@ -248,8 +263,23 @@ export async function unlockWallet(): Promise<Keypair> {
   if (mode === 'stored') {
     const hex = store.get(SEED_KEY);
     if (!hex) throw new Error('The saved key is gone from this browser.');
-    // Still ask for the face, so the key is not usable just by having the tab.
-    await deriveViaAssertion(credId).catch(() => null);
+    // Ask for the face, and then actually care about the answer.
+    //
+    // This used to call the assertion and throw the result away, so the
+    // comment claimed the key was not usable just by having the tab while the
+    // code handed it over whether the assertion succeeded, failed or was
+    // cancelled. A check whose result is discarded is not a check, it is a
+    // delay, and in stored mode it was the only thing standing between an open
+    // tab and the key.
+    let proved = false;
+    try {
+      proved = !!(await deriveViaAssertion(credId));
+    } catch {
+      proved = false;
+    }
+    if (!proved) {
+      throw new Error('That was not confirmed, so the key stays locked.');
+    }
     return Keypair.fromSeed(fromHex(hex));
   }
 
