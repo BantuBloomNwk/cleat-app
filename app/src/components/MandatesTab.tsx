@@ -11,6 +11,7 @@ import {
 } from '../lib/chain';
 import { tactile } from '../utils/haptics';
 import { adoptMandate } from '../lib/adopt';
+import { confirmPresence } from '../lib/passkey';
 import type { Keypair } from '@solana/web3.js';
 
 interface MandatesTabProps {
@@ -50,6 +51,10 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
     tactile.mandateAction();
     setTakingId(m.address);
     try {
+      if (!(await confirmPresence())) {
+        setTaken((t) => ({ ...t, [m.address]: 'That was not confirmed, so nothing was written.' }));
+        return;
+      }
       const r = await adoptMandate(keypair, new PublicKey(m.address), m.text);
       setTaken((t) => ({ ...t, [m.address]: { url: r.explorer, sponsored: r.sponsored } }));
       onAdoptMandate(m.text);

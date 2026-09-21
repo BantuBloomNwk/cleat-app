@@ -3,7 +3,7 @@ import { PublicKey, type Keypair } from '@solana/web3.js';
 import { connection } from '../lib/chain';
 import { tactile } from '../utils/haptics';
 import { moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
-import { walletSyncMode } from '../lib/passkey';
+import { confirmPresence, walletSyncMode } from '../lib/passkey';
 
 /**
  * The key, its balance, and how to put something in it.
@@ -118,6 +118,10 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
     setBusy(label);
     setNote(null);
     try {
+      if (!(await confirmPresence())) {
+        setNote({ ok: false, text: 'That was not confirmed, so nothing moved.' });
+        return;
+      }
       const r = await fn();
       setNote({ ok: true, text: `${label} sent.`, url: r.explorer });
       setTimeout(() => setNonce((n) => n + 1), 3500);

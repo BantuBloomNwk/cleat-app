@@ -224,18 +224,16 @@ export async function createMandate(
   owner: Keypair,
   text: string,
   compiled: Compiled,
-  opts: { replace?: boolean } = {},
+  _opts: { replace?: boolean } = {},
 ): Promise<AdoptResult> {
-  const prep = await post({
-    phase: 'prepare',
-    owner: owner.publicKey.toBase58(),
-    intent: opts.replace ? 'update' : 'mandate',
-  });
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
   if (prep.error) throw new Error(prep.error);
 
   const mandate = mandatePda(owner.publicKey);
   const vault = vaultPda(owner.publicKey);
   const log = verdictLogPda(owner.publicKey);
+  const has = prep.has ?? { mandate: false, vault: false, log: false };
+
   const tx = new Transaction();
   if (prep.needsTopUp) {
     tx.add(SystemProgram.transfer({
@@ -255,34 +253,35 @@ export async function createMandate(
     u32le(denied.length), ...denied,
   );
 
-  if (opts.replace) {
-    // Changing your mind is a different instruction and inits nothing.
-    tx.add(new TransactionInstruction({
-      programId: PROGRAM_ID,
-      keys: [
-        { pubkey: owner.publicKey, isSigner: true, isWritable: false },
-        { pubkey: mandate, isSigner: false, isWritable: true },
-      ],
-      data: concat(D_UPDATE, args) as unknown as Buffer,
-    }));
-  } else {
-    /* All three accounts, one signature.
-     *
-     * A sentence on its own is why writing one looked like nothing happened.
-     * The mandate is the rule, the vault is what the rule governs, and the
-     * verdict log is where decisions about it get written. The app reads the
-     * log to know anything, so a mandate without one leaves it with nothing to
-     * show and it falls back to the sample, which is exactly what was
-     * happening. Setting up means all three or it means very little. */
-    tx.add(new TransactionInstruction({
-      programId: PROGRAM_ID,
-      keys: [
-        { pubkey: owner.publicKey, isSigner: true, isWritable: true },
-        { pubkey: mandate, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data: concat(D_CREATE, args) as unknown as Buffer,
-    }));
+  /* Setting up is a repair, not a first run.
+   *
+   * Three accounts have to exist for any of this to mean anything: the rule,
+   * the thing the rule governs, and the place decisions about it get written.
+   * People end up holding one or two of them, because the app used to write
+   * only the first, and because rewriting a sentence touches none of the
+   * others. So build whatever is missing and rewrite the sentence if it is
+   * already there. Running this twice is harmless, which is the point.
+   */
+  tx.add(has.mandate
+    ? new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: owner.publicKey, isSigner: true, isWritable: false },
+          { pubkey: mandate, isSigner: false, isWritable: true },
+        ],
+        data: concat(D_UPDATE, args) as unknown as Buffer,
+      })
+    : new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+          { pubkey: mandate, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: concat(D_CREATE, args) as unknown as Buffer,
+      }));
+
+  if (!has.vault) {
     tx.add(new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [
@@ -293,6 +292,8 @@ export async function createMandate(
       ],
       data: D_OPEN_VAULT as unknown as Buffer,
     }));
+  }
+  if (!has.log) {
     tx.add(new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [

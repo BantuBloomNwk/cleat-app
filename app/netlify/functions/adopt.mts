@@ -67,25 +67,29 @@ export default async (req: Request) => {
     try { owner = new PublicKey(String(body.owner)); }
     catch { return json({ error: "bad owner" }, 400); }
 
-    const [balance, existing, { blockhash, lastValidBlockHeight }] = await Promise.all([
-      connection.getBalance(owner),
-      connection.getAccountInfo(mandatePda(owner)),
-      connection.getLatestBlockhash("confirmed"),
-    ]);
+    // What already exists decides what the client has to build. Somebody who
+    // set up before the vault and the log were part of it has a mandate and
+    // nothing else, and telling them to start again is not an answer.
+    const pda = (seed: string) =>
+      PublicKey.findProgramAddressSync([Buffer.from(seed), owner.toBuffer()], PROGRAM_ID)[0];
+    const [balance, existing, vaultAcc, logAcc, { blockhash, lastValidBlockHeight }] =
+      await Promise.all([
+        connection.getBalance(owner),
+        connection.getAccountInfo(mandatePda(owner)),
+        connection.getAccountInfo(pda("vault")),
+        connection.getAccountInfo(pda("verdicts")),
+        connection.getLatestBlockhash("confirmed"),
+      ]);
     // Writing a first sentence needs the account free. Adopting needs the same
     // thing, because an adopted sentence lands in exactly that account.
-    // Only a first sentence is blocked by one already existing. Everything
-    // else an owner does to their own accounts is allowed to repeat.
-    if (existing && body.intent === 'mandate') {
-      return json({
-        error: "This key already speaks for a sentence. One owner, one mandate, which is the point of it.",
-        already: true,
-      });
-    }
+    // Nothing is refused here any more. Setting up is idempotent: the client
+    // is told what exists and builds only what is missing, which is the only
+    // thing that works for somebody part way through.
     // Enough to cover its own rent and fee, or it needs a hand.
     const needsTopUp = balance < TOP_UP_LAMPORTS;
     return json({
       blockhash, lastValidBlockHeight,
+      has: { mandate: !!existing, vault: !!vaultAcc, log: !!logAcc },
       needsTopUp,
       topUpLamports: needsTopUp ? TOP_UP_LAMPORTS : 0,
       feePayer: (needsTopUp ? faucet.publicKey : owner).toBase58(),

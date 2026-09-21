@@ -131,6 +131,27 @@ export async function platformAuthenticatorAvailable(): Promise<boolean> {
  * the two and never said which one had happened, which is the difference
  * between a key that follows you and one that does not.
  */
+/**
+ * Ask for the face or the finger before doing something that writes.
+ *
+ * Unlocking puts a keypair in memory, and everything after that could then
+ * sign in silence. That is convenient and it is not what somebody expects from
+ * a product that keeps saying the key never leaves your device: writing a
+ * mandate or moving money should feel like an act, and an act you were asked
+ * about. So every write asks again.
+ *
+ * It is a presence check, not a second derivation. The key is already here.
+ * What this establishes is that the person is too.
+ */
+export async function confirmPresence(): Promise<boolean> {
+  const credId = store.get(CRED_KEY) ?? undefined;
+  try {
+    return !!(await deriveViaAssertion(credId));
+  } catch {
+    return false;
+  }
+}
+
 export function walletSyncMode(): 'prf' | 'stored' | null {
   const m = store.get(MODE_KEY);
   return m === 'prf' || m === 'stored' ? m : null;

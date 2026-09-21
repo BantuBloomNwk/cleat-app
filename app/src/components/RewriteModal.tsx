@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { Keypair } from '@solana/web3.js';
+import { compileSentence, createMandate } from '../lib/adopt';
+import { confirmPresence } from '../lib/passkey';
 
 interface RewriteModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentSentence: string;
   onSaveSentence: (newSentence: string) => void;
+  /** Needed to sign. Without one this can only change what is on screen. */
+  keypair: Keypair | null;
+  /** True when a mandate already exists on chain for this key. */
+  hasMandate: boolean;
 }
 
 export const RewriteModal: React.FC<RewriteModalProps> = ({
@@ -13,16 +20,55 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
   onClose,
   currentSentence,
   onSaveSentence,
+  keypair,
+  hasMandate,
 }) => {
   const [text, setText] = useState(currentSentence);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<{ explorer: string } | null>(null);
+
+  /* Open it on whatever the sentence is now, not on whatever it was the first
+     time this component mounted. Adopting somebody else's rule and then
+     opening this showed the old one, because the initial state was captured
+     once and never refreshed. */
+  useEffect(() => {
+    if (isOpen) { setText(currentSentence); setErr(null); setDone(null); }
+  }, [isOpen, currentSentence]);
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    if (text.trim()) {
-      onSaveSentence(text.trim());
+  const handleSave = async () => {
+    const next = text.trim();
+    if (!next) return;
+    if (done) { onClose(); return; }
+
+    // No key means this can only change what is on screen, and it says so
+    // rather than looking like it did more.
+    if (!keypair) {
+      setErr('There is no key unlocked, so this can only change what you see here. Unlock in the vault to write it.');
+      onSaveSentence(next);
+      return;
     }
-    onClose();
+
+    setBusy(true);
+    setErr(null);
+    try {
+      if (!(await confirmPresence())) {
+        setErr('That was not confirmed, so nothing was written.');
+        return;
+      }
+      /* The same call that sets up. It rewrites the sentence when one is
+         already there and builds anything still missing, so a rewrite also
+         repairs a half finished setup instead of failing on it. */
+      const r = await createMandate(keypair, next, compileSentence(next));
+      onSaveSentence(next);
+      setDone({ explorer: r.explorer });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return createPortal(
@@ -82,10 +128,29 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
             type="button"
             className="btn-inject flex-[1.4] justify-center"
             onClick={handleSave}
+            disabled={busy || !text.trim()}
           >
-            Mount Mandate
+            {busy
+              ? 'Signing…'
+              : done
+                ? 'Done'
+                : hasMandate
+                  ? 'Rewrite it on chain'
+                  : 'Mount Mandate'}
           </button>
         </div>
+        {err && <p className="text-[11px] text-[var(--refused-rust)] mt-2">{err}</p>}
+        {done && (
+          <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)] mt-2">
+            Rewritten. The version on the mandate moved, which means any agent
+            grant issued against the old one stops working until you grant
+            again.{' '}
+            <a href={done.explorer} target="_blank" rel="noreferrer noopener"
+               className="text-[var(--verdigris)] underline underline-offset-2">
+              check the transaction
+            </a>
+          </p>
+        )}
       </div>
     </div>,
     document.body

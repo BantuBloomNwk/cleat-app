@@ -535,10 +535,15 @@ export async function loadChainSnapshot(
       connection.getAccountInfo(vaultPda(owner)),
       connection.getSlot(),
     ]);
-    if (!logInfo) return null;
+    // A mandate with no log yet is still yours, and so is a log with nothing
+    // in it. Both used to read as "no data" and drop the whole app back to the
+    // sample, which is how somebody could write a sentence, see it land on
+    // chain, and still be shown the demo account's diary.
+    if (!logInfo && !mandateInfo) return null;
 
-    const log = decodeVerdictLog(logInfo.data);
-    if (log.entries.length === 0) return null;
+    const log = logInfo
+      ? decodeVerdictLog(logInfo.data)
+      : { cleared: 0, clamped: 0, refused: 0, entries: [], exposureBps: [] as number[] };
     const mandate = mandateInfo ? decodeMandate(mandateInfo.data) : null;
 
     const slot = BigInt(latestSlot);

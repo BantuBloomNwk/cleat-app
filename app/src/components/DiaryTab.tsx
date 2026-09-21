@@ -14,6 +14,7 @@ import { MagicblockPerDiagram, type TracedRun } from './MagicblockPerDiagram';
 interface DiaryTabProps {
   mandateSentence: string;
   onOpenVoiceModal: () => void;
+  hasMandate?: boolean;
   onOpenRewriteModal: () => void;
   entries: LedgerEntry[];
   onToggleEntry: (id: string) => void;
@@ -79,6 +80,7 @@ const PERIOD_CONFIGS = {
 export const DiaryTab: React.FC<DiaryTabProps> = ({
   mandateSentence,
   onOpenVoiceModal,
+  hasMandate,
   onOpenRewriteModal,
   entries,
   onToggleEntry,
@@ -302,7 +304,10 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                 onOpenRewriteModal();
               }}
             >
-              Rewrite Mandate
+              {/* Rewriting is only rewriting when there is something on chain
+                  to rewrite. Until then it is mounting one, and calling it
+                  rewrite made an unwritten sentence look like a written one. */}
+              {hasMandate ? 'Rewrite Mandate' : 'Mount Mandate'}
             </button>
           </div>
         </div>

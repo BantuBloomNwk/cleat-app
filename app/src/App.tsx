@@ -147,9 +147,12 @@ export default function App() {
     // tabs keeps whatever scroll position the last one had, so without this
     // the change happens off screen and the tap looks like it did nothing.
     requestAnimationFrame(() => {
-      document
-        .querySelector('.app-content')
-        ?.scrollTo({ top: 0, behavior: 'smooth' });
+      // The tab switches and then the new tab's content mounts, so a scroll
+      // fired in the same frame lands against the old height and stops part
+      // way. Two frames is enough for the layout to settle.
+      const el = document.querySelector('.app-content');
+      el?.scrollTo({ top: 0, behavior: 'smooth' });
+      requestAnimationFrame(() => el?.scrollTo({ top: 0, behavior: 'smooth' }));
     });
   };
 
@@ -188,6 +191,7 @@ export default function App() {
             <DiaryTab
               mandateSentence={mandateSentence}
               onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
+              hasMandate={!!chainMandate}
               onOpenRewriteModal={() => setIsRewriteModalOpen(true)}
               entries={ledgerEntries}
               onToggleEntry={handleToggleEntry}
@@ -265,6 +269,8 @@ export default function App() {
         isOpen={isRewriteModalOpen}
         onClose={() => setIsRewriteModalOpen(false)}
         currentSentence={mandateSentence}
+        keypair={wallet.keypair}
+        hasMandate={!!chainMandate}
         onSaveSentence={(s) => setMandateSentence(s)}
       />
     </div>

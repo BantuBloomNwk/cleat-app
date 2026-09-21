@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tactile } from '../utils/haptics';
 import { compileSentence, createMandate } from '../lib/adopt';
+import { confirmPresence } from '../lib/passkey';
 import { hasWallet } from '../lib/passkey';
 import emblemDark from '../assets/emblem-dark.png';
 import emblemLight from '../assets/emblem-light.png';
@@ -124,6 +125,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
     setSealing(true);
     try {
+      if (!(await confirmPresence())) {
+        setSealError('That was not confirmed, so nothing was written.');
+        return;
+      }
       // Writing the first one sets up all three accounts. If this key already
       // speaks for a sentence, the same button rewrites it rather than failing
       // or, as it did until now, silently closing and looking like it worked.
