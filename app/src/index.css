@@ -1163,6 +1163,30 @@ body {
   letter-spacing: 0.06em;
 }
 
+/* Sleeves: one passkey, several accounts, each with its own rule and money. */
+.sleeve-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sleeve-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.sleeve-chip {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface-raised);
+  color: var(--text-secondary);
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+.sleeve-chip:hover { color: var(--text-primary); border-color: var(--verdigris); }
+.sleeve-chip.is-on {
+  color: var(--ink-on-verdigris, #07201c);
+  background: var(--verdigris);
+  border-color: var(--verdigris);
+  font-weight: 700;
+}
+.sleeve-chip-add { color: var(--text-tertiary); border-style: dashed; }
+.sleeve-note { font-size: 11px; line-height: 1.6; color: var(--text-tertiary); }
+
 .vault-actions { display: flex; flex-direction: column; gap: 8px; }
 .vault-field {
   display: flex; align-items: center; gap: 8px;

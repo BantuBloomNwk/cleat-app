@@ -41,6 +41,11 @@ const PRF_SALT_LOCAL = new TextEncoder().encode('cleat-local-secrets-v1');
 const MODE_KEY = 'cleat_passkey_mode';
 const CRED_KEY = 'cleat_passkey_credid';
 const SEED_KEY = 'cleat_passkey_seed';
+const SLEEVES_KEY = 'cleat_sleeves';
+const ACTIVE_KEY = 'cleat_sleeve_active';
+
+/** A tag so sleeve keys cannot collide with any other use of this passkey. */
+const SLEEVE_TAG = new TextEncoder().encode('cleat-sleeve-v1');
 
 /** Browser storage can be absent, full, or throwing. None of that is fatal. */
 const store = {
@@ -59,7 +64,7 @@ const store = {
     }
   },
   clear() {
-    for (const k of [MODE_KEY, CRED_KEY, SEED_KEY]) {
+    for (const k of [MODE_KEY, CRED_KEY, SEED_KEY, SLEEVES_KEY, ACTIVE_KEY]) {
       try {
         localStorage.removeItem(k);
       } catch {
@@ -99,9 +104,119 @@ const fromHex = (h: string) => {
   return out;
 };
 
-/** PRF gives arbitrary bytes; hash them to a clean 32 byte Ed25519 seed. */
-async function seedFromPrf(first: ArrayBuffer): Promise<Uint8Array> {
+/** PRF gives arbitrary bytes; hash them to a clean 32 byte Ed25519 root. */
+async function rootFromPrf(first: ArrayBuffer): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', first));
+}
+
+/**
+ * One passkey, many sleeves.
+ *
+ * A person does not hold one position. They hold a retirement sleeve they
+ * would never touch, a speculative sleeve they check too often, and something
+ * in between, and each of those wants its own sentence and its own money. One
+ * mandate per person was the wrong shape for that.
+ *
+ * The obvious fix is to put an index in the program's account seeds, so one
+ * key owns many mandates. That works and it costs a redeploy, a republished
+ * IDL, and a migration for every account already written. It also publishes
+ * the link: every sleeve derived from the same owner key is visibly the same
+ * person's, so anyone reading the chain reads the whole portfolio.
+ *
+ * Deriving instead is cheaper and stricter. The passkey already produces a
+ * root through PRF, so hashing that root against an index gives a separate
+ * Ed25519 key per sleeve. Each one is its own owner as far as the program is
+ * concerned, so each gets its own mandate, its own vault, its own verdict log,
+ * its own spending allowance and its own delegation, with nothing in the
+ * program to change. On chain the sleeves have no visible relationship to each
+ * other, and losing one sleeve's grant does not touch the others.
+ *
+ * Index zero is the root unchanged, so every key written before sleeves
+ * existed is still exactly where it was.
+ */
+async function sleeveSeed(root: Uint8Array, index: number): Promise<Uint8Array> {
+  if (index === 0) return root;
+  const buf = new Uint8Array(root.length + SLEEVE_TAG.length + 4);
+  buf.set(root, 0);
+  buf.set(SLEEVE_TAG, root.length);
+  new DataView(buf.buffer).setUint32(root.length + SLEEVE_TAG.length, index, true);
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
+}
+
+/**
+ * The root for this session, so switching sleeve does not ask for the face
+ * again.
+ *
+ * It is the same exposure the unlocked keypair already is: held in memory,
+ * gone on reload, never written down. Anything that writes still runs a fresh
+ * presence check, so holding this shortens no guarantee, it only stops the
+ * app prompting five times to look at five sleeves.
+ */
+let sessionRoot: Uint8Array | null = null;
+
+export interface Sleeve {
+  index: number;
+  name: string;
+}
+
+const DEFAULT_SLEEVE: Sleeve = { index: 0, name: 'Main' };
+
+export function listSleeves(): Sleeve[] {
+  try {
+    const raw = store.get(SLEEVES_KEY);
+    if (!raw) return [DEFAULT_SLEEVE];
+    const parsed = JSON.parse(raw) as Sleeve[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return [DEFAULT_SLEEVE];
+    return parsed
+      .filter((x) => Number.isInteger(x?.index) && x.index >= 0)
+      .map((x) => ({ index: x.index, name: String(x.name || `Sleeve ${x.index}`) }))
+      .sort((a, b) => a.index - b.index);
+  } catch {
+    return [DEFAULT_SLEEVE];
+  }
+}
+
+function writeSleeves(list: Sleeve[]) {
+  store.set(SLEEVES_KEY, JSON.stringify(list));
+}
+
+export function activeSleeve(): number {
+  const raw = Number(store.get(ACTIVE_KEY));
+  const list = listSleeves();
+  return list.some((s) => s.index === raw) ? raw : list[0].index;
+}
+
+export function setActiveSleeve(index: number) {
+  store.set(ACTIVE_KEY, String(index));
+}
+
+/** Add a sleeve at the next free index. The key for it is derived, not made. */
+export function addSleeve(name: string): Sleeve {
+  const list = listSleeves();
+  const index = list.reduce((m, s) => Math.max(m, s.index), 0) + 1;
+  const sleeve: Sleeve = { index, name: name.trim() || `Sleeve ${index}` };
+  writeSleeves([...list, sleeve]);
+  return sleeve;
+}
+
+export function renameSleeve(index: number, name: string) {
+  writeSleeves(
+    listSleeves().map((s) => (s.index === index ? { ...s, name: name.trim() || s.name } : s)),
+  );
+}
+
+/**
+ * Forget a sleeve on this device.
+ *
+ * It does not and cannot destroy anything. The key is derived from the
+ * passkey, so the same index reproduces the same key and whatever is in that
+ * vault stays reachable by adding the sleeve back. This only tidies the list.
+ */
+export function forgetSleeve(index: number) {
+  if (index === 0) return;
+  const left = listSleeves().filter((s) => s.index !== index);
+  writeSleeves(left.length ? left : [DEFAULT_SLEEVE]);
+  if (activeSleeve() === index) setActiveSleeve(left.length ? left[0].index : 0);
 }
 
 export function passkeySupported(): boolean {
@@ -171,7 +286,7 @@ export function hasWallet(): boolean {
  */
 async function deriveViaAssertion(
   credId?: string,
-): Promise<{ keypair: Keypair; credId: string } | null> {
+): Promise<{ root: Uint8Array; credId: string } | null> {
   const assertion = (await navigator.credentials.get({
     publicKey: {
       challenge: randomBytes(32) as BufferSource,
@@ -194,10 +309,29 @@ async function deriveViaAssertion(
   const first = ext.prf?.results?.first;
   if (!first) return null;
 
-  return {
-    keypair: Keypair.fromSeed(await seedFromPrf(first)),
-    credId: b64url(assertion.rawId),
-  };
+  const root = await rootFromPrf(first);
+  sessionRoot = root;
+  return { root, credId: b64url(assertion.rawId) };
+}
+
+/**
+ * The key for one sleeve.
+ *
+ * Uses the session root when there is one, and otherwise asks the passkey,
+ * which is what happens on a device that has just been opened.
+ */
+export async function deriveSleeve(index: number): Promise<Keypair> {
+  if (sessionRoot) return Keypair.fromSeed(await sleeveSeed(sessionRoot, index));
+
+  if (store.get(MODE_KEY) === 'stored') {
+    const hex = store.get(SEED_KEY);
+    if (!hex) throw new Error('The saved key is gone from this browser.');
+    return Keypair.fromSeed(await sleeveSeed(fromHex(hex), index));
+  }
+
+  const derived = await deriveViaAssertion(store.get(CRED_KEY) ?? undefined);
+  if (!derived) throw new Error('This device could not reproduce the key from that passkey.');
+  return Keypair.fromSeed(await sleeveSeed(derived.root, index));
 }
 
 /** Register a passkey and provision the wallet behind it. */
@@ -255,13 +389,14 @@ export async function createWallet(): Promise<Keypair> {
     if (atCreate) {
       store.set(MODE_KEY, 'prf');
       store.set(CRED_KEY, credId);
-      return Keypair.fromSeed(await seedFromPrf(atCreate));
+      sessionRoot = await rootFromPrf(atCreate);
+      return Keypair.fromSeed(await sleeveSeed(sessionRoot, 0));
     }
     const derived = await deriveViaAssertion(credId);
     if (derived) {
       store.set(MODE_KEY, 'prf');
       store.set(CRED_KEY, derived.credId);
-      return derived.keypair;
+      return Keypair.fromSeed(await sleeveSeed(derived.root, 0));
     }
   } catch {
     /* fall through to the stored seed path */
@@ -273,11 +408,12 @@ export async function createWallet(): Promise<Keypair> {
   store.set(MODE_KEY, 'stored');
   store.set(CRED_KEY, credId);
   store.set(SEED_KEY, toHex(seed));
-  return Keypair.fromSeed(seed);
+  sessionRoot = seed;
+  return Keypair.fromSeed(await sleeveSeed(seed, 0));
 }
 
 /** Unlock the existing wallet. Falls back to discoverable if nothing is known. */
-export async function unlockWallet(): Promise<Keypair> {
+export async function unlockWallet(index = 0): Promise<Keypair> {
   const mode = store.get(MODE_KEY);
   const credId = store.get(CRED_KEY) ?? undefined;
 
@@ -301,11 +437,13 @@ export async function unlockWallet(): Promise<Keypair> {
     if (!proved) {
       throw new Error('That was not confirmed, so the key stays locked.');
     }
-    return Keypair.fromSeed(fromHex(hex));
+    const seed = fromHex(hex);
+    sessionRoot = seed;
+    return Keypair.fromSeed(await sleeveSeed(seed, index));
   }
 
   const derived = await deriveViaAssertion(credId);
-  if (derived) return derived.keypair;
+  if (derived) return Keypair.fromSeed(await sleeveSeed(derived.root, index));
   throw new Error('This device could not reproduce the key from that passkey.');
 }
 
@@ -316,19 +454,25 @@ export async function unlockWallet(): Promise<Keypair> {
  * passkeys the user has, and PRF turns the chosen one back into the same
  * wallet it always was.
  */
-export async function restoreWallet(): Promise<Keypair> {
+export async function restoreWallet(index = 0): Promise<Keypair> {
   const derived = await deriveViaAssertion();
   if (!derived) {
     throw new Error('That passkey cannot rebuild a key on this browser.');
   }
   store.set(MODE_KEY, 'prf');
   store.set(CRED_KEY, derived.credId);
-  return derived.keypair;
+  return Keypair.fromSeed(await sleeveSeed(derived.root, index));
 }
 
 /** Forget this browser's pointer to the wallet. The passkey itself survives. */
 export function forgetLocal() {
+  sessionRoot = null;
   store.clear();
+}
+
+/** Drop the session root. Used when locking, so a closed session is closed. */
+export function clearSessionRoot() {
+  sessionRoot = null;
 }
 
 /**

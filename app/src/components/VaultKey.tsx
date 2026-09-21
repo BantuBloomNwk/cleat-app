@@ -167,6 +167,52 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
 
   return (
     <div className="vault-key">
+      {/* Sleeves.
+          One sentence for a whole person was the wrong shape. Nobody holds a
+          single position: there is money you would not touch and money you are
+          playing with, and they do not want the same rule. Each sleeve here is
+          a separate key derived from the same passkey, so each has its own
+          mandate, its own vault and its own log, and the chain shows no link
+          between them. */}
+      <div className="sleeve-bar">
+        <span className="vault-key-label">Sleeves</span>
+        <div className="sleeve-chips">
+          {wallet.sleeves.map((s) => (
+            <button
+              key={s.index}
+              type="button"
+              className={`sleeve-chip${s.index === wallet.sleeve ? ' is-on' : ''}`}
+              onClick={() => { tactile.selectionTap(); void wallet.select(s.index); }}
+              onDoubleClick={() => {
+                const name = prompt('Call this sleeve', s.name);
+                if (name !== null) wallet.rename(s.index, name);
+              }}
+              title={s.index === wallet.sleeve ? 'Showing this one' : 'Switch to this sleeve'}
+            >
+              {s.name}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="sleeve-chip sleeve-chip-add"
+            onClick={() => {
+              const name = prompt('Call the new sleeve', `Sleeve ${wallet.sleeves.length}`);
+              if (name === null) return;
+              tactile.selectionTap();
+              void wallet.addSleeve(name);
+            }}
+            title="Another key, another mandate, another vault"
+          >
+            + new
+          </button>
+        </div>
+      </div>
+      <p className="sleeve-note">
+        Each sleeve is its own account with its own rule and its own balance.
+        The same passkey reproduces all of them on any device you sign in on,
+        and nothing on chain ties one to another.
+      </p>
+
       <div className="vault-key-row">
         <span className="vault-key-label">Your key</span>
         <span className="vault-key-balance">

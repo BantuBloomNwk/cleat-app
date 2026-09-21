@@ -6,8 +6,17 @@ import {
   restoreWallet,
   hasWallet,
   forgetLocal,
+  clearSessionRoot,
   passkeySupported,
   platformAuthenticatorAvailable,
+  listSleeves,
+  activeSleeve,
+  setActiveSleeve,
+  addSleeve,
+  renameSleeve as renameSleeveStored,
+  forgetSleeve as forgetSleeveStored,
+  deriveSleeve,
+  type Sleeve,
 } from '../lib/passkey';
 
 export type WalletState =
@@ -28,6 +37,15 @@ export type WalletState =
 export function useWallet() {
   const [state, setState] = useState<WalletState>({ status: 'none' });
   const [keypair, setKeypair] = useState<Keypair | null>(null);
+  /**
+   * Which sleeve is in front.
+   *
+   * Each one is a separate owner key derived from the same passkey, so
+   * switching is not a filter over one account, it is a different account
+   * entirely: its own mandate, its own vault, its own log.
+   */
+  const [sleeves, setSleeves] = useState<Sleeve[]>(() => listSleeves());
+  const [sleeve, setSleeve] = useState<number>(() => activeSleeve());
 
   useEffect(() => {
     let live = true;
@@ -62,19 +80,63 @@ export function useWallet() {
     }
   }, []);
 
+  /**
+   * Move to another sleeve.
+   *
+   * No prompt when the session already holds the root, which is the whole
+   * point: looking at four sleeves should not be four requests for a face.
+   * Anything that writes asks again regardless.
+   */
+  const select = useCallback(
+    async (index: number) => {
+      setActiveSleeve(index);
+      setSleeve(index);
+      if (state.status !== 'ready' && !keypair) return null;
+      return run(() => deriveSleeve(index));
+    },
+    [run, state.status, keypair],
+  );
+
   return {
     state,
     keypair,
+    sleeve,
+    sleeves,
     create: useCallback(() => run(createWallet), [run]),
-    unlock: useCallback(() => run(unlockWallet), [run]),
-    restore: useCallback(() => run(restoreWallet), [run]),
+    unlock: useCallback(() => run(() => unlockWallet(sleeve)), [run, sleeve]),
+    restore: useCallback(() => run(() => restoreWallet(sleeve)), [run, sleeve]),
+    select,
+    addSleeve: useCallback(
+      async (name: string) => {
+        const made = addSleeve(name);
+        setSleeves(listSleeves());
+        await select(made.index);
+        return made;
+      },
+      [select],
+    ),
+    rename: useCallback((index: number, name: string) => {
+      renameSleeveStored(index, name);
+      setSleeves(listSleeves());
+    }, []),
+    removeSleeve: useCallback(
+      async (index: number) => {
+        forgetSleeveStored(index);
+        setSleeves(listSleeves());
+        await select(activeSleeve());
+      },
+      [select],
+    ),
     signOut: useCallback(() => {
+      clearSessionRoot();
       setKeypair(null);
       setState(hasWallet() ? { status: 'locked' } : { status: 'none' });
     }, []),
     forget: useCallback(() => {
       forgetLocal();
       setKeypair(null);
+      setSleeves(listSleeves());
+      setSleeve(0);
       setState({ status: 'none' });
     }, []),
   };
