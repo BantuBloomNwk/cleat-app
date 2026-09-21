@@ -179,7 +179,7 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
             drift={real ? ((venuePrice - real) / real) * 10_000 : null}
             facts={ISSUERS.backpack}
             mint={listed?.mint}
-            venue={listed ? `${listed.venue} (${listed.mic})` : undefined}
+            venue={listed?.venue ? `${listed.venue}${listed.mic ? ` (${listed.mic})` : ''}` : undefined}
             expanded={open === 'backpack'}
             onToggle={() => {
               tactile.selectionTap();

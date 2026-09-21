@@ -159,6 +159,84 @@ export async function loadTickers(): Promise<Ticker[] | null> {
   return all.filter((t) => t.symbol.includes(".US_"));
 }
 
+/**
+ * Everything the venue has tokenized, whether or not it has an order book.
+ *
+ * The universe used to be whatever came back from tickers with a ".US_" in
+ * the symbol, which is twenty one names. That is not the tokenized universe,
+ * it is the subset of it that someone has stood up a book against, and the
+ * two are a long way apart: the venue has fifty eight tokenized equities live
+ * on Solana today. COPX and URA are both real, both withdrawable to a Solana
+ * wallet, and neither has ever had a market, so neither could ever appear.
+ *
+ * Reading the asset list instead fixes that and fixes the next one too. A
+ * name listed tomorrow shows up on the next cache expiry with nothing to
+ * edit, where the old shape needed someone to notice.
+ *
+ * It also carries the mint, which is the thing the app needs in order to
+ * name an instrument in a mandate and have the program enforce against it.
+ */
+export interface TokenizedAsset {
+  /** "COPX.US" */
+  asset: string;
+  /** "COPX" */
+  ticker: string;
+  name: string;
+  mint: string;
+  decimals: number;
+}
+
+interface RawAssetToken {
+  blockchain: string;
+  contractAddress: string;
+  depositEnabled: boolean;
+  withdrawEnabled: boolean;
+  nativeDecimals: number;
+}
+interface RawAsset {
+  symbol: string;
+  displayName: string;
+  tokens: RawAssetToken[] | null;
+}
+
+export async function loadTokenized(): Promise<TokenizedAsset[] | null> {
+  const all = await load<RawAsset[]>("assets");
+  if (!all) return null;
+  const out: TokenizedAsset[] = [];
+  for (const a of all) {
+    if (!a.symbol?.endsWith(".US")) continue;
+    // Both flags, because a token you can deposit and not withdraw is not
+    // something to put in front of someone as tradable.
+    const sol = (a.tokens ?? []).find(
+      (t) =>
+        t.blockchain === "Solana" &&
+        t.depositEnabled &&
+        t.withdrawEnabled &&
+        !!t.contractAddress,
+    );
+    if (!sol) continue;
+    out.push({
+      asset: a.symbol,
+      ticker: a.symbol.replace(/\.US$/, ""),
+      name: a.displayName || a.symbol,
+      mint: sol.contractAddress,
+      decimals: sol.nativeDecimals,
+    });
+  }
+  return out.sort((x, y) => x.ticker.localeCompare(y.ticker));
+}
+
+/** Which of the tokenized names actually has a book, and on what symbol. */
+export function marketsFor(
+  asset: TokenizedAsset,
+  tickers: Ticker[] | null,
+): { spot?: string; perp?: string } {
+  const spot = `${asset.asset}_USDC`;
+  const perp = `${spot}_PERP`;
+  const has = (sym: string) => (tickers ?? []).some((t) => t.symbol === sym);
+  return { spot: has(spot) ? spot : undefined, perp: has(perp) ? perp : undefined };
+}
+
 /** "NVDA.US_USDC_PERP" reads as "NVDA". */
 export const symbolTicker = (symbol: string) =>
   symbol.split("_")[0].replace(/\.US$/, "");

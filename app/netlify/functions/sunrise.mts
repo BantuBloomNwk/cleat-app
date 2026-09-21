@@ -33,12 +33,26 @@ interface SunriseToken {
 }
 
 async function universe(): Promise<SunriseToken[]> {
-  const res = await fetch(`${SUNRISE}/v1/tokens`, {
-    headers: { accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(`tokens ${res.status}`);
-  const body = (await res.json()) as { data?: { tokens?: SunriseToken[] } };
-  return body.data?.tokens ?? [];
+  // Paginated, and it did not used to be read that way. The page limit is
+  // two hundred and the list sat at eighty eight, so the missing cursor
+  // cost nothing and would have cost everything past two hundred silently.
+  // Names are being added by the dozen, so that is weeks away, not years.
+  const out: SunriseToken[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+    const res = await fetch(`${SUNRISE}/v1/tokens${qs}`, {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`tokens ${res.status}`);
+    const body = (await res.json()) as {
+      data?: { tokens?: SunriseToken[]; pagination?: { nextCursor?: string | null } };
+    };
+    out.push(...(body.data?.tokens ?? []));
+    cursor = body.data?.pagination?.nextCursor ?? undefined;
+    if (!cursor) break;
+  }
+  return out;
 }
 
 const json = (body: unknown, status = 200, maxAge = 300) =>
@@ -54,9 +68,15 @@ export default async () => {
   try {
     const tokens = await universe();
     const rows = tokens
-      .filter((t) => t.assetClass === "stock" && t.stock)
+      // The sub-object, not the asset class, used to gate this. It is null
+      // on the newest mints because nobody has filled it in yet, so nine
+      // real names were dropped for a missing field rather than for not
+      // being stocks. The symbol field already carries the plain ticker, so
+      // a row with no exchange detail is listed with the detail left blank
+      // rather than dropped.
+      .filter((t) => t.assetClass === "stock")
       .map((t) => ({
-        ticker: t.stock!.ticker,
+        ticker: t.stock?.ticker ?? t.symbol,
         mint: t.address,
         name: t.name.replace(/ - Backpack Securities$/, ""),
         decimals: t.decimals,
@@ -68,9 +88,9 @@ export default async () => {
         // ISO 10383, so XNAS rather than "Nasdaq". Four venues are
         // represented and all four are American, which is worth stating
         // plainly: the supply side has not left New York yet.
-        mic: t.stock!.exchange.marketIdentifierCode,
-        venue: t.stock!.exchange.name,
-        currency: t.stock!.currency,
+        mic: t.stock?.exchange.marketIdentifierCode ?? null,
+        venue: t.stock?.exchange.name ?? null,
+        currency: t.stock?.currency ?? "USD",
         icon: t.icon,
       }))
       .sort((a, b) => a.ticker.localeCompare(b.ticker));

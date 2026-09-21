@@ -22,8 +22,10 @@ export interface SunriseStock {
   issuer: string | null;
   tokenProgram: string;
   /** ISO 10383 market identifier, so XNAS rather than "Nasdaq". */
-  mic: string;
-  venue: string;
+  /** Null on the newest mints, where the venue has not filled in the
+   *  exchange detail yet. The name is still real and still tradable. */
+  mic: string | null;
+  venue: string | null;
   currency: string;
   icon: string | null;
 }

@@ -11,8 +11,7 @@ import {
   currentSession,
   sessionLabel,
   type Ticker,
-  type MarketSession,
-} from '../lib/backpack';
+  type MarketSession, loadTokenized, marketsFor, type TokenizedAsset } from '../lib/backpack';
 import { tactile } from '../utils/haptics';
 import { FlipDigits } from './FlipDigits';
 
@@ -54,6 +53,17 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
       live = false;
       window.clearInterval(id);
     };
+  }, []);
+
+  // The whole tokenized universe, not just the part with an order book.
+  // Fifty eight names are live on Solana; twenty one have a market. The
+  // other thirty seven were invisible here, which is how two new listings
+  // went missing without anything looking broken.
+  const [assets, setAssets] = useState<TokenizedAsset[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadTokenized().then((a) => live && setAssets(a));
+    return () => { live = false; };
   }, []);
 
   useEffect(() => {
@@ -100,6 +110,15 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
     }, DWELL);
     return () => window.clearInterval(id);
   }, [autoRunning, paused, picking, ranked, symbol, onSelect]);
+
+  /** Tokenized and withdrawable, but nobody has stood a book against it. */
+  const bookless = useMemo(() => {
+    if (!assets) return [];
+    return assets.filter((a) => {
+      const m = marketsFor(a, tickers);
+      return !m.spot && !m.perp;
+    });
+  }, [assets, tickers]);
 
   const takeOver = () => {
     setAutoRunning(false);
@@ -284,6 +303,38 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
               </button>
             );
           })}
+
+          {/* Held, not traded.
+              These are real tokens you can withdraw to a wallet, they just
+              have no market here yet. Leaving them out made the app look
+              like it had missed a listing. Showing them greyed says the
+              true thing: the name exists, the book does not. */}
+          {bookless.length > 0 && (
+            <>
+              <div className="px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] bg-[var(--card-surface)]">
+                tokenized, no book yet
+              </div>
+              {bookless.map((a) => (
+                <div
+                  key={a.asset}
+                  className="w-full flex items-baseline justify-between gap-2 px-2.5 py-2 opacity-60"
+                  title={`${a.name} · ${a.mint}`}
+                >
+                  <span className="flex items-baseline gap-1.5 min-w-0">
+                    <span className="font-bold text-[12px] text-[var(--text-primary)] whitespace-nowrap">
+                      {a.ticker}
+                    </span>
+                    <span className="truncate text-[10px] text-[var(--text-tertiary)]">
+                      {a.name}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-mono text-[9px] uppercase text-[var(--text-tertiary)]">
+                    holdable
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

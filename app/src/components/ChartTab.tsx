@@ -5,7 +5,7 @@ import { PreIpo } from './PreIpo';
 import { Watching } from './Watching';
 import { DataOrigin } from './DataOrigin';
 import { ChartMesh } from './ChartMesh';
-import { symbolTicker, loadTickers, loadDepth, bookQuality } from '../lib/backpack';
+import { symbolTicker, loadTickers, loadDepth, bookQuality, isPerp } from '../lib/backpack';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
 import { TIMEFRAME_CONFIGS, INITIAL_SOCIAL_TRADE_MESSAGES } from '../data/initialData';
@@ -68,11 +68,17 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   // permission, and it is the one our framing survives on. Perps stay in
   // the picker because they are where the liquidity is, and they are
   // labelled.
-  // Tesla rather than Micron, because it is one of the twenty five symbols
-  // Pyth entitles, so it is the one name on this screen that can carry a
-  // chart somebody can read a price off. A featured instrument a trader
-  // cannot analyse is a featured instrument in name only.
-  const [instrument, setInstrument] = useState('TSLA.US_USDC');
+  // Micron, because it is one of the four names with a real spot market.
+  //
+  // This used to open on TSLA.US_USDC, which reads well and does not exist:
+  // the venue lists Tesla as a perpetual only. Every load asked for a book
+  // that was never there, the proxy called the resulting 400 a bad gateway,
+  // and the console filled with what looked like an outage and was us
+  // asking for a market nobody had made. A default has to be a real symbol,
+  // and the check for that is the ticker list, not how plausible it sounds.
+  const [instrument, setInstrument] = useState('MU.US_USDC');
+  /** Whoever picks something takes it over, and the default stops steering. */
+  const [chosen, setChosen] = useState(false);
 
 
   // What the venue's own book says about the selected name, so the
@@ -80,6 +86,22 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   // the one row we already have.
   const [venuePrice, setVenuePrice] = useState<number | null>(null);
   const [venueDepth, setVenueDepth] = useState<number | null>(null);
+
+  // Settle the default on whichever spot market is busiest once the list is
+  // here, so the opening screen is a name that is actually trading rather
+  // than one that was true when this was written.
+  useEffect(() => {
+    if (chosen) return;
+    let live = true;
+    loadTickers().then((ts) => {
+      if (!live || !ts) return;
+      const spot = ts
+        .filter((t) => !isPerp(t.symbol))
+        .sort((a, b) => Number(b.quoteVolume || 0) - Number(a.quoteVolume || 0))[0];
+      if (spot) setInstrument(spot.symbol);
+    });
+    return () => { live = false; };
+  }, [chosen]);
 
   useEffect(() => {
     let live = true;
@@ -291,7 +313,10 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         <div className="card-topbar">
           {/* The real instrument, priced by the venue the agent trades
               on, replacing a token that did not exist. */}
-          <LiveInstrument symbol={instrument} onSelect={setInstrument} />
+          <LiveInstrument
+            symbol={instrument}
+            onSelect={(s) => { setChosen(true); setInstrument(s); }}
+          />
           <div className="flex gap-1.5 items-center">
             <button
               id="perspectiveToggleBtn"

@@ -35,13 +35,24 @@ const ALLOWED = new Set([
   "market-holidays",
   "markets",
   "tickers",
+  // Every asset the venue knows, with the Solana mint and the deposit and
+  // withdrawal flags per chain. This is the only endpoint that answers the
+  // question the app actually asks, which is what is tokenized and live
+  // right now. Tickers answers a narrower one, which is what has an order
+  // book, and a name can be real and tradable without having one.
+  "assets",
+  // A price for the names with no book.
+  "markPrices",
 ]);
 
 // Paths that take a symbol, and the shape a symbol is allowed to have.
 // Anchored and narrow on purpose: the symbol goes into an upstream URL, so
 // it is validated rather than trusted.
-const SYMBOL_PATHS = new Set(["klines", "depth", "ticker"]);
-const SYMBOL = /^[A-Z0-9]{1,12}(\.[A-Z]{1,4})?_[A-Z0-9]{1,8}(_PERP)?$/;
+const SYMBOL_PATHS = new Set(["klines", "depth", "ticker", "market"]);
+// Two dots happen: BRK.B.US is in the venue's own security list. RFQ is a
+// documented market suffix. Neither used to pass, so neither could ever be
+// asked for through here.
+const SYMBOL = /^[A-Z0-9]{1,12}(\.[A-Z]{1,4}){0,2}_[A-Z0-9]{1,8}(_PERP|_RFQ)?$/;
 const INTERVAL = new Set(["1m", "5m", "15m", "1h", "4h", "1d", "1w"]);
 
 export default async (req: Request) => {
@@ -69,6 +80,10 @@ export default async (req: Request) => {
     }
     query.set("symbol", symbol);
 
+    // Depth returns up to five thousand levels by default and nothing here
+    // reads past the top of the book, so the rest is payload nobody opens.
+    if (which === "depth") query.set("limit", "100");
+
     if (which === "klines") {
       const interval = url.searchParams.get("interval") ?? "1h";
       if (!INTERVAL.has(interval)) {
@@ -94,9 +109,15 @@ export default async (req: Request) => {
       headers: { accept: "application/json" },
     });
     if (!res.ok) {
+      // Pass the upstream status through rather than calling everything a
+      // 502. A 400 means we asked for something that does not exist, and
+      // reporting that as a bad gateway makes our own mistake look like the
+      // venue being down. That is exactly how a dead default symbol sat in
+      // the console for days looking like an outage.
+      const status = res.status >= 400 && res.status < 500 ? res.status : 502;
       return new Response(
-        JSON.stringify({ error: `upstream ${res.status}` }),
-        { status: 502, headers: { "content-type": "application/json" } },
+        JSON.stringify({ error: `upstream ${res.status}`, path: which }),
+        { status, headers: { "content-type": "application/json" } },
       );
     }
     const body = await res.text();
