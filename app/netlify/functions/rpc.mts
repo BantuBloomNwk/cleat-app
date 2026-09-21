@@ -13,7 +13,18 @@
 //
 // So the method is checked against what the app actually calls, which is two
 // things. Anything else is refused by name rather than forwarded.
-const ALLOWED = new Set(["getAccountInfo", "getSlot", "getProgramAccounts"]);
+// getBalance was missing, and the balance in the vault panel was therefore
+// never fetched at all: the proxy refused it, the client caught the refusal and
+// showed "reading…" for ever. A read that quietly fails looks exactly like a
+// read that is slow.
+const ALLOWED = new Set([
+  "getAccountInfo",
+  "getBalance",
+  "getSlot",
+  "getProgramAccounts",
+  "getLatestBlockhash",
+  "getSignatureStatuses",
+]);
 
 /**
  * getProgramAccounts is the expensive one, so it is fenced rather than just

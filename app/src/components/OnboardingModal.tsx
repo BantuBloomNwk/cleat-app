@@ -50,6 +50,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const compiled = React.useMemo(() => compileSentence(mandateText), [mandateText]);
   const [sealing, setSealing] = useState(false);
   const [sealError, setSealError] = useState<string | null>(null);
+  const [sealed, setSealed] = useState<{ signature: string; explorer: string } | null>(null);
 
   // Every hook has to run on every render, so they all live above this. The
   // three above were added below it and the modal then rendered four hooks
@@ -101,6 +102,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
    * that a key belonging to the person has ever been used for anything.
    */
   const handleSeal = async () => {
+    if (sealed) { onClose(); return; }
     const text = mandateText.trim();
     if (!text) return;
     tactile.mandateAction();
@@ -122,15 +124,21 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
     setSealing(true);
     try {
-      const r = await createMandate(wallet.keypair, text, compiled);
+      // Writing the first one sets up all three accounts. If this key already
+      // speaks for a sentence, the same button rewrites it rather than failing
+      // or, as it did until now, silently closing and looking like it worked.
+      let r;
+      try {
+        r = await createMandate(wallet.keypair, text, compiled);
+      } catch (e) {
+        if (!/already speaks/i.test((e as Error).message)) throw e;
+        r = await createMandate(wallet.keypair, text, compiled, { replace: true });
+      }
       onSealMandate(text);
       onSealed?.(r);
-      onClose();
+      setSealed(r);
     } catch (e) {
-      const m = (e as Error).message;
-      // Already having one is not a failure, it is the rule working.
-      if (/already speaks/i.test(m)) { onSealMandate(text); onClose(); return; }
-      setSealError(m);
+      setSealError((e as Error).message);
     } finally {
       setSealing(false);
     }
@@ -381,6 +389,20 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             {sealError && (
               <p className="text-[11px] text-[var(--refused-rust)] mt-1.5">{sealError}</p>
             )}
+            {sealed && (
+              <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)] mt-1.5">
+                Written. Your mandate, your vault and the log that records
+                decisions about it are all on chain under your own key.{' '}
+                <a
+                  href={sealed.explorer}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-[var(--verdigris)] underline underline-offset-2"
+                >
+                  check the transaction
+                </a>
+              </p>
+            )}
             <button
               id="btn-seal-onboarding-mandate"
               type="button"
@@ -391,9 +413,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               <span>
                 {sealing
                   ? 'Signing and sending…'
-                  : wallet.keypair
-                    ? 'Write it on chain'
-                    : 'Write it down'}
+                  : sealed
+                    ? 'Done, take me in'
+                    : wallet.keypair
+                      ? 'Write it on chain'
+                      : 'Write it down'}
               </span>
               <svg className="w-4 h-4 stroke-[2.2] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M5 12h14M12 5l7 7-7 7" />

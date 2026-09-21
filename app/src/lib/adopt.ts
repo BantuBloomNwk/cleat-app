@@ -36,6 +36,7 @@ const VERDICT_SEED = new TextEncoder().encode('verdicts');
 
 export const verdictLogPda = (owner: PublicKey) =>
   PublicKey.findProgramAddressSync([VERDICT_SEED, owner.toBuffer()], PROGRAM_ID)[0];
+
 const VAULT_SEED = new TextEncoder().encode('vault');
 
 const u64le = (n: bigint) => {
@@ -255,7 +256,7 @@ export async function createMandate(
   );
 
   if (opts.replace) {
-    // Rewriting is a different instruction and does not init anything.
+    // Changing your mind is a different instruction and inits nothing.
     tx.add(new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [
@@ -265,11 +266,14 @@ export async function createMandate(
       data: concat(D_UPDATE, args) as unknown as Buffer,
     }));
   } else {
-    /* A sentence with nothing to enforce it against is why writing one looked
-       like it did nothing. The mandate is the rule, the vault is what the rule
-       governs, and the verdict log is where decisions about it are written. An
-       app reading a mandate with no log has nothing to show and falls back to
-       the sample, which is exactly what happened. All three, one signature. */
+    /* All three accounts, one signature.
+     *
+     * A sentence on its own is why writing one looked like nothing happened.
+     * The mandate is the rule, the vault is what the rule governs, and the
+     * verdict log is where decisions about it get written. The app reads the
+     * log to know anything, so a mandate without one leaves it with nothing to
+     * show and it falls back to the sample, which is exactly what was
+     * happening. Setting up means all three or it means very little. */
     tx.add(new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [

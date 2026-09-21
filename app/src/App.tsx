@@ -21,6 +21,7 @@ import {
 import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
 import { loadChainSnapshot } from './lib/chain';
 import { useWallet } from './hooks/useWallet';
+import { hasWallet } from './lib/passkey';
 import type { Mandate, Restraint, SealState, SectorExposure } from './lib/chain';
 
 export default function App() {
@@ -58,7 +59,10 @@ export default function App() {
   const [sealed, setSealed] = useState<SealState>('open');
 
   // Modals (Intro page open initially by default for first-time experience)
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(true);
+  /* Opens for somebody who has never been here, and stays shut for everybody
+     else. It used to open on every load regardless, so a returning person was
+     sent back to step one of a setup they had already done, every refresh. */
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => !hasWallet());
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isTickDrawerOpen, setIsTickDrawerOpen] = useState(false);
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
