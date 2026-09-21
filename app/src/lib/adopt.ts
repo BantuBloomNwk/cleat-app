@@ -30,6 +30,12 @@ const D_CREATE = new Uint8Array([230, 170, 158, 68, 33, 169, 16, 158]);
 const D_OPEN_VAULT = new Uint8Array([181, 248, 228, 67, 6, 175, 37, 167]);
 const D_DEPOSIT = new Uint8Array([242, 35, 198, 137, 82, 225, 242, 182]);
 const D_WITHDRAW = new Uint8Array([183, 18, 70, 156, 148, 109, 161, 34]);
+const D_OPEN_LOG = new Uint8Array([31, 253, 231, 102, 57, 62, 203, 126]);
+const D_UPDATE = new Uint8Array([69, 131, 248, 29, 105, 50, 139, 30]);
+const VERDICT_SEED = new TextEncoder().encode('verdicts');
+
+export const verdictLogPda = (owner: PublicKey) =>
+  PublicKey.findProgramAddressSync([VERDICT_SEED, owner.toBuffer()], PROGRAM_ID)[0];
 const VAULT_SEED = new TextEncoder().encode('vault');
 
 const u64le = (n: bigint) => {
@@ -217,11 +223,18 @@ export async function createMandate(
   owner: Keypair,
   text: string,
   compiled: Compiled,
+  opts: { replace?: boolean } = {},
 ): Promise<AdoptResult> {
-  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), intent: 'mandate' });
+  const prep = await post({
+    phase: 'prepare',
+    owner: owner.publicKey.toBase58(),
+    intent: opts.replace ? 'update' : 'mandate',
+  });
   if (prep.error) throw new Error(prep.error);
 
   const mandate = mandatePda(owner.publicKey);
+  const vault = vaultPda(owner.publicKey);
+  const log = verdictLogPda(owner.publicKey);
   const tx = new Transaction();
   if (prep.needsTopUp) {
     tx.add(SystemProgram.transfer({
@@ -233,22 +246,60 @@ export async function createMandate(
 
   const body = new TextEncoder().encode(text);
   const denied = compiled.denied.map((m) => new PublicKey(m).toBytes());
-  tx.add(new TransactionInstruction({
-    programId: PROGRAM_ID,
-    keys: [
-      { pubkey: owner.publicKey, isSigner: true, isWritable: true },
-      { pubkey: mandate, isSigner: false, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
-    data: concat(
-      D_CREATE,
-      u32le(body.length), body,
-      u16le(compiled.maxPositionBps),
-      u16le(compiled.maxTradeBps),
-      u16le(compiled.maxSpreadBps),
-      u32le(denied.length), ...denied,
-    ) as unknown as Buffer,
-  }));
+  const args = concat(
+    u32le(body.length), body,
+    u16le(compiled.maxPositionBps),
+    u16le(compiled.maxTradeBps),
+    u16le(compiled.maxSpreadBps),
+    u32le(denied.length), ...denied,
+  );
+
+  if (opts.replace) {
+    // Rewriting is a different instruction and does not init anything.
+    tx.add(new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: owner.publicKey, isSigner: true, isWritable: false },
+        { pubkey: mandate, isSigner: false, isWritable: true },
+      ],
+      data: concat(D_UPDATE, args) as unknown as Buffer,
+    }));
+  } else {
+    /* A sentence with nothing to enforce it against is why writing one looked
+       like it did nothing. The mandate is the rule, the vault is what the rule
+       governs, and the verdict log is where decisions about it are written. An
+       app reading a mandate with no log has nothing to show and falls back to
+       the sample, which is exactly what happened. All three, one signature. */
+    tx.add(new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+        { pubkey: mandate, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data: concat(D_CREATE, args) as unknown as Buffer,
+    }));
+    tx.add(new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+        { pubkey: mandate, isSigner: false, isWritable: false },
+        { pubkey: vault, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data: D_OPEN_VAULT as unknown as Buffer,
+    }));
+    tx.add(new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+        { pubkey: vault, isSigner: false, isWritable: false },
+        { pubkey: log, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data: D_OPEN_LOG as unknown as Buffer,
+    }));
+  }
 
   tx.feePayer = new PublicKey(prep.feePayer);
   tx.recentBlockhash = prep.blockhash;
@@ -258,7 +309,7 @@ export async function createMandate(
     phase: 'send',
     tx: toBase64(new Uint8Array(tx.serialize({ requireAllSignatures: false }))),
   });
-  if (sent.error) throw new Error(sent.error);
+  if (sent.error) throw new Error(readable(sent.error));
   return {
     signature: sent.signature,
     explorer: sent.explorer,

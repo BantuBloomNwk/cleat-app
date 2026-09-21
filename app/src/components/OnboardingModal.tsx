@@ -83,7 +83,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     if (isVerifying) return existed ? 'Waiting for you…' : 'Creating your vault…';
     if (ready) return 'Verified';
     if (wallet.state.status === 'error') return 'Try again';
-    return existed ? 'Unlock with Face ID' : 'Create with Face ID';
+    // "existed" is read once when the sheet opens and only reflects this
+    // browser's storage. Storage cleared, or a different browser, and this
+    // says Create to somebody who already has a key, which mints a second
+    // passkey and therefore a second wallet with a different address and a
+    // different balance. That is a real way to lose track of funds, so the
+    // recovery route is not a footnote below the button.
+    return existed ? 'Unlock with Face ID' : 'Create a new key';
   })();
 
   /**
@@ -310,7 +316,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   if (kp) setStep(3);
                 }}
               >
-                I already have a Cleat vault
+                I already have a key, use that one
               </button>
             )}
 

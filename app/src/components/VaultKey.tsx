@@ -75,6 +75,13 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
                 ? wallet.state.message
                 : 'No key here yet. One is made by the hardware, never written down as a phrase and never sent anywhere.'}
         </p>
+        {st !== 'unsupported' && !locked && (
+          <p className="text-[11px] leading-[1.6] text-[var(--trimmed-amber)]">
+            If you have used Cleat before on any device, choose the second
+            option. Making a new key makes a different wallet with a different
+            address, and anything you sent to the old one stays there.
+          </p>
+        )}
         {st !== 'unsupported' && (
           <div className="vault-buttons">
             <button
@@ -83,8 +90,13 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
               disabled={busy}
               onClick={() => (locked ? wallet.unlock() : wallet.create())}
             >
-              {busy ? 'Asking the hardware…' : locked ? 'Unlock this key' : 'Make a key'}
+              {busy ? 'Asking the hardware…' : locked ? 'Unlock this key' : 'Make a new key'}
             </button>
+            {!locked && (
+              <button type="button" className="mesh-chip" onClick={() => wallet.restore()}>
+                Use a key I already have
+              </button>
+            )}
             {locked && (
               <button type="button" className="mesh-chip" onClick={() => wallet.restore()}>
                 Use a different device
@@ -148,7 +160,16 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
       <div className="vault-key-row">
         <span className="vault-key-label">Your key</span>
         <span className="vault-key-balance">
-          {sol === null ? 'reading…' : `${sol.toFixed(4)} SOL`}
+          {sol === null ? 'reading…' : `${sol.toFixed(9).replace(/0+$/, '').replace(/\.$/, '')} SOL`}
+          {' '}
+          <button
+            type="button"
+            className="vault-key-refresh"
+            onClick={() => { tactile.selectionTap(); setNonce((n) => n + 1); }}
+            title="Read it again now"
+          >
+            refresh
+          </button>
         </span>
       </div>
 
@@ -166,6 +187,17 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
         <span>{b58}</span>
         <span className="vault-key-copy">{copied ? 'copied' : 'copy'}</span>
       </button>
+
+      {/* Do not take our word for the number. If what this says and what an
+          explorer says disagree, the explorer is right and we have a bug. */}
+      <a
+        href={`https://explorer.solana.com/address/${b58}?cluster=devnet`}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-[10.5px] font-mono text-[var(--verdigris)] underline underline-offset-2"
+      >
+        check this address on an explorer
+      </a>
 
       {sol !== null && sol < 0.01 && (
         <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)]">
@@ -186,7 +218,9 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
       <div className="vault-key-row">
         <span className="vault-key-label">Your vault</span>
         <span className="vault-key-balance">
-          {vaultSol === null ? 'not open yet' : `${vaultSol.toFixed(4)} SOL`}
+          {vaultSol === null
+            ? 'not open yet'
+            : `${vaultSol.toFixed(9).replace(/0+$/, '').replace(/\.$/, '')} SOL`}
         </span>
       </div>
 

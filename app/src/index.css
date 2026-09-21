@@ -1144,6 +1144,16 @@ body {
   color: var(--text-secondary);
   word-break: break-all;
 }
+.vault-key-refresh {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .vault-key-copy {
   margin-left: auto;
   flex: 0 0 auto;
