@@ -204,7 +204,7 @@ export default function App() {
               onOpenOnboarding={() => setIsOnboardingOpen(true)}
               activeMandate={mandateSentence}
               wallet={wallet.state}
-              keypair={wallet.keypair}
+              walletApi={wallet}
             />
           )}
         </main>
@@ -224,6 +224,7 @@ export default function App() {
 
       {/* Modals & Overlays */}
       <OnboardingModal
+        wallet={wallet}
         isOpen={isOnboardingOpen}
         onClose={() => setIsOnboardingOpen(false)}
         theme={theme}

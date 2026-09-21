@@ -18,9 +18,11 @@ import { moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt
  * only in the program, which is the actual guarantee: the agent has no path to
  * it at any point, live grant or not.
  */
-export const VaultKey: React.FC<{ address: PublicKey | null; keypair: Keypair | null }> = ({
-  address, keypair,
-}) => {
+type WalletApi = ReturnType<typeof import('../hooks/useWallet').useWallet>;
+
+export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
+  const keypair = wallet.keypair;
+  const address = wallet.state.status === 'ready' ? wallet.state.address : null;
   const [lamports, setLamports] = useState<number | null>(null);
   const [vaultLamports, setVaultLamports] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -47,13 +49,48 @@ export const VaultKey: React.FC<{ address: PublicKey | null; keypair: Keypair | 
     return () => { live = false; clearInterval(t); };
   }, [address, nonce]);
 
+  /* Locked is not the same as absent, and neither is a dead end.
+     A refresh leaves a key locked, and the old version of this panel answered
+     that with a sentence and no way forward, which is how the vault came to
+     look like it had nothing in it. */
   if (!address) {
+    const st = wallet.state.status;
+    const locked = st === 'locked';
+    const busy = st === 'unlocking';
     return (
       <div className="vault-key">
+        <div className="vault-key-row">
+          <span className="vault-key-label">Your key</span>
+          <span className="vault-key-balance">
+            {st === 'unsupported' ? 'unavailable here' : locked ? 'locked' : busy ? 'unlocking…' : 'not made yet'}
+          </span>
+        </div>
         <p className="text-[12px] leading-[1.6] text-[var(--text-secondary)]">
-          No key on this device yet. Set one up and it is made by the hardware,
-          never written down as a phrase and never sent anywhere.
+          {st === 'unsupported'
+            ? wallet.state.reason
+            : locked
+              ? 'There is a key on this device and it is locked. Unlocking asks the hardware, not us, and nothing leaves the device.'
+              : st === 'error'
+                ? wallet.state.message
+                : 'No key here yet. One is made by the hardware, never written down as a phrase and never sent anywhere.'}
         </p>
+        {st !== 'unsupported' && (
+          <div className="vault-buttons">
+            <button
+              type="button"
+              className="mesh-chip"
+              disabled={busy}
+              onClick={() => (locked ? wallet.unlock() : wallet.create())}
+            >
+              {busy ? 'Asking the hardware…' : locked ? 'Unlock this key' : 'Make a key'}
+            </button>
+            {locked && (
+              <button type="button" className="mesh-chip" onClick={() => wallet.restore()}>
+                Use a different device
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

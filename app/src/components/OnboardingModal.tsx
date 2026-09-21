@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tactile } from '../utils/haptics';
 import { compileSentence, createMandate } from '../lib/adopt';
-import { useWallet } from '../hooks/useWallet';
 import { hasWallet } from '../lib/passkey';
 import emblemDark from '../assets/emblem-dark.png';
 import emblemLight from '../assets/emblem-light.png';
@@ -13,6 +12,8 @@ interface OnboardingModalProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onSealMandate: (sentence: string) => void;
+  /** The one wallet, owned by the app. */
+  wallet: ReturnType<typeof import('../hooks/useWallet').useWallet>;
   /** Fired only when a sentence actually reached the chain. */
   onSealed?: (r: { signature: string; explorer: string; sponsored: boolean }) => void;
   initialSentence: string;
@@ -23,13 +24,21 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   onClose,
   theme,
   onToggleTheme,
+  wallet,
   onSealMandate,
   onSealed,
   initialSentence,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [mandateText, setMandateText] = useState(initialSentence);
-  const wallet = useWallet();
+  // The wallet comes from above rather than from another useWallet() here.
+  //
+  // This was the bug, and it was the whole bug. Calling the hook again made a
+  // second, independent state machine with its own keypair. Unlocking a
+  // passkey in this modal filled that one, and the Vault tab was reading the
+  // other one, which was still empty. So the address never appeared, there was
+  // nothing to put controls next to, and sealing a mandate found no key and
+  // quietly fell back to setting a string.
 
   // Whether a wallet already exists is read once, when the sheet opens, so
   // the button does not change its mind under the user's finger mid flow.
@@ -91,11 +100,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     tactile.mandateAction();
     setSealError(null);
 
-    // No key, no signature. Fall back to the old local behaviour rather than
-    // blocking somebody who skipped the passkey step.
+    // No key, no signature, and it says so. Quietly writing the sentence into
+    // local state and closing is how "seal it on chain" came to mean nothing,
+    // and in a product whose argument is that you should not have to trust it,
+    // a UI that pretends is the worst failure available.
     if (!wallet.keypair) {
-      onSealMandate(text);
-      onClose();
+      setSealError(
+        wallet.state.status === 'locked'
+          ? 'Your key is locked. Go back a step and unlock it, then this can be signed.'
+          : 'There is no key on this device yet. Go back a step and make one, then this can be signed.',
+      );
+      setStep(2);
       return;
     }
 
