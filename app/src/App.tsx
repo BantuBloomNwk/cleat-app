@@ -147,12 +147,18 @@ export default function App() {
     // tabs keeps whatever scroll position the last one had, so without this
     // the change happens off screen and the tap looks like it did nothing.
     requestAnimationFrame(() => {
-      // The tab switches and then the new tab's content mounts, so a scroll
-      // fired in the same frame lands against the old height and stops part
-      // way. Two frames is enough for the layout to settle.
-      const el = document.querySelector('.app-content');
-      el?.scrollTo({ top: 0, behavior: 'smooth' });
-      requestAnimationFrame(() => el?.scrollTo({ top: 0, behavior: 'smooth' }));
+      /* Jump, do not glide.
+       *
+       * A smooth scroll runs over several frames and the new tab's content is
+       * mounting during those frames, so the animation gets interrupted by the
+       * reflow and stops part way down. That is the "it goes to the log but
+       * not to the top" everybody sees. An instant scroll cannot be
+       * interrupted, and it is repeated once the layout has settled in case
+       * the first one landed before the tab had swapped at all. */
+      const top = () => document.querySelector('.app-content')?.scrollTo({ top: 0, behavior: 'auto' });
+      top();
+      requestAnimationFrame(() => { top(); requestAnimationFrame(top); });
+      setTimeout(top, 220);
     });
   };
 

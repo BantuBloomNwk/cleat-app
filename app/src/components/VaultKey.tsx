@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { PublicKey, type Keypair } from '@solana/web3.js';
 import { connection } from '../lib/chain';
 import { tactile } from '../utils/haptics';
-import { moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
+import { delegateVault, moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
 import { confirmPresence, walletSyncMode } from '../lib/passkey';
 
 /**
@@ -26,6 +26,8 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
   const address = wallet.state.status === 'ready' ? wallet.state.address : null;
   const [lamports, setLamports] = useState<number | null>(null);
   const [vaultLamports, setVaultLamports] = useState<number | null>(null);
+  /** The vault's owner moves away from our program once it is delegated. */
+  const [delegated, setDelegated] = useState(false);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string; url?: string } | null>(null);
@@ -41,7 +43,11 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
       connection.getBalance(address)
         .then((b) => { if (live) setLamports(b); }).catch(() => {});
       connection.getAccountInfo(vault)
-        .then((a) => { if (live) setVaultLamports(a ? a.lamports : null); }).catch(() => {});
+        .then((a) => {
+          if (!live) return;
+          setVaultLamports(a ? a.lamports : null);
+          setDelegated(!!a && a.owner.toBase58() !== '2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL');
+        }).catch(() => {});
     };
     read();
     // Slow on purpose. A balance that updates every second is a balance being
@@ -222,6 +228,7 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
       <div className="vault-key-row">
         <span className="vault-key-label">Your vault</span>
         <span className="vault-key-balance">
+          {delegated ? 'on the rollup · ' : ''}
           {vaultSol === null
             ? 'not open yet'
             : `${vaultSol.toFixed(9).replace(/0+$/, '').replace(/\.$/, '')} SOL`}
@@ -262,6 +269,22 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
           <button type="button" className="mesh-chip" disabled={!keypair || !!busy || !to.trim()}
             onClick={send}>
             {busy === 'Send' ? 'Signing…' : 'Send from your key'}
+          </button>
+        </div>
+
+        {/* Delegation, for real rather than as a badge.
+            This hands the vault to MagicBlock's rollup so decisions settle in
+            milliseconds instead of slots. The app knows it happened because
+            the account's owner changes, which it reads rather than is told. */}
+        <div className="vault-buttons">
+          <button
+            type="button"
+            className="mesh-chip"
+            disabled={!keypair || !!busy || vaultLamports === null || delegated}
+            onClick={() => run('Delegation', () => delegateVault(keypair!))}
+            title={delegated ? 'Already running on the rollup' : 'Hand the vault to the attested rollup'}
+          >
+            {busy === 'Delegation' ? 'Signing…' : delegated ? 'Running fast' : 'Make it fast'}
           </button>
         </div>
       </div>

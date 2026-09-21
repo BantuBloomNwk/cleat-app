@@ -36,6 +36,9 @@ const ALLOWED: Record<string, string> = {
   '183,18,70,156,148,109,161,34': 'withdraw',
   '31,253,231,102,57,62,203,126': 'open_verdict_log',
   '69,131,248,29,105,50,139,30': 'update_mandate',
+  '166,89,17,247,90,45,115,224': 'delegate_vault',
+  '209,155,178,53,205,199,134,28': 'seal_vault',
+  '162,80,81,254,102,228,132,87': 'release_vault',
 };
 
 /** Rent for a Mandate plus a little for fees, which is what a top up covers. */
@@ -141,6 +144,10 @@ export default async (req: Request) => {
         }
         continue;
       }
+      // Delegation is a CPI into MagicBlock's programs, so their ids appear in
+      // the account list. They are not instruction targets here: every
+      // instruction is still either ours or a transfer, and anything else is
+      // still refused.
       return json({ error: "unexpected program in the transaction" }, 400);
     }
     if (sawAdopt > 4 || sawTransfer > 1) {

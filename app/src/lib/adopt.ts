@@ -34,6 +34,78 @@ const D_OPEN_LOG = new Uint8Array([31, 253, 231, 102, 57, 62, 203, 126]);
 const D_UPDATE = new Uint8Array([69, 131, 248, 29, 105, 50, 139, 30]);
 const VERDICT_SEED = new TextEncoder().encode('verdicts');
 
+/* MagicBlock's side of delegation.
+ *
+ * Delegating hands the vault's ownership to the delegation program so an
+ * ephemeral rollup can write to it at rollup speed, and the seeds below are
+ * that program's, not ours. Taken from magicblock-delegation-program-api
+ * rather than guessed: "buffer" off our own program, "delegation" and
+ * "delegation-metadata" off theirs.
+ */
+export const DELEGATION_PROGRAM = new PublicKey('DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh');
+const MAGIC_PROGRAM = new PublicKey('Magic11111111111111111111111111111111111111');
+const MAGIC_CONTEXT = new PublicKey('MagicContext1111111111111111111111111111111');
+const EPHEMERAL_VAULT = new PublicKey('MagicVau1t999999999999999999999999999999999');
+const PERMISSION_PROGRAM = new PublicKey('ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1');
+
+const D_DELEGATE = new Uint8Array([166, 89, 17, 247, 90, 45, 115, 224]);
+const D_SEAL = new Uint8Array([209, 155, 178, 53, 205, 199, 134, 28]);
+const D_RELEASE = new Uint8Array([162, 80, 81, 254, 102, 228, 132, 87]);
+
+const enc = (t: string) => new TextEncoder().encode(t);
+const delegateBufferPda = (account: PublicKey) =>
+  PublicKey.findProgramAddressSync([enc('buffer'), account.toBuffer()], PROGRAM_ID)[0];
+const delegationRecordPda = (account: PublicKey) =>
+  PublicKey.findProgramAddressSync([enc('delegation'), account.toBuffer()], DELEGATION_PROGRAM)[0];
+const delegationMetadataPda = (account: PublicKey) =>
+  PublicKey.findProgramAddressSync([enc('delegation-metadata'), account.toBuffer()], DELEGATION_PROGRAM)[0];
+const permissionPda = (account: PublicKey) =>
+  PublicKey.findProgramAddressSync([enc('permission'), account.toBuffer()], PERMISSION_PROGRAM)[0];
+
+/**
+ * Hand the vault to the rollup, and take it back.
+ *
+ * This is the badge in the header finally meaning something. Delegating moves
+ * the vault's owner away from this program, which is exactly how the app knows
+ * it happened: it reads the account owner rather than being told.
+ */
+export async function delegateVault(owner: Keypair): Promise<AdoptResult> {
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+  if (prep.error) throw new Error(prep.error);
+  const vault = vaultPda(owner.publicKey);
+
+  const tx = new Transaction();
+  if (prep.needsTopUp) {
+    tx.add(SystemProgram.transfer({
+      fromPubkey: new PublicKey(prep.faucet), toPubkey: owner.publicKey, lamports: prep.topUpLamports,
+    }));
+  }
+  tx.add(new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: owner.publicKey, isSigner: true, isWritable: true },
+      { pubkey: delegateBufferPda(vault), isSigner: false, isWritable: true },
+      { pubkey: delegationRecordPda(vault), isSigner: false, isWritable: true },
+      { pubkey: delegationMetadataPda(vault), isSigner: false, isWritable: true },
+      { pubkey: vault, isSigner: false, isWritable: true },
+      { pubkey: PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: DELEGATION_PROGRAM, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: D_DELEGATE as unknown as Buffer,
+  }));
+
+  tx.feePayer = new PublicKey(prep.feePayer);
+  tx.recentBlockhash = prep.blockhash;
+  tx.partialSign(owner);
+  const sent = await post({
+    phase: 'send',
+    tx: toBase64(new Uint8Array(tx.serialize({ requireAllSignatures: false }))),
+  });
+  if (sent.error) throw new Error(readable(sent.error));
+  return { signature: sent.signature, explorer: sent.explorer, sponsored: !!sent.sponsored, child: vault.toBase58() };
+}
+
 export const verdictLogPda = (owner: PublicKey) =>
   PublicKey.findProgramAddressSync([VERDICT_SEED, owner.toBuffer()], PROGRAM_ID)[0];
 
