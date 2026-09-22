@@ -77,7 +77,20 @@ function readLog(data) {
 async function main() {
   const funder = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
     fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))));
-  const owner = persisted("gate-owner-v2");
+  // A fresh key every run, and the reason is not neatness.
+  //
+  // The book accumulates. Every proposal this script clears adds to that
+  // sector's running total, so after enough runs the sector sits at its cap
+  // and the public check refuses the next proposal before the confidential
+  // gate is ever reached. The demonstration then fails with an error about
+  // a cap rather than showing the thing it exists to show, which is exactly
+  // what happened after an afternoon of measurement runs against a shared
+  // key. Somebody running this for the first time should not inherit
+  // whoever ran it last.
+  //
+  // REUSE=1 keeps the old persisted key, which is faster and only safe if
+  // you know what is already in its book.
+  const owner = process.env.REUSE === "1" ? persisted("gate-owner-v2") : Keypair.generate();
   const connection = new Connection(baseRpc(), "confirmed");
   const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(owner), { commitment: "confirmed" });
 
