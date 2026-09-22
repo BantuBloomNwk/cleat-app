@@ -11,7 +11,9 @@ interface RewriteModalProps {
   onSaveSentence: (newSentence: string) => void;
   /** Needed to sign. Without one this can only change what is on screen. */
   keypair: Keypair | null;
-  /** True when a mandate already exists on chain for this key. */
+  /** Which of that key's sleeves is being rewritten. */
+  sleeve: number;
+  /** True when a mandate already exists on chain for this sleeve. */
   hasMandate: boolean;
 }
 
@@ -21,6 +23,7 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
   currentSentence,
   onSaveSentence,
   keypair,
+  sleeve,
   hasMandate,
 }) => {
   const [text, setText] = useState(currentSentence);
@@ -61,7 +64,7 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
       /* The same call that sets up. It rewrites the sentence when one is
          already there and builds anything still missing, so a rewrite also
          repairs a half finished setup instead of failing on it. */
-      const r = await createMandate(keypair, next, compileSentence(next));
+      const r = await createMandate(keypair, next, compileSentence(next), {}, sleeve);
       onSaveSentence(next);
       setDone({ explorer: r.explorer });
     } catch (e) {

@@ -36,6 +36,7 @@ use crate::state::AgentSpend;
 /// about the agent's own money and has nothing to do with the vault, so it
 /// no longer asks about it.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct OpenSpendAccount<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -44,7 +45,7 @@ pub struct OpenSpendAccount<'info> {
         init,
         payer = owner,
         space = 8 + AgentSpend::INIT_SPACE,
-        seeds = [SPEND_SEED, owner.key().as_ref()],
+        seeds = [SPEND_SEED, owner.key().as_ref(), &index_seed(index)],
         bump,
     )]
     pub spend: Box<Account<'info, AgentSpend>>,
@@ -53,12 +54,13 @@ pub struct OpenSpendAccount<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct SetSpendCap<'info> {
     pub owner: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [SPEND_SEED, owner.key().as_ref()],
+        seeds = [SPEND_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = spend.bump,
         has_one = owner @ CleatError::NotOwner,
     )]
@@ -68,13 +70,14 @@ pub struct SetSpendCap<'info> {
 /// Fund the allowance. Anyone may top it up; only the owner may raise the
 /// ceiling, which is the distinction that matters.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct FundSpendAccount<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [SPEND_SEED, spend.owner.as_ref()],
+        seeds = [SPEND_SEED, spend.owner.as_ref(), &index_seed(index)],
         bump = spend.bump,
     )]
     pub spend: Box<Account<'info, AgentSpend>>,
@@ -83,6 +86,7 @@ pub struct FundSpendAccount<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct PayAgentCost<'info> {
     /// The agent's own wallet. It signs to say the payment is its, and it is
     /// not the owner and has no authority over the vault.
@@ -90,7 +94,7 @@ pub struct PayAgentCost<'info> {
 
     #[account(
         mut,
-        seeds = [SPEND_SEED, spend.owner.as_ref()],
+        seeds = [SPEND_SEED, spend.owner.as_ref(), &index_seed(index)],
         bump = spend.bump,
     )]
     pub spend: Box<Account<'info, AgentSpend>>,
@@ -122,6 +126,7 @@ pub struct AgentPaymentRefused {
 
 pub fn exec_open_spend_account(
     ctx: Context<OpenSpendAccount>,
+    _index: u16,
     agent: Pubkey,
     ceiling_lamports: u64,
     period_secs: i64,
@@ -147,6 +152,7 @@ pub fn exec_open_spend_account(
 
 pub fn exec_set_spend_cap(
     ctx: Context<SetSpendCap>,
+    _index: u16,
     ceiling_lamports: u64,
     period_secs: i64,
 ) -> Result<()> {
@@ -160,7 +166,7 @@ pub fn exec_set_spend_cap(
     Ok(())
 }
 
-pub fn exec_fund_spend_account(ctx: Context<FundSpendAccount>, lamports: u64) -> Result<()> {
+pub fn exec_fund_spend_account(ctx: Context<FundSpendAccount>, _index: u16, lamports: u64) -> Result<()> {
     system_program::transfer(
         CpiContext::new(
             ctx.accounts.system_program.key(),
@@ -183,6 +189,7 @@ pub fn exec_fund_spend_account(ctx: Context<FundSpendAccount>, lamports: u64) ->
 /// this product exists to show people that number.
 pub fn exec_pay_agent_cost(
     ctx: Context<PayAgentCost>,
+    _index: u16,
     lamports: u64,
     purpose: u8,
 ) -> Result<()> {

@@ -85,7 +85,7 @@ export default function App() {
   const owner = wallet.state.status === 'ready' ? wallet.state.address : null;
   useEffect(() => {
     let cancelled = false;
-    loadChainSnapshot(owner ?? undefined)
+    loadChainSnapshot(owner ?? undefined, wallet.sleeve)
       .then((snap) => {
         if (cancelled || !snap) {
           if (!cancelled) setIsLive(false);
@@ -110,7 +110,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [owner]);
+  }, [owner, wallet.sleeve]);
 
   // Sync theme with HTML root attribute and body, and persist in localStorage
   useEffect(() => {
@@ -219,6 +219,7 @@ export default function App() {
               mandates={communityMandates}
               onAdoptMandate={handleAdoptCommunityMandate}
               keypair={wallet.keypair}
+              sleeve={wallet.sleeve}
               onNeedWallet={() => setIsOnboardingOpen(true)}
               exposure={sectorExposure}
               chainMandate={chainMandate}
@@ -276,6 +277,7 @@ export default function App() {
         onClose={() => setIsRewriteModalOpen(false)}
         currentSentence={mandateSentence}
         keypair={wallet.keypair}
+        sleeve={wallet.sleeve}
         hasMandate={!!chainMandate}
         onSaveSentence={(s) => setMandateSentence(s)}
       />

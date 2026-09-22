@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 netlify/functions-dist/
+
+# Local Netlify folder
+.netlify

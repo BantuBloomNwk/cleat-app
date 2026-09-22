@@ -69,10 +69,10 @@ const permissionPda = (account: PublicKey) =>
  * the vault's owner away from this program, which is exactly how the app knows
  * it happened: it reads the account owner rather than being told.
  */
-export async function delegateVault(owner: Keypair): Promise<AdoptResult> {
-  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+export async function delegateVault(owner: Keypair, index = 0): Promise<AdoptResult> {
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), index });
   if (prep.error) throw new Error(prep.error);
-  const vault = vaultPda(owner.publicKey);
+  const vault = vaultPda(owner.publicKey, index);
 
   const tx = new Transaction();
   if (prep.needsTopUp) {
@@ -92,7 +92,7 @@ export async function delegateVault(owner: Keypair): Promise<AdoptResult> {
       { pubkey: DELEGATION_PROGRAM, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    data: D_DELEGATE as unknown as Buffer,
+    data: concat(D_DELEGATE, u16le(index)) as unknown as Buffer,
   }));
 
   tx.feePayer = new PublicKey(prep.feePayer);
@@ -106,8 +106,22 @@ export async function delegateVault(owner: Keypair): Promise<AdoptResult> {
   return { signature: sent.signature, explorer: sent.explorer, sponsored: !!sent.sponsored, child: vault.toBase58() };
 }
 
-export const verdictLogPda = (owner: PublicKey) =>
-  PublicKey.findProgramAddressSync([VERDICT_SEED, owner.toBuffer()], PROGRAM_ID)[0];
+/**
+ * The bytes a sleeve index contributes to an account's seeds.
+ *
+ * Mirrors index_seed() in the program, including the part that matters most:
+ * sleeve zero contributes nothing, so it derives to the same address it
+ * derived to before sleeves existed. Every account already written stays
+ * exactly where it is.
+ */
+export const indexSeed = (index: number) =>
+  index === 0 ? new Uint8Array(0) : u16le(index);
+
+export const verdictLogPda = (owner: PublicKey, index = 0) =>
+  PublicKey.findProgramAddressSync(
+    [VERDICT_SEED, owner.toBuffer(), indexSeed(index)],
+    PROGRAM_ID,
+  )[0];
 
 const VAULT_SEED = new TextEncoder().encode('vault');
 
@@ -117,8 +131,11 @@ const u64le = (n: bigint) => {
   return b;
 };
 
-export const vaultPda = (owner: PublicKey) =>
-  PublicKey.findProgramAddressSync([VAULT_SEED, owner.toBuffer()], PROGRAM_ID)[0];
+export const vaultPda = (owner: PublicKey, index = 0) =>
+  PublicKey.findProgramAddressSync(
+    [VAULT_SEED, owner.toBuffer(), indexSeed(index)],
+    PROGRAM_ID,
+  )[0];
 
 const u16le = (n: number) => {
   const b = new Uint8Array(2);
@@ -205,8 +222,11 @@ const toBase64 = (bytes: Uint8Array) => {
   return btoa(s);
 };
 
-export const mandatePda = (owner: PublicKey) =>
-  PublicKey.findProgramAddressSync([MANDATE_SEED, owner.toBuffer()], PROGRAM_ID)[0];
+export const mandatePda = (owner: PublicKey, index = 0) =>
+  PublicKey.findProgramAddressSync(
+    [MANDATE_SEED, owner.toBuffer(), indexSeed(index)],
+    PROGRAM_ID,
+  )[0];
 
 export interface AdoptResult {
   signature: string;
@@ -237,11 +257,14 @@ export async function adoptMandate(
   owner: Keypair,
   parent: PublicKey,
   text: string,
+  index = 0,
 ): Promise<AdoptResult> {
-  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), intent: 'mandate' });
+  const prep = await post({
+    phase: 'prepare', owner: owner.publicKey.toBase58(), intent: 'mandate', index,
+  });
   if (prep.error) throw new Error(prep.error);
 
-  const child = mandatePda(owner.publicKey);
+  const child = mandatePda(owner.publicKey, index);
   const feePayer = new PublicKey(prep.feePayer);
 
   const tx = new Transaction();
@@ -265,7 +288,7 @@ export async function adoptMandate(
       { pubkey: child, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    data: concat(D_ADOPT, u32le(body.length), body) as unknown as Buffer,
+    data: concat(D_ADOPT, u16le(index), u32le(body.length), body) as unknown as Buffer,
   }));
 
   tx.feePayer = feePayer;
@@ -297,13 +320,14 @@ export async function createMandate(
   text: string,
   compiled: Compiled,
   _opts: { replace?: boolean } = {},
+  index = 0,
 ): Promise<AdoptResult> {
-  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), index });
   if (prep.error) throw new Error(prep.error);
 
-  const mandate = mandatePda(owner.publicKey);
-  const vault = vaultPda(owner.publicKey);
-  const log = verdictLogPda(owner.publicKey);
+  const mandate = mandatePda(owner.publicKey, index);
+  const vault = vaultPda(owner.publicKey, index);
+  const log = verdictLogPda(owner.publicKey, index);
   const has = prep.has ?? { mandate: false, vault: false, log: false };
 
   const tx = new Transaction();
@@ -341,7 +365,7 @@ export async function createMandate(
           { pubkey: owner.publicKey, isSigner: true, isWritable: false },
           { pubkey: mandate, isSigner: false, isWritable: true },
         ],
-        data: concat(D_UPDATE, args) as unknown as Buffer,
+        data: concat(D_UPDATE, u16le(index), args) as unknown as Buffer,
       })
     : new TransactionInstruction({
         programId: PROGRAM_ID,
@@ -350,7 +374,7 @@ export async function createMandate(
           { pubkey: mandate, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
-        data: concat(D_CREATE, args) as unknown as Buffer,
+        data: concat(D_CREATE, u16le(index), args) as unknown as Buffer,
       }));
 
   if (!has.vault) {
@@ -362,7 +386,7 @@ export async function createMandate(
         { pubkey: vault, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data: D_OPEN_VAULT as unknown as Buffer,
+      data: concat(D_OPEN_VAULT, u16le(index)) as unknown as Buffer,
     }));
   }
   if (!has.log) {
@@ -374,7 +398,7 @@ export async function createMandate(
         { pubkey: log, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data: D_OPEN_LOG as unknown as Buffer,
+      data: concat(D_OPEN_LOG, u16le(index)) as unknown as Buffer,
     }));
   }
 
@@ -415,12 +439,13 @@ export async function moveVault(
   action: VaultAction,
   lamports: bigint,
   opts: { needsOpen: boolean },
+  index = 0,
 ): Promise<AdoptResult> {
-  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), index });
   if (prep.error) throw new Error(prep.error);
 
-  const vault = vaultPda(owner.publicKey);
-  const mandate = mandatePda(owner.publicKey);
+  const vault = vaultPda(owner.publicKey, index);
+  const mandate = mandatePda(owner.publicKey, index);
   const tx = new Transaction();
   if (prep.needsTopUp) {
     tx.add(SystemProgram.transfer({
@@ -439,7 +464,7 @@ export async function moveVault(
         { pubkey: vault, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data: D_OPEN_VAULT as unknown as Buffer,
+      data: concat(D_OPEN_VAULT, u16le(index)) as unknown as Buffer,
     }));
   }
 
@@ -451,7 +476,7 @@ export async function moveVault(
           { pubkey: vault, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
-        data: concat(D_DEPOSIT, u64le(lamports)) as unknown as Buffer,
+        data: concat(D_DEPOSIT, u16le(index), u64le(lamports)) as unknown as Buffer,
       })
     : new TransactionInstruction({
         programId: PROGRAM_ID,
@@ -459,7 +484,7 @@ export async function moveVault(
           { pubkey: owner.publicKey, isSigner: true, isWritable: true },
           { pubkey: vault, isSigner: false, isWritable: true },
         ],
-        data: concat(D_WITHDRAW, u64le(lamports)) as unknown as Buffer,
+        data: concat(D_WITHDRAW, u16le(index), u64le(lamports)) as unknown as Buffer,
       }));
 
   tx.feePayer = new PublicKey(prep.feePayer);
@@ -526,7 +551,7 @@ function readable(msg: string): string {
   return msg;
 }
 
-/** Whether this key already speaks for a sentence. One owner, one mandate. */
-export async function hasMandate(connection: Connection, owner: PublicKey) {
-  return !!(await connection.getAccountInfo(mandatePda(owner)));
+/** Whether this sleeve already speaks for a sentence. */
+export async function hasMandate(connection: Connection, owner: PublicKey, index = 0) {
+  return !!(await connection.getAccountInfo(mandatePda(owner, index)));
 }

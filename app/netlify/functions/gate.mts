@@ -176,7 +176,10 @@ export default async (req: Request) => {
       new TransactionInstruction({
         programId: PROGRAM_ID,
         keys: [meta(owner.publicKey, true, false), meta(VAULT, false, true)],
-        data: Buffer.concat([D_SET_HANDLE, Buffer.from(ct[0])]),
+        // Sleeve zero. The sandbox accounts were written before sleeves and
+        // sit at the index that adds no seed bytes, so their addresses did
+        // not move and only the argument list grew.
+        data: Buffer.concat([D_SET_HANDLE, u16(0), Buffer.from(ct[0])]),
       }),
       new TransactionInstruction({
         programId: PROGRAM_ID,
@@ -200,7 +203,7 @@ export default async (req: Request) => {
           meta(ARCIUM, false, false),
         ],
         data: Buffer.concat([
-          D_GATE_TRADE, u64(offset), Buffer.from(ct[0]),
+          D_GATE_TRADE, u64(offset), u16(0), Buffer.from(ct[0]),
           Buffer.from(pub), Buffer.from(nonce),
           Buffer.from([s.category]), u16(s.bps), Buffer.from([s.side]),
           new PublicKey(s.mint).toBuffer(),

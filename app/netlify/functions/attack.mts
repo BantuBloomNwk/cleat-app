@@ -202,6 +202,10 @@ export default async (req: Request) => {
 
     const data = Buffer.concat([
       DISCRIMINATOR,
+      // Sleeve zero, which is where the sandbox accounts live. Their
+      // addresses did not move when sleeves arrived; only the argument
+      // list grew by two bytes.
+      u16(0),
       Buffer.from([s.category]),
       u16(s.bps),
       Buffer.from([s.ingested ? 1 : 0]),

@@ -5,11 +5,12 @@ use crate::error::CleatError;
 use crate::state::{Mandate, Vault};
 
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct OpenVault<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
     #[account(
-        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = mandate.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -18,14 +19,14 @@ pub struct OpenVault<'info> {
         init,
         payer = owner,
         space = 8 + Vault::INIT_SPACE,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump
     )]
     pub vault: Account<'info, Vault>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn exec_open_vault(ctx: Context<OpenVault>) -> Result<()> {
+pub fn exec_open_vault(ctx: Context<OpenVault>, _index: u16) -> Result<()> {
     let v = &mut ctx.accounts.vault;
     v.owner = ctx.accounts.owner.key();
     v.mandate = ctx.accounts.mandate.key();
@@ -57,17 +58,18 @@ pub struct AgentGranted {
 /// long, and how large. An agent cannot extend any of them, because this
 /// instruction takes the owner as a signer and there is no other way in.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct SetAgent<'info> {
     pub owner: Signer<'info>,
     #[account(
         mut,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner
     )]
     pub vault: Account<'info, Vault>,
     #[account(
-        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = mandate.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -76,6 +78,7 @@ pub struct SetAgent<'info> {
 
 pub fn exec_set_agent(
     ctx: Context<SetAgent>,
+    _index: u16,
     agent: Pubkey,
     ttl_seconds: i64,
     max_trade: u64,
@@ -103,11 +106,12 @@ pub fn exec_set_agent(
 }
 
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct RevokeAgent<'info> {
     pub owner: Signer<'info>,
     #[account(
         mut,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -115,7 +119,7 @@ pub struct RevokeAgent<'info> {
 }
 
 /// Always available, takes effect immediately, needs no reason.
-pub fn exec_revoke_agent(ctx: Context<RevokeAgent>) -> Result<()> {
+pub fn exec_revoke_agent(ctx: Context<RevokeAgent>, _index: u16) -> Result<()> {
     let v = &mut ctx.accounts.vault;
     require!(v.agent != Pubkey::default(), CleatError::NoAgent);
     v.agent = Pubkey::default();
@@ -136,11 +140,12 @@ pub fn exec_revoke_agent(ctx: Context<RevokeAgent>) -> Result<()> {
 /// Nothing readable passes through this instruction. The handle is ciphertext
 /// on the way in, ciphertext at rest, and the program has no key for it.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct SetPositionHandle<'info> {
     pub owner: Signer<'info>,
     #[account(
         mut,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -149,6 +154,7 @@ pub struct SetPositionHandle<'info> {
 
 pub fn exec_set_position_handle(
     ctx: Context<SetPositionHandle>,
+    _index: u16,
     handle: [u8; 32],
 ) -> Result<()> {
     ctx.accounts.vault.position_handle = handle;
@@ -169,18 +175,19 @@ pub fn exec_set_position_handle(
 /// inside it being visible, and it is the split that the confidential gate
 /// exists to protect.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct SetBookSize<'info> {
     pub owner: Signer<'info>,
     #[account(
         mut,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner
     )]
     pub vault: Account<'info, Vault>,
 }
 
-pub fn exec_set_book_size(ctx: Context<SetBookSize>, quote_units: u64) -> Result<()> {
+pub fn exec_set_book_size(ctx: Context<SetBookSize>, _index: u16, quote_units: u64) -> Result<()> {
     ctx.accounts.vault.deposited = quote_units;
     Ok(())
 }
@@ -197,19 +204,20 @@ pub fn exec_set_book_size(ctx: Context<SetBookSize>, quote_units: u64) -> Result
 /// identical either way: the program holds it, the owner alone can take it
 /// out, and the agent has no instruction that moves it anywhere.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct Deposit<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(
         mut,
-        seeds = [VAULT_SEED, vault.owner.as_ref()],
+        seeds = [VAULT_SEED, vault.owner.as_ref(), &index_seed(index)],
         bump = vault.bump
     )]
     pub vault: Account<'info, Vault>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn exec_deposit(ctx: Context<Deposit>, lamports: u64) -> Result<()> {
+pub fn exec_deposit(ctx: Context<Deposit>, _index: u16, lamports: u64) -> Result<()> {
     require!(lamports > 0, CleatError::EmptyPayment);
     anchor_lang::system_program::transfer(
         CpiContext::new(
@@ -247,19 +255,20 @@ pub struct VaultFunded {
 /// at the one instruction where it counts, and anything that could hold a
 /// withdrawal is a place somebody could be made to hold one.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct Withdraw<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
     #[account(
         mut,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner
     )]
     pub vault: Account<'info, Vault>,
 }
 
-pub fn exec_withdraw(ctx: Context<Withdraw>, lamports: u64) -> Result<()> {
+pub fn exec_withdraw(ctx: Context<Withdraw>, _index: u16, lamports: u64) -> Result<()> {
     require!(lamports > 0, CleatError::EmptyPayment);
 
     // Rent has to stay behind or the account closes and takes the agent

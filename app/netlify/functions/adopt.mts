@@ -49,8 +49,22 @@ const json = (body: unknown, status = 200) =>
     status, headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 
-const mandatePda = (owner: PublicKey) =>
-  PublicKey.findProgramAddressSync([MANDATE_SEED, owner.toBuffer()], PROGRAM_ID)[0];
+/**
+ * Sleeve zero contributes no bytes, so it derives to the address it always
+ * did. Mirrors index_seed() in the program.
+ */
+const indexSeed = (index: number) => {
+  if (index === 0) return new Uint8Array(0);
+  const b = new Uint8Array(2);
+  new DataView(b.buffer).setUint16(0, index, true);
+  return b;
+};
+
+const mandatePda = (owner: PublicKey, index: number) =>
+  PublicKey.findProgramAddressSync(
+    [MANDATE_SEED, owner.toBuffer(), indexSeed(index)],
+    PROGRAM_ID,
+  )[0];
 
 export default async (req: Request) => {
   const faucetSecret = process.env.CLEAT_SANDBOX_OWNER;
@@ -73,12 +87,21 @@ export default async (req: Request) => {
     // What already exists decides what the client has to build. Somebody who
     // set up before the vault and the log were part of it has a mandate and
     // nothing else, and telling them to start again is not an answer.
+    // Which sleeve is being set up. A key holds several, each with its own
+    // mandate, vault and log, so "what already exists" is a question about
+    // one of them rather than about the key.
+    const index = Number.isInteger(body.index) && body.index >= 0 && body.index <= 65535
+      ? Number(body.index)
+      : 0;
     const pda = (seed: string) =>
-      PublicKey.findProgramAddressSync([Buffer.from(seed), owner.toBuffer()], PROGRAM_ID)[0];
+      PublicKey.findProgramAddressSync(
+        [Buffer.from(seed), owner.toBuffer(), indexSeed(index)],
+        PROGRAM_ID,
+      )[0];
     const [balance, existing, vaultAcc, logAcc, { blockhash, lastValidBlockHeight }] =
       await Promise.all([
         connection.getBalance(owner),
-        connection.getAccountInfo(mandatePda(owner)),
+        connection.getAccountInfo(mandatePda(owner, index)),
         connection.getAccountInfo(pda("vault")),
         connection.getAccountInfo(pda("verdicts")),
         connection.getLatestBlockhash("confirmed"),

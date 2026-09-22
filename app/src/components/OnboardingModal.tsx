@@ -134,10 +134,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       // or, as it did until now, silently closing and looking like it worked.
       let r;
       try {
-        r = await createMandate(wallet.keypair, text, compiled);
+        r = await createMandate(wallet.keypair, text, compiled, {}, wallet.sleeve);
       } catch (e) {
         if (!/already speaks/i.test((e as Error).message)) throw e;
-        r = await createMandate(wallet.keypair, text, compiled, { replace: true });
+        r = await createMandate(wallet.keypair, text, compiled, { replace: true }, wallet.sleeve);
       }
       onSealMandate(text);
       onSealed?.(r);

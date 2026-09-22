@@ -23,6 +23,8 @@ interface MandatesTabProps {
   chainMandate: Mandate | null;
   /** The person's own key, once the passkey has been unlocked. */
   keypair: Keypair | null;
+  /** Which of that key's sleeves the adopted sentence lands in. */
+  sleeve: number;
   onNeedWallet: () => void;
 }
 
@@ -32,6 +34,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   exposure,
   chainMandate,
   keypair,
+  sleeve,
   onNeedWallet,
 }) => {
   const [adoptedId, setAdoptedId] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
         setTaken((t) => ({ ...t, [m.address]: 'That was not confirmed, so nothing was written.' }));
         return;
       }
-      const r = await adoptMandate(keypair, new PublicKey(m.address), m.text);
+      const r = await adoptMandate(keypair, new PublicKey(m.address), m.text, sleeve);
       setTaken((t) => ({ ...t, [m.address]: { url: r.explorer, sponsored: r.sponsored } }));
       onAdoptMandate(m.text);
       loadPublishedMandates().then(setPublished);

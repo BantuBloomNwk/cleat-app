@@ -25,6 +25,7 @@ fn validate_caps(max_position_bps: u16, max_trade_bps: u16, max_spread_bps: u16)
 }
 
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct CreateMandate<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -32,7 +33,7 @@ pub struct CreateMandate<'info> {
         init,
         payer = owner,
         space = 8 + Mandate::INIT_SPACE,
-        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
         bump
     )]
     pub mandate: Account<'info, Mandate>,
@@ -41,6 +42,7 @@ pub struct CreateMandate<'info> {
 
 pub fn exec_create_mandate(
     ctx: Context<CreateMandate>,
+    _index: u16,
     text: String,
     max_position_bps: u16,
     max_trade_bps: u16,
@@ -78,11 +80,12 @@ pub fn exec_create_mandate(
 /// exact failure that emptied the Grok wallet in May 2026: permissions were
 /// mutable by something the agent ingested.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct UpdateMandate<'info> {
     pub owner: Signer<'info>,
     #[account(
         mut,
-        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = mandate.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -91,6 +94,7 @@ pub struct UpdateMandate<'info> {
 
 pub fn exec_update_mandate(
     ctx: Context<UpdateMandate>,
+    _index: u16,
     text: String,
     max_position_bps: u16,
     max_trade_bps: u16,
@@ -127,6 +131,7 @@ pub struct MandateAdopted {
 /// about the parent's holdings is read, because nothing about the parent's
 /// holdings is readable.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct AdoptMandate<'info> {
     #[account(mut)]
     pub adopter: Signer<'info>,
@@ -136,14 +141,14 @@ pub struct AdoptMandate<'info> {
         init,
         payer = adopter,
         space = 8 + Mandate::INIT_SPACE,
-        seeds = [MANDATE_SEED, adopter.key().as_ref()],
+        seeds = [MANDATE_SEED, adopter.key().as_ref(), &index_seed(index)],
         bump
     )]
     pub child: Account<'info, Mandate>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn exec_adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()> {
+pub fn exec_adopt_mandate(ctx: Context<AdoptMandate>, _index: u16, text: String) -> Result<()> {
     require!(text.len() <= MANDATE_TEXT_MAX, CleatError::TextTooLong);
     require_keys_neq!(
         ctx.accounts.parent.key(),
@@ -203,18 +208,19 @@ pub struct Halted {
 /// verdict history all stay exactly as they were, and lifting it puts the same
 /// sentence back in force.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct SetHalted<'info> {
     pub owner: Signer<'info>,
     #[account(
         mut,
-        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = mandate.bump,
         has_one = owner @ CleatError::NotOwner
     )]
     pub mandate: Account<'info, Mandate>,
 }
 
-pub fn exec_set_halted(ctx: Context<SetHalted>, halted: bool) -> Result<()> {
+pub fn exec_set_halted(ctx: Context<SetHalted>, _index: u16, halted: bool) -> Result<()> {
     let at = Clock::get()?.unix_timestamp;
     ctx.accounts.mandate.halted = halted;
     emit!(Halted {
@@ -237,11 +243,12 @@ pub fn exec_set_halted(ctx: Context<SetHalted>, halted: bool) -> Result<()> {
 /// list, which is the stronger shape: a deny list has to anticipate every name
 /// worth refusing, and a universe only has to say what is in.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct DeclareUniverse<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
     #[account(
-        seeds = [MANDATE_SEED, owner.key().as_ref()],
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = mandate.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -259,6 +266,7 @@ pub struct DeclareUniverse<'info> {
 
 pub fn exec_declare_universe(
     ctx: Context<DeclareUniverse>,
+    _index: u16,
     entries: Vec<AssetEntry>,
 ) -> Result<()> {
     require!(entries.len() <= UNIVERSE_MAX, CleatError::UniverseTooLong);

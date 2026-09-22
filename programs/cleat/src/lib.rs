@@ -28,6 +28,7 @@ pub mod cleat {
 
     pub fn create_mandate(
         ctx: Context<CreateMandate>,
+        index: u16,
         text: String,
         max_position_bps: u16,
         max_trade_bps: u16,
@@ -36,6 +37,7 @@ pub mod cleat {
     ) -> Result<()> {
         instructions::mandate::exec_create_mandate(
             ctx,
+            index,
             text,
             max_position_bps,
             max_trade_bps,
@@ -46,6 +48,7 @@ pub mod cleat {
 
     pub fn update_mandate(
         ctx: Context<UpdateMandate>,
+        index: u16,
         text: String,
         max_position_bps: u16,
         max_trade_bps: u16,
@@ -54,6 +57,7 @@ pub mod cleat {
     ) -> Result<()> {
         instructions::mandate::exec_update_mandate(
             ctx,
+            index,
             text,
             max_position_bps,
             max_trade_bps,
@@ -62,72 +66,76 @@ pub mod cleat {
         )
     }
 
-    pub fn set_halted(ctx: Context<SetHalted>, halted: bool) -> Result<()> {
-        instructions::mandate::exec_set_halted(ctx, halted)
+    pub fn set_halted(ctx: Context<SetHalted>, index: u16, halted: bool) -> Result<()> {
+        instructions::mandate::exec_set_halted(ctx, index, halted)
     }
 
-    pub fn adopt_mandate(ctx: Context<AdoptMandate>, text: String) -> Result<()> {
-        instructions::mandate::exec_adopt_mandate(ctx, text)
+    pub fn adopt_mandate(ctx: Context<AdoptMandate>, index: u16, text: String) -> Result<()> {
+        instructions::mandate::exec_adopt_mandate(ctx, index, text)
     }
 
     pub fn declare_universe(
         ctx: Context<DeclareUniverse>,
+        index: u16,
         entries: Vec<AssetEntry>,
     ) -> Result<()> {
-        instructions::mandate::exec_declare_universe(ctx, entries)
+        instructions::mandate::exec_declare_universe(ctx, index, entries)
     }
 
-    pub fn open_vault(ctx: Context<OpenVault>) -> Result<()> {
-        instructions::vault::exec_open_vault(ctx)
+    pub fn open_vault(ctx: Context<OpenVault>, index: u16) -> Result<()> {
+        instructions::vault::exec_open_vault(ctx, index)
     }
 
     pub fn set_agent(
         ctx: Context<SetAgent>,
+        index: u16,
         agent: Pubkey,
         ttl_seconds: i64,
         max_trade: u64,
     ) -> Result<()> {
-        instructions::vault::exec_set_agent(ctx, agent, ttl_seconds, max_trade)
+        instructions::vault::exec_set_agent(ctx, index, agent, ttl_seconds, max_trade)
     }
 
-    pub fn revoke_agent(ctx: Context<RevokeAgent>) -> Result<()> {
-        instructions::vault::exec_revoke_agent(ctx)
+    pub fn revoke_agent(ctx: Context<RevokeAgent>, index: u16) -> Result<()> {
+        instructions::vault::exec_revoke_agent(ctx, index)
     }
 
-    pub fn deposit(ctx: Context<Deposit>, lamports: u64) -> Result<()> {
-        instructions::vault::exec_deposit(ctx, lamports)
+    pub fn deposit(ctx: Context<Deposit>, index: u16, lamports: u64) -> Result<()> {
+        instructions::vault::exec_deposit(ctx, index, lamports)
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, lamports: u64) -> Result<()> {
-        instructions::vault::exec_withdraw(ctx, lamports)
+    pub fn withdraw(ctx: Context<Withdraw>, index: u16, lamports: u64) -> Result<()> {
+        instructions::vault::exec_withdraw(ctx, index, lamports)
     }
 
-    pub fn set_book_size(ctx: Context<SetBookSize>, quote_units: u64) -> Result<()> {
-        instructions::vault::exec_set_book_size(ctx, quote_units)
+    pub fn set_book_size(ctx: Context<SetBookSize>, index: u16, quote_units: u64) -> Result<()> {
+        instructions::vault::exec_set_book_size(ctx, index, quote_units)
     }
 
     pub fn set_position_handle(
         ctx: Context<SetPositionHandle>,
+        index: u16,
         handle: [u8; 32],
     ) -> Result<()> {
-        instructions::vault::exec_set_position_handle(ctx, handle)
+        instructions::vault::exec_set_position_handle(ctx, index, handle)
     }
 
-    pub fn open_verdict_log(ctx: Context<OpenVerdictLog>) -> Result<()> {
-        instructions::verdict::exec_open_verdict_log(ctx)
+    pub fn open_verdict_log(ctx: Context<OpenVerdictLog>, index: u16) -> Result<()> {
+        instructions::verdict::exec_open_verdict_log(ctx, index)
     }
 
     pub fn open_treasury(ctx: Context<OpenTreasury>) -> Result<()> {
         instructions::verdict::exec_open_treasury(ctx)
     }
 
-    pub fn migrate_verdict_log(ctx: Context<MigrateVerdictLog>) -> Result<()> {
-        instructions::verdict::exec_migrate_verdict_log(ctx)
+    pub fn migrate_verdict_log(ctx: Context<MigrateVerdictLog>, index: u16) -> Result<()> {
+        instructions::verdict::exec_migrate_verdict_log(ctx, index)
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn propose_trade(
         ctx: Context<ProposeTrade>,
+        index: u16,
         category: u8,
         proposed_bps: u16,
         from_ingested_content: bool,
@@ -137,6 +145,7 @@ pub mod cleat {
     ) -> Result<()> {
         instructions::verdict::exec_propose_trade(
             ctx,
+            index,
             category,
             proposed_bps,
             from_ingested_content,
@@ -154,6 +163,7 @@ pub mod cleat {
     pub fn gate_trade(
         ctx: Context<GateTrade>,
         computation_offset: u64,
+        index: u16,
         exposure_ct: [u8; 32],
         pubkey: [u8; 32],
         nonce: u128,
@@ -165,6 +175,7 @@ pub mod cleat {
         instructions::gate::exec_gate_trade(
             ctx,
             computation_offset,
+            index,
             exposure_ct,
             pubkey,
             nonce,
@@ -183,16 +194,16 @@ pub mod cleat {
         instructions::gate::exec_gate_callback(ctx, output)
     }
 
-    pub fn delegate_vault(ctx: Context<DelegateVault>) -> Result<()> {
-        instructions::per::exec_delegate_vault(ctx)
+    pub fn delegate_vault(ctx: Context<DelegateVault>, index: u16) -> Result<()> {
+        instructions::per::exec_delegate_vault(ctx, index)
     }
 
-    pub fn seal_vault(ctx: Context<SealVault>) -> Result<()> {
-        instructions::per::exec_seal_vault(ctx)
+    pub fn seal_vault(ctx: Context<SealVault>, index: u16) -> Result<()> {
+        instructions::per::exec_seal_vault(ctx, index)
     }
 
-    pub fn release_vault(ctx: Context<ReleaseVault>) -> Result<()> {
-        instructions::per::exec_release_vault(ctx)
+    pub fn release_vault(ctx: Context<ReleaseVault>, index: u16) -> Result<()> {
+        instructions::per::exec_release_vault(ctx, index)
     }
 
 
@@ -223,27 +234,29 @@ pub mod cleat {
     // needs both or it has only half a leash.
     pub fn open_spend_account(
         ctx: Context<OpenSpendAccount>,
+        index: u16,
         agent: Pubkey,
         ceiling_lamports: u64,
         period_secs: i64,
     ) -> Result<()> {
-        instructions::spend::exec_open_spend_account(ctx, agent, ceiling_lamports, period_secs)
+        instructions::spend::exec_open_spend_account(ctx, index, agent, ceiling_lamports, period_secs)
     }
 
     pub fn set_spend_cap(
         ctx: Context<SetSpendCap>,
+        index: u16,
         ceiling_lamports: u64,
         period_secs: i64,
     ) -> Result<()> {
-        instructions::spend::exec_set_spend_cap(ctx, ceiling_lamports, period_secs)
+        instructions::spend::exec_set_spend_cap(ctx, index, ceiling_lamports, period_secs)
     }
 
-    pub fn fund_spend_account(ctx: Context<FundSpendAccount>, lamports: u64) -> Result<()> {
-        instructions::spend::exec_fund_spend_account(ctx, lamports)
+    pub fn fund_spend_account(ctx: Context<FundSpendAccount>, index: u16, lamports: u64) -> Result<()> {
+        instructions::spend::exec_fund_spend_account(ctx, index, lamports)
     }
 
-    pub fn pay_agent_cost(ctx: Context<PayAgentCost>, lamports: u64, purpose: u8) -> Result<()> {
-        instructions::spend::exec_pay_agent_cost(ctx, lamports, purpose)
+    pub fn pay_agent_cost(ctx: Context<PayAgentCost>, index: u16, lamports: u64, purpose: u8) -> Result<()> {
+        instructions::spend::exec_pay_agent_cost(ctx, index, lamports, purpose)
     }
 
 

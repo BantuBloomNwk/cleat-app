@@ -38,7 +38,7 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
   useEffect(() => {
     if (!address) { setLamports(null); return; }
     let live = true;
-    const vault = vaultPda(address);
+    const vault = vaultPda(address, wallet.sleeve);
     const read = () => {
       connection.getBalance(address)
         .then((b) => { if (live) setLamports(b); }).catch(() => {});
@@ -54,7 +54,7 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
     // watched, and the proxy behind it is not a subscription.
     const t = setInterval(read, 20_000);
     return () => { live = false; clearInterval(t); };
-  }, [address, nonce]);
+  }, [address, nonce, wallet.sleeve]);
 
   /* Locked is not the same as absent, and neither is a dead end.
      A refresh leaves a key locked, and the old version of this panel answered
@@ -146,7 +146,8 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
 
   const move = (action: VaultAction) =>
     run(action === 'deposit' ? 'Deposit' : 'Withdrawal', async () =>
-      moveVault(keypair!, action, lamportsFromInput(), { needsOpen: vaultLamports === null }));
+      moveVault(keypair!, action, lamportsFromInput(),
+        { needsOpen: vaultLamports === null }, wallet.sleeve));
 
   const send = () =>
     run('Send', async () => {
@@ -170,10 +171,11 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
       {/* Sleeves.
           One sentence for a whole person was the wrong shape. Nobody holds a
           single position: there is money you would not touch and money you are
-          playing with, and they do not want the same rule. Each sleeve here is
-          a separate key derived from the same passkey, so each has its own
-          mandate, its own vault and its own log, and the chain shows no link
-          between them. */}
+          playing with, and they do not want the same rule. A sleeve is not a
+          second wallet: the key and the address below stay the same, and the
+          sleeve number goes into the seeds of the mandate, the vault and the
+          log, so one key holds several accounts that cannot reach into each
+          other. */}
       <div className="sleeve-bar">
         <span className="vault-key-label">Sleeves</span>
         <div className="sleeve-chips">
@@ -208,9 +210,9 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
         </div>
       </div>
       <p className="sleeve-note">
-        Each sleeve is its own account with its own rule and its own balance.
-        The same passkey reproduces all of them on any device you sign in on,
-        and nothing on chain ties one to another.
+        One key, one address, several accounts. Each sleeve has its own
+        sentence, its own vault and its own record, and the balance shown
+        below is the one belonging to the sleeve you are on.
       </p>
 
       <div className="vault-key-row">
@@ -327,7 +329,7 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
             type="button"
             className="mesh-chip"
             disabled={!keypair || !!busy || vaultLamports === null || delegated}
-            onClick={() => run('Delegation', () => delegateVault(keypair!))}
+            onClick={() => run('Delegation', () => delegateVault(keypair!, wallet.sleeve))}
             title={delegated ? 'Already running on the rollup' : 'Hand the vault to the attested rollup'}
           >
             {busy === 'Delegation' ? 'Signing…' : delegated ? 'Running fast' : 'Make it fast'}

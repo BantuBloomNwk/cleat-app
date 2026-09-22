@@ -6,18 +6,18 @@ import {
   restoreWallet,
   hasWallet,
   forgetLocal,
-  clearSessionRoot,
   passkeySupported,
   platformAuthenticatorAvailable,
+} from '../lib/passkey';
+import {
   listSleeves,
   activeSleeve,
   setActiveSleeve,
-  addSleeve,
+  addSleeve as addSleeveStored,
   renameSleeve as renameSleeveStored,
   forgetSleeve as forgetSleeveStored,
-  deriveSleeve,
   type Sleeve,
-} from '../lib/passkey';
+} from '../lib/sleeves';
 
 export type WalletState =
   | { status: 'unsupported'; reason: string }
@@ -40,9 +40,9 @@ export function useWallet() {
   /**
    * Which sleeve is in front.
    *
-   * Each one is a separate owner key derived from the same passkey, so
-   * switching is not a filter over one account, it is a different account
-   * entirely: its own mandate, its own vault, its own log.
+   * One key, several accounts. The index goes into the seeds of the mandate,
+   * the vault and the log, so switching does not change the address or ask
+   * for a face, it changes which of this key's accounts the app is reading.
    */
   const [sleeves, setSleeves] = useState<Sleeve[]>(() => listSleeves());
   const [sleeve, setSleeve] = useState<number>(() => activeSleeve());
@@ -80,63 +80,41 @@ export function useWallet() {
     }
   }, []);
 
-  /**
-   * Move to another sleeve.
-   *
-   * No prompt when the session already holds the root, which is the whole
-   * point: looking at four sleeves should not be four requests for a face.
-   * Anything that writes asks again regardless.
-   */
-  const select = useCallback(
-    async (index: number) => {
-      setActiveSleeve(index);
-      setSleeve(index);
-      if (state.status !== 'ready' && !keypair) return null;
-      return run(() => deriveSleeve(index));
-    },
-    [run, state.status, keypair],
-  );
-
   return {
     state,
     keypair,
     sleeve,
     sleeves,
-    create: useCallback(() => run(createWallet), [run]),
-    unlock: useCallback(() => run(() => unlockWallet(sleeve)), [run, sleeve]),
-    restore: useCallback(() => run(() => restoreWallet(sleeve)), [run, sleeve]),
-    select,
-    addSleeve: useCallback(
-      async (name: string) => {
-        const made = addSleeve(name);
-        setSleeves(listSleeves());
-        await select(made.index);
-        return made;
-      },
-      [select],
-    ),
+    select: useCallback((index: number) => {
+      setActiveSleeve(index);
+      setSleeve(index);
+    }, []),
+    addSleeve: useCallback((name: string) => {
+      const made = addSleeveStored(name);
+      setSleeves(listSleeves());
+      setActiveSleeve(made.index);
+      setSleeve(made.index);
+      return made;
+    }, []),
     rename: useCallback((index: number, name: string) => {
       renameSleeveStored(index, name);
       setSleeves(listSleeves());
     }, []),
-    removeSleeve: useCallback(
-      async (index: number) => {
-        forgetSleeveStored(index);
-        setSleeves(listSleeves());
-        await select(activeSleeve());
-      },
-      [select],
-    ),
+    removeSleeve: useCallback((index: number) => {
+      forgetSleeveStored(index);
+      setSleeves(listSleeves());
+      setSleeve(activeSleeve());
+    }, []),
+    create: useCallback(() => run(createWallet), [run]),
+    unlock: useCallback(() => run(unlockWallet), [run]),
+    restore: useCallback(() => run(restoreWallet), [run]),
     signOut: useCallback(() => {
-      clearSessionRoot();
       setKeypair(null);
       setState(hasWallet() ? { status: 'locked' } : { status: 'none' });
     }, []),
     forget: useCallback(() => {
       forgetLocal();
       setKeypair(null);
-      setSleeves(listSleeves());
-      setSleeve(0);
       setState({ status: 'none' });
     }, []),
   };

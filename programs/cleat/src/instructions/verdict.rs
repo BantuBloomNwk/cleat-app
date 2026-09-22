@@ -5,11 +5,12 @@ use crate::error::CleatError;
 use crate::state::{AssetUniverse, Mandate, Treasury, Vault, Verdict, VerdictLog};
 
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct OpenVerdictLog<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
     #[account(
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -18,14 +19,14 @@ pub struct OpenVerdictLog<'info> {
         init,
         payer = owner,
         space = 8 + VerdictLog::INIT_SPACE,
-        seeds = [VERDICT_SEED, owner.key().as_ref()],
+        seeds = [VERDICT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump
     )]
     pub log: Account<'info, VerdictLog>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn exec_open_verdict_log(ctx: Context<OpenVerdictLog>) -> Result<()> {
+pub fn exec_open_verdict_log(ctx: Context<OpenVerdictLog>, _index: u16) -> Result<()> {
     let l = &mut ctx.accounts.log;
     l.owner = ctx.accounts.owner.key();
     l.vault = ctx.accounts.vault.key();
@@ -67,22 +68,23 @@ pub struct ProposalDecided {
 /// enforcement never trusted the agent in the first place. It is there so the
 /// record says what happened.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct ProposeTrade<'info> {
     /// The granted agent, or the owner acting on their own behalf.
     pub signer: Signer<'info>,
     #[account(
-        seeds = [VAULT_SEED, vault.owner.as_ref()],
+        seeds = [VAULT_SEED, vault.owner.as_ref(), &index_seed(index)],
         bump = vault.bump
     )]
     pub vault: Account<'info, Vault>,
     #[account(
-        seeds = [MANDATE_SEED, vault.owner.as_ref()],
+        seeds = [MANDATE_SEED, vault.owner.as_ref(), &index_seed(index)],
         bump = mandate.bump
     )]
     pub mandate: Account<'info, Mandate>,
     #[account(
         mut,
-        seeds = [VERDICT_SEED, vault.owner.as_ref()],
+        seeds = [VERDICT_SEED, vault.owner.as_ref(), &index_seed(index)],
         bump = log.bump
     )]
     pub log: Account<'info, VerdictLog>,
@@ -107,6 +109,7 @@ pub struct ProposeTrade<'info> {
 #[allow(clippy::too_many_arguments)]
 pub fn exec_propose_trade(
     ctx: Context<ProposeTrade>,
+    _index: u16,
     category: u8,
     proposed_bps: u16,
     from_ingested_content: bool,
@@ -369,18 +372,19 @@ pub fn exec_propose_trade(
 /// their own mandate. It is not a thing an agent can do, because an agent
 /// cannot sign this.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct MigrateVerdictLog<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
     /// CHECK: read as raw bytes on purpose. A log written by an older program
     /// does not deserialize into the current struct, which is the whole reason
     /// this instruction exists. The seeds pin it to the signer's own log.
-    #[account(mut, seeds = [VERDICT_SEED, owner.key().as_ref()], bump)]
+    #[account(mut, seeds = [VERDICT_SEED, owner.key().as_ref(), &index_seed(index)], bump)]
     pub log: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn exec_migrate_verdict_log(ctx: Context<MigrateVerdictLog>) -> Result<()> {
+pub fn exec_migrate_verdict_log(ctx: Context<MigrateVerdictLog>, _index: u16) -> Result<()> {
     // discriminator, owner, vault, head, cleared, clamped, refused
     const PREFIX: usize = 8 + 32 + 32 + 1 + 4 + 4 + 4;
     const ENTRY: usize = 8 + 2 + 1 + 2 + 2 + 1 + 1;

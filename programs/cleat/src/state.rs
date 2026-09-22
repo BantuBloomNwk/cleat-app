@@ -373,6 +373,11 @@ impl AgentSpend {
 pub struct Pending {
     /// Whose question this is. The callback trusts this and nothing else.
     pub owner: Pubkey,
+    /// Which of the owner's sleeves asked. The callback runs with no
+    /// arguments of its own, so the only way it can find the right mandate
+    /// and the right log is to read the index back off the record that
+    /// queued the question.
+    pub index: u16,
     /// Who paid for the parking space, and who gets the rent back when the
     /// answer lands.
     pub payer: Pubkey,

@@ -2,6 +2,28 @@ use anchor_lang::prelude::*;
 
 #[constant]
 pub const MANDATE_SEED: &[u8] = b"mandate";
+
+/// The bytes a sleeve index contributes to an account's seeds.
+///
+/// One mandate per key was the wrong shape. Nobody holds a single position:
+/// there is money that must not be touched and money that is being played
+/// with, and they do not want the same sentence or the same balance. So a key
+/// holds several, each with its own mandate, its own vault, its own log and
+/// its own allowance, and the index is what separates them.
+///
+/// Index zero contributes nothing at all. A seed of zero length adds no bytes
+/// to the hash, so a sleeve zero account derives to exactly the address it
+/// derived to before any of this existed. Everything already on chain keeps
+/// working, nothing has to be moved, and no balance gets stranded behind an
+/// address the program can no longer sign for. That mattered more than the
+/// tidiness of always writing the index.
+pub fn index_seed(index: u16) -> Vec<u8> {
+    if index == 0 {
+        Vec::new()
+    } else {
+        index.to_le_bytes().to_vec()
+    }
+}
 #[constant]
 pub const VAULT_SEED: &[u8] = b"vault";
 #[constant]

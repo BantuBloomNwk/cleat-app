@@ -21,21 +21,26 @@ use crate::state::Vault;
 /// and none of the confidentiality.
 #[delegate]
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct DelegateVault<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
     /// CHECK: the delegate macro takes this as a raw account, and ownership is
     /// checked by the seeds below rather than by deserialising it.
-    #[account(mut, del, seeds = [VAULT_SEED, owner.key().as_ref()], bump)]
+    #[account(mut, del, seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)], bump)]
     pub vault: UncheckedAccount<'info>,
 }
 
-pub fn exec_delegate_vault(ctx: Context<DelegateVault>) -> Result<()> {
+pub fn exec_delegate_vault(ctx: Context<DelegateVault>, index: u16) -> Result<()> {
     let owner = ctx.accounts.owner.key();
+    // The signer seeds have to be the account's real seeds, index and all,
+    // or the delegation program is handed an address that is not the one it
+    // was asked to delegate.
+    let idx = index_seed(index);
     ctx.accounts.delegate_vault(
         &ctx.accounts.owner,
-        &[VAULT_SEED, owner.as_ref()],
+        &[VAULT_SEED, owner.as_ref(), idx.as_ref()],
         DelegateConfig {
             commit_frequency_ms: COMMIT_FREQUENCY_MS,
             validator: Some(TEE_VALIDATOR),
@@ -59,6 +64,7 @@ pub fn exec_delegate_vault(ctx: Context<DelegateVault>) -> Result<()> {
 /// it sounds: it protects you from strangers, not from us. The per member flags
 /// here are what let the reader be the owner instead.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct SealVault<'info> {
     /// The owner, and not merely whoever is paying the fee.
     ///
@@ -74,7 +80,7 @@ pub struct SealVault<'info> {
 
     #[account(
         mut,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner,
     )]
@@ -97,7 +103,7 @@ pub struct SealVault<'info> {
     pub permission_program: UncheckedAccount<'info>,
 }
 
-pub fn exec_seal_vault(ctx: Context<SealVault>) -> Result<()> {
+pub fn exec_seal_vault(ctx: Context<SealVault>, index: u16) -> Result<()> {
     let vault = &ctx.accounts.vault;
     let owner = vault.owner;
 
@@ -130,7 +136,8 @@ pub fn exec_seal_vault(ctx: Context<SealVault>) -> Result<()> {
     }
 
     let bump = vault.bump;
-    let seeds: &[&[u8]] = &[VAULT_SEED, owner.as_ref(), &[bump]];
+    let idx = index_seed(index);
+    let seeds: &[&[u8]] = &[VAULT_SEED, owner.as_ref(), idx.as_ref(), &[bump]];
 
     // The sponsor funds the ephemeral permission's storage, 6208 lamports for a
     // 134 byte account at the rollup's 32 lamports per byte, and it has to be
@@ -162,13 +169,14 @@ pub fn exec_seal_vault(ctx: Context<SealVault>) -> Result<()> {
 /// What lands on base is the settled state, not the journey. Everything that
 /// happened inside the enclave stays there.
 #[derive(Accounts)]
+#[instruction(index: u16)]
 pub struct ReleaseVault<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [VAULT_SEED, owner.key().as_ref()],
+        seeds = [VAULT_SEED, owner.key().as_ref(), &index_seed(index)],
         bump = vault.bump,
         has_one = owner @ CleatError::NotOwner
     )]
@@ -183,7 +191,7 @@ pub struct ReleaseVault<'info> {
     pub magic_program: UncheckedAccount<'info>,
 }
 
-pub fn exec_release_vault(ctx: Context<ReleaseVault>) -> Result<()> {
+pub fn exec_release_vault(ctx: Context<ReleaseVault>, _index: u16) -> Result<()> {
     MagicIntentBundleBuilder::new(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.magic_context.to_account_info(),

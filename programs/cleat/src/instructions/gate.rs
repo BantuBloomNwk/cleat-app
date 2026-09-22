@@ -43,7 +43,7 @@ pub struct InitGateCompDef<'info> {
 /// circuit.
 #[queue_computation_accounts("gate_breach_v7", payer)]
 #[derive(Accounts)]
-#[instruction(computation_offset: u64)]
+#[instruction(computation_offset: u64, index: u16)]
 pub struct GateTrade<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -54,11 +54,11 @@ pub struct GateTrade<'info> {
     // adding them unboxed overflows the frame and the program dies with an
     // access violation in an unallocated region, before a single line of the
     // handler runs and with no error worth reading.
-    #[account(seeds = [VAULT_SEED, vault.owner.as_ref()], bump = vault.bump)]
+    #[account(seeds = [VAULT_SEED, vault.owner.as_ref(), &index_seed(index)], bump = vault.bump)]
     pub vault: Box<Account<'info, Vault>>,
-    #[account(seeds = [MANDATE_SEED, vault.owner.as_ref()], bump = mandate.bump)]
+    #[account(seeds = [MANDATE_SEED, vault.owner.as_ref(), &index_seed(index)], bump = mandate.bump)]
     pub mandate: Box<Account<'info, Mandate>>,
-    #[account(mut, seeds = [VERDICT_SEED, vault.owner.as_ref()], bump = log.bump)]
+    #[account(mut, seeds = [VERDICT_SEED, vault.owner.as_ref(), &index_seed(index)], bump = log.bump)]
     pub log: Box<Account<'info, VerdictLog>>,
 
     /// The instruments this mandate declared, if it declared any. Same account
@@ -146,14 +146,14 @@ pub struct GateBreachV7Callback<'info> {
     pub pending: Box<Account<'info, Pending>>,
 
     /// The log the verdict lands in, pinned to the owner who asked.
-    #[account(mut, seeds = [VERDICT_SEED, pending.owner.as_ref()], bump = log.bump)]
+    #[account(mut, seeds = [VERDICT_SEED, pending.owner.as_ref(), &index_seed(pending.index)], bump = log.bump)]
     pub log: Box<Account<'info, VerdictLog>>,
 
     /// Read again on the way out, because the network takes seconds to answer
     /// and the owner can edit their mandate inside that window. An answer
     /// computed against a sentence that is no longer in force is recorded as a
     /// refusal rather than applied.
-    #[account(seeds = [MANDATE_SEED, pending.owner.as_ref()], bump = mandate.bump)]
+    #[account(seeds = [MANDATE_SEED, pending.owner.as_ref(), &index_seed(pending.index)], bump = mandate.bump)]
     pub mandate: Box<Account<'info, Mandate>>,
 
     /// CHECK: rent destination, pinned to whoever paid for the pending account.
@@ -178,6 +178,7 @@ pub fn exec_init_gate_comp_def(ctx: Context<InitGateCompDef>) -> Result<()> {
 pub fn exec_gate_trade(
     ctx: Context<GateTrade>,
     computation_offset: u64,
+    index: u16,
     exposure_ct: [u8; 32],
     pubkey: [u8; 32],
     nonce: u128,
@@ -294,6 +295,7 @@ pub fn exec_gate_trade(
     {
         let p = &mut ctx.accounts.pending;
         p.owner = vault.owner;
+        p.index = index;
         p.payer = signer;
         p.mandate_version = mandate.version;
         p.category = category;

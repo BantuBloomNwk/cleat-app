@@ -94,9 +94,23 @@ class Cursor {
   }
 }
 
-export const mandatePda = (owner: PublicKey) =>
+/**
+ * The bytes a sleeve index contributes to an account's seeds.
+ *
+ * Mirrors index_seed() in the program. Sleeve zero contributes nothing, so
+ * it lands on the same address it always did and nothing already written has
+ * to move.
+ */
+export const indexSeed = (index: number) => {
+  if (index === 0) return new Uint8Array(0);
+  const b = new Uint8Array(2);
+  new DataView(b.buffer).setUint16(0, index, true);
+  return b;
+};
+
+export const mandatePda = (owner: PublicKey, index = 0) =>
   PublicKey.findProgramAddressSync(
-    [seed("mandate"), owner.toBuffer()],
+    [seed("mandate"), owner.toBuffer(), indexSeed(index)],
     PROGRAM_ID,
   )[0];
 
@@ -205,15 +219,15 @@ export async function loadGateStatus(): Promise<GateCheck[]> {
   ];
 }
 
-export const vaultPda = (owner: PublicKey) =>
+export const vaultPda = (owner: PublicKey, index = 0) =>
   PublicKey.findProgramAddressSync(
-    [seed("vault"), owner.toBuffer()],
+    [seed("vault"), owner.toBuffer(), indexSeed(index)],
     PROGRAM_ID,
   )[0];
 
-export const verdictLogPda = (owner: PublicKey) =>
+export const verdictLogPda = (owner: PublicKey, index = 0) =>
   PublicKey.findProgramAddressSync(
-    [seed("verdicts"), owner.toBuffer()],
+    [seed("verdicts"), owner.toBuffer(), indexSeed(index)],
     PROGRAM_ID,
   )[0];
 
@@ -527,12 +541,13 @@ export interface ChainSnapshot {
  */
 export async function loadChainSnapshot(
   owner: PublicKey = DEMO_OWNER,
+  index = 0,
 ): Promise<ChainSnapshot | null> {
   try {
     const [logInfo, mandateInfo, vaultInfo, latestSlot] = await Promise.all([
-      connection.getAccountInfo(verdictLogPda(owner)),
-      connection.getAccountInfo(mandatePda(owner)),
-      connection.getAccountInfo(vaultPda(owner)),
+      connection.getAccountInfo(verdictLogPda(owner, index)),
+      connection.getAccountInfo(mandatePda(owner, index)),
+      connection.getAccountInfo(vaultPda(owner, index)),
       connection.getSlot(),
     ]);
     // A mandate with no log yet is still yours, and so is a log with nothing
@@ -862,8 +877,11 @@ export interface SpendState {
   refusals: number;
 }
 
-export const spendPda = (owner: PublicKey) =>
-  PublicKey.findProgramAddressSync([seed("spend"), owner.toBuffer()], PROGRAM_ID)[0];
+export const spendPda = (owner: PublicKey, index = 0) =>
+  PublicKey.findProgramAddressSync(
+    [seed("spend"), owner.toBuffer(), indexSeed(index)],
+    PROGRAM_ID,
+  )[0];
 
 /**
  * The second ceiling, read off the chain.
