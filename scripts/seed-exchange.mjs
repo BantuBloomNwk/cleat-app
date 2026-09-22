@@ -106,7 +106,7 @@ async function main() {
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, true),
              meta(SystemProgram.programId, false, false)],
-      data: Buffer.concat([disc("create_mandate"), str(m.text),
+      data: Buffer.concat([disc("create_mandate"), u16(0), str(m.text),
         u16(m.position), u16(m.trade), u16(m.spread), vecPubkey(m.denied)]),
     })], [owner]);
     console.log(`${m.key.padEnd(13)} created  ${owner.publicKey.toBase58().slice(0, 8)}…`);

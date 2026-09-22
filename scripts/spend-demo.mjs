@@ -24,6 +24,7 @@ const disc = (n) => {
   if (!ix) throw new Error(`no instruction ${n}`);
   return Buffer.from(ix.discriminator);
 };
+const u16 = (n) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 const u64 = (n) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n)); return b; };
 const i64 = (n) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(n)); return b; };
 const u8b = (n) => Buffer.from([n]);
@@ -105,14 +106,14 @@ if (!(await connection.getAccountInfo(spend))) {
       meta(spend, false, true),
       meta(SystemProgram.programId, false, false),
     ],
-    data: Buffer.concat([disc("open_spend_account"), agent.publicKey.toBuffer(), u64(CEILING), i64(PERIOD)]),
+    data: Buffer.concat([disc("open_spend_account"), u16(0), agent.publicKey.toBuffer(), u64(CEILING), i64(PERIOD)]),
   })], [owner]);
 } else {
   console.log("allowance already open, resetting the ceiling");
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(spend, false, true)],
-    data: Buffer.concat([disc("set_spend_cap"), u64(CEILING), i64(PERIOD)]),
+    data: Buffer.concat([disc("set_spend_cap"), u16(0), u64(CEILING), i64(PERIOD)]),
   })], [owner]);
 }
 
@@ -126,7 +127,7 @@ if (balance < CEILING * 3) {
       meta(spend, false, true),
       meta(SystemProgram.programId, false, false),
     ],
-    data: Buffer.concat([disc("fund_spend_account"), u64(CEILING * 3)]),
+    data: Buffer.concat([disc("fund_spend_account"), u16(0), u64(CEILING * 3)]),
   })], [owner]);
 }
 
@@ -147,7 +148,7 @@ for (let i = 1; i <= 5; i++) {
         meta(spend, false, true),
         meta(payee, false, true),
       ],
-      data: Buffer.concat([disc("pay_agent_cost"), u64(CALL), u8b(PURPOSE.inference)]),
+      data: Buffer.concat([disc("pay_agent_cost"), u16(0), u64(CALL), u8b(PURPOSE.inference)]),
     })], [owner, agent]);
     const after = readSpend((await connection.getAccountInfo(spend)).data);
     console.log(`  call ${i}: paid ${sol(CALL)}, ${sol(after.ceiling - after.spent)} left   ${sig.slice(0, 12)}…`);

@@ -97,7 +97,7 @@ async function main() {
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, true), meta(SystemProgram.programId, false, false)],
-      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), u16(20), vecPubkey(DENIED)]),
+      data: Buffer.concat([disc("create_mandate"), u16(0), str(text), u16(1500), u16(500), u16(20), vecPubkey(DENIED)]),
     })], [owner]);
     console.log("mandate created");
   }
@@ -105,7 +105,7 @@ async function main() {
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, false), meta(vault, false, true), meta(SystemProgram.programId, false, false)],
-      data: disc("open_vault"),
+      data: Buffer.concat([disc("open_vault"), u16(0)]),
     })], [owner]);
     console.log("vault opened");
   }
@@ -113,7 +113,7 @@ async function main() {
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(vault, false, false), meta(log, false, true), meta(SystemProgram.programId, false, false)],
-      data: disc("open_verdict_log"),
+      data: Buffer.concat([disc("open_verdict_log"), u16(0)]),
     })], [owner]);
     console.log("verdict log opened");
   }
@@ -121,7 +121,7 @@ async function main() {
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(vault, false, true)],
-    data: Buffer.concat([disc("set_book_size"), u64(100_000_000_000)]),
+    data: Buffer.concat([disc("set_book_size"), u16(0), u64(100_000_000_000)]),
   })], [owner]);
 
   // Thirty days, because the grant has to outlive the judging window and
@@ -129,7 +129,7 @@ async function main() {
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
-    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(60 * 60 * 24 * 30), u64(5_000_000_000)]),
+    data: Buffer.concat([disc("set_agent"), u16(0), agent.publicKey.toBuffer(), i64(60 * 60 * 24 * 30), u64(5_000_000_000)]),
   })], [owner]);
 
   console.log("\nsandbox ready");

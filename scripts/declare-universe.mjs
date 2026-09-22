@@ -19,6 +19,7 @@ import { baseRpc } from "./rpc.mjs";
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
 const disc = (n) => Buffer.from(IDL.instructions.find((i) => i.name === n).discriminator);
+const u16 = (n) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 
 // Sector ids as the program counts them, matching SECTORS in app/src/lib/chain.ts:
 // 0 unspecified, 1 technology, 2 energy, 3 healthcare, 4 financials, 5 consumer.
@@ -51,7 +52,7 @@ console.log(`universe ${universe.toBase58()}`);
 const len = Buffer.alloc(4);
 len.writeUInt32LE(ENTRIES.length);
 const data = Buffer.concat([
-  disc("declare_universe"), len,
+  disc("declare_universe"), u16(0), len,
   ...ENTRIES.map((e) => Buffer.concat([
     new PublicKey(e.mint).toBuffer(), Buffer.from([e.category]),
   ])),

@@ -226,7 +226,7 @@ async function main() {
         meta(mandate, false, true),
         meta(SystemProgram.programId, false, false),
       ],
-      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), vecPubkey([])]),
+      data: Buffer.concat([disc("create_mandate"), u16(0), str(text), u16(1500), u16(500), vecPubkey([])]),
     })]));
   } else {
     console.log("  create_mandate                     exists, skipped");
@@ -242,7 +242,7 @@ async function main() {
         meta(vault, false, true),
         meta(SystemProgram.programId, false, false),
       ],
-      data: disc("open_vault"),
+      data: Buffer.concat([disc("open_vault"), u16(0)]),
     })]));
   } else {
     console.log("  open_vault                         exists, skipped");
@@ -293,7 +293,7 @@ async function main() {
               meta(MAGIC_CONTEXT_ID, false, true),
               meta(MAGIC_PROGRAM_ID, false, false),
             ],
-            data: disc("release_vault"),
+            data: Buffer.concat([disc("release_vault"), u16(0)]),
           })], [owner], true),
         );
         await new Promise((r) => setTimeout(r, 4000));
@@ -321,7 +321,7 @@ async function main() {
       meta(vault, false, true),
       meta(mandate, false, false),
     ],
-    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(250_000_000)]),
+    data: Buffer.concat([disc("set_agent"), u16(0), agent.publicKey.toBuffer(), i64(3600), u64(250_000_000)]),
   })]));
 
   // 3b. Fees on the rollup come out of an escrow held by the fee payer. Index
@@ -353,7 +353,7 @@ async function main() {
       meta(DELEGATION_PROGRAM_ID, false, false),
       meta(SystemProgram.programId, false, false),
     ],
-    data: disc("delegate_vault"),
+    data: Buffer.concat([disc("delegate_vault"), u16(0)]),
   })]));
 
   // 5. Seal it. This runs on the rollup, not on base.
@@ -384,7 +384,7 @@ async function main() {
       meta(MAGIC_PROGRAM_ID, false, false),
       meta(PERMISSION_PROGRAM_ID, false, false),
     ],
-    data: disc("seal_vault"),
+    data: Buffer.concat([disc("seal_vault"), u16(0)]),
   })], [owner], true));
 
   // 6. Read it back from the rollup.
@@ -401,7 +401,7 @@ async function main() {
       meta(MAGIC_CONTEXT_ID, false, true),
       meta(MAGIC_PROGRAM_ID, false, false),
     ],
-    data: disc("release_vault"),
+    data: Buffer.concat([disc("release_vault"), u16(0)]),
   })], [owner], true));
 
   const onBase = await step("read vault from base", () => base.getAccountInfo(vault));

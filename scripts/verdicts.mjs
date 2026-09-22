@@ -146,7 +146,7 @@ async function main() {
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, true), meta(SystemProgram.programId, false, false)],
       // 15% in one name, 5% in one trade, and nothing wider than 20 basis points
-      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), u16(20), vecPubkey(DENIED)]),
+      data: Buffer.concat([disc("create_mandate"), u16(0), str(text), u16(1500), u16(500), u16(20), vecPubkey(DENIED)]),
     })], [owner]);
     console.log("mandate created, position cap 15%, single trade cap 5%");
   }
@@ -155,7 +155,7 @@ async function main() {
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, false), meta(vault, false, true), meta(SystemProgram.programId, false, false)],
-      data: disc("open_vault"),
+      data: Buffer.concat([disc("open_vault"), u16(0)]),
     })], [owner]);
     console.log("vault opened");
   }
@@ -187,14 +187,14 @@ async function main() {
     programId: PROGRAM_ID,
     keys: [meta(funder.publicKey, true, true), meta(vault, false, true),
            meta(SystemProgram.programId, false, false)],
-    data: Buffer.concat([disc("deposit"), u64(DEPOSIT)]),
+    data: Buffer.concat([disc("deposit"), u16(0), u64(DEPOSIT)]),
   })], [funder]);
   console.log("deposited 2 SOL into the vault");
 
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
-    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(CEILING)]),
+    data: Buffer.concat([disc("set_agent"), u16(0), agent.publicKey.toBuffer(), i64(3600), u64(CEILING)]),
   })], [owner]);
   console.log("agent granted for one hour, book 100,000, cash ceiling 5,000 a trade");
 
@@ -202,7 +202,7 @@ async function main() {
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(vault, false, false), meta(log, false, true), meta(SystemProgram.programId, false, false)],
-      data: disc("open_verdict_log"),
+      data: Buffer.concat([disc("open_verdict_log"), u16(0)]),
     })], [owner]);
     console.log("verdict log opened");
   }
@@ -220,7 +220,7 @@ async function main() {
       programId: PROGRAM_ID,
       keys: [meta(agent.publicKey, true, true), meta(vault, false, true), meta(mandate, false, false), meta(log, false, true), meta(treasury, false, true)],
       data: Buffer.concat([
-        disc("propose_trade"), u8(category), u16(bps), bool(ingested),
+        disc("propose_trade"), u16(0), u8(category), u16(bps), bool(ingested),
         u8(side ?? 0), u16(spreadBps ?? 0), (mint ?? NVDAX).toBuffer(),
       ]),
     })], [agent]);
@@ -252,7 +252,7 @@ async function main() {
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
-    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(2_500_000_000)]),
+    data: Buffer.concat([disc("set_agent"), u16(0), agent.publicKey.toBuffer(), i64(3600), u64(2_500_000_000)]),
   })], [owner]);
   console.log("  the owner lowers the cash ceiling to 2,500 a trade");
 
@@ -280,7 +280,7 @@ async function main() {
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(mandate, false, true)],
-    data: Buffer.concat([disc("set_halted"), bool(true)]),
+    data: Buffer.concat([disc("set_halted"), u16(0), bool(true)]),
   })], [owner]);
   console.log("  the owner halts the mandate");
 
@@ -289,7 +289,7 @@ async function main() {
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(mandate, false, true)],
-    data: Buffer.concat([disc("set_halted"), bool(false)]),
+    data: Buffer.concat([disc("set_halted"), u16(0), bool(false)]),
   })], [owner]);
   console.log("  the owner lifts the halt");
 
@@ -306,7 +306,7 @@ async function main() {
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(mandate, false, true)],
     data: Buffer.concat([
-      disc("update_mandate"), str(text), u16(1500), u16(500), u16(20),
+      disc("update_mandate"), u16(0), str(text), u16(1500), u16(500), u16(20),
       vecPubkey(DENIED_EVERY_ISSUER),
     ]),
   })], [owner]);
@@ -321,7 +321,7 @@ async function main() {
   await send([new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
-    data: Buffer.concat([disc("set_agent"), agent.publicKey.toBuffer(), i64(3600), u64(2_500_000_000)]),
+    data: Buffer.concat([disc("set_agent"), u16(0), agent.publicKey.toBuffer(), i64(3600), u64(2_500_000_000)]),
   })], [owner]);
   console.log("  the owner re-issues the grant against the new version");
 

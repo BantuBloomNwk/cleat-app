@@ -112,24 +112,24 @@ async function main() {
   if (!(await connection.getAccountInfo(mandate))) {
     await send([new TransactionInstruction({ programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, true), meta(SystemProgram.programId, false, false)],
-      data: Buffer.concat([disc("create_mandate"), str(text), u16(1500), u16(500), u16(20), vecPubkey([])]) })], [owner]);
+      data: Buffer.concat([disc("create_mandate"), u16(0), str(text), u16(1500), u16(500), u16(20), vecPubkey([])]) })], [owner]);
     console.log("mandate: 15% position cap, 5% single trade cap");
   }
   if (!(await connection.getAccountInfo(vault))) {
     await send([new TransactionInstruction({ programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(mandate, false, false), meta(vault, false, true), meta(SystemProgram.programId, false, false)],
-      data: disc("open_vault") })], [owner]);
+      data: Buffer.concat([disc("open_vault"), u16(0)]) })], [owner]);
     console.log("vault opened");
   }
   if (!(await connection.getAccountInfo(log))) {
     await send([new TransactionInstruction({ programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, true), meta(vault, false, false), meta(log, false, true), meta(SystemProgram.programId, false, false)],
-      data: disc("open_verdict_log") })], [owner]);
+      data: Buffer.concat([disc("open_verdict_log"), u16(0)]) })], [owner]);
     console.log("verdict log opened");
   }
   await send([new TransactionInstruction({ programId: PROGRAM_ID,
     keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
-    data: Buffer.concat([disc("set_agent"), owner.publicKey.toBuffer(), i64(3600), u64(250_000_000)]) })], [owner]);
+    data: Buffer.concat([disc("set_agent"), u16(0), owner.publicKey.toBuffer(), i64(3600), u64(250_000_000)]) })], [owner]);
 
   const mxePub = await getMXEPublicKey(provider, PROGRAM_ID);
   if (!mxePub) throw new Error("no MXE x25519 key yet");
@@ -157,7 +157,7 @@ async function main() {
     await send([new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [meta(owner.publicKey, true, false), meta(vault, false, true)],
-      data: Buffer.concat([disc("set_position_handle"), Buffer.from(ct[0])]),
+      data: Buffer.concat([disc("set_position_handle"), u16(0), Buffer.from(ct[0])]),
     })], [owner]);
 
     const compOffset = crypto.randomBytes(8).readBigUInt64LE(0) >> 1n;
@@ -195,7 +195,7 @@ async function main() {
         meta(arcium, false, false),
       ],
       data: Buffer.concat([
-        disc("gate_trade"), u64(compOffset),
+        disc("gate_trade"), u64(compOffset), u16(0),
         Buffer.from(ct[0]),
         Buffer.from(pub), u128(nonce),
         u8b(category), u16(proposedBps), u8b(0), MINT.toBuffer(),
