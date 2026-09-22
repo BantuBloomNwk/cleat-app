@@ -108,8 +108,18 @@ async function main() {
   const funder = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))),
   );
-  const owner = persisted("demo-owner");
-  const agent = persisted("demo-agent");
+  // FRESH=1 starts from keys that have never traded.
+  //
+  // The accounts carry their state between runs, so a sector that filled up
+  // in an earlier run stays full, and every later proposal is refused for
+  // the sector rather than for the boundary it was written to test. That is
+  // the program being correct and the demonstration being useless. For an
+  // evidence table where each proposal breaches exactly one thing, the book
+  // has to start empty.
+  const fresh = process.env.FRESH === "1";
+  const owner = fresh ? Keypair.generate() : persisted("demo-owner");
+  const agent = fresh ? Keypair.generate() : persisted("demo-agent");
+  if (fresh) console.log("fresh keys, empty book\n");
   const base = new Connection(baseRpc(), "confirmed");
 
   const [mandate] = PublicKey.findProgramAddressSync(
@@ -214,17 +224,63 @@ async function main() {
     console.log("funded the agent so it can pay its own fees");
   }
 
+  // Every proposal, the signature that carried it, and the reason the
+  // program gave back. Collected because a claim that each boundary fires
+  // is worth nothing to a reader who cannot go and look at the transaction
+  // that made it fire.
+  const evidence = [];
+
+  const [universe] = PublicKey.findProgramAddressSync(
+    [Buffer.from("universe"), mandate.toBuffer()], PROGRAM_ID);
+
   const propose = async (label, category, bps, ingested, side = 0, spreadBps = 0, mint = null) => {
     const t0 = performance.now();
-    await send([new TransactionInstruction({
+    const sig = await send([new TransactionInstruction({
       programId: PROGRAM_ID,
-      keys: [meta(agent.publicKey, true, true), meta(vault, false, true), meta(mandate, false, false), meta(log, false, true), meta(treasury, false, true)],
+      // Order and writability straight off the IDL. The universe account
+      // arrived with the declared-instrument work and this script was never
+      // updated, so every proposal here failed on a missing key rather than
+      // on anything it was trying to demonstrate.
+      keys: [
+        meta(agent.publicKey, true, true),
+        meta(vault, false, true),
+        meta(mandate, false, false),
+        meta(log, false, true),
+        meta(universe, false, false),
+        meta(treasury, false, true),
+      ],
       data: Buffer.concat([
         disc("propose_trade"), u16(0), u8(category), u16(bps), bool(ingested),
         u8(side ?? 0), u16(spreadBps ?? 0), (mint ?? NVDAX).toBuffer(),
       ]),
     })], [agent]);
-    console.log(`  ${label.padEnd(46)} ${String(Math.round(performance.now() - t0)).padStart(5)}ms`);
+    const ms = Math.round(performance.now() - t0);
+
+    // Read back what the program actually decided rather than what we meant
+    // it to decide. The newest ring buffer entry is this proposal's verdict.
+    // The newest entry sits behind head, not at count minus one. Once the
+    // ring wraps at sixteen the last slot stops being the last write, and
+    // reading it returns whatever stale verdict happens to live there, which
+    // is how every proposal came back carrying the same reason.
+    let outcome = null, reason = null;
+    try {
+      const d = (await base.getAccountInfo(log)).data;
+      let o = 8 + 32 + 32;
+      const head = d.readUInt8(o); o += 1 + 4 + 4 + 4;
+      const count = d.readUInt32LE(o); o += 4;
+      if (count) {
+        const cap = 16;
+        const newest = count < cap ? count - 1 : (head - 1 + cap) % cap;
+        const at = o + newest * 17;
+        outcome = d.readUInt8(at + 15);
+        reason = d.readUInt8(at + 16);
+      }
+    } catch { /* the table carries a blank rather than failing the run */ }
+
+    evidence.push({ label, category, proposedBps: bps, ingested, side, spreadBps,
+                    mint: (mint ?? NVDAX).toBase58(), outcome, reason, ms, signature: sig });
+    const verdict = outcome === null ? "?" : ["cleared", "trimmed", "refused"][outcome];
+    console.log(`  ${label.padEnd(46)} ${String(ms).padStart(5)}ms  ${verdict}${reason ? ` (${reason})` : ""}`);
   };
 
   console.log("\nthe agent proposes sixteen things");
@@ -368,6 +424,32 @@ async function main() {
   });
 
   console.log(`\nring buffer head at ${head}, capacity 16`);
+
+  // Write the evidence table. One row per proposal, with the transaction a
+  // reader can open on an explorer that has never heard of this project.
+  const dir = new URL("../measurements/", import.meta.url);
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = Date.now();
+  fs.writeFileSync(new URL(`refusals-${stamp}.json`, dir), JSON.stringify({
+    measuredAt: new Date().toISOString(),
+    program: PROGRAM_ID.toBase58(),
+    reasonsCovered: [...new Set(evidence.map((e) => e.reason).filter(Boolean))].sort((a, b) => a - b),
+    evidence,
+  }, null, 2));
+
+  const md = [
+    "| proposal | outcome | reason | transaction |",
+    "|---|---|---|---|",
+    ...evidence.map((e) => {
+      const verdict = e.outcome === null ? "?" : ["cleared", "trimmed", "refused"][e.outcome];
+      const why = e.reason ? REASON[e.reason] ?? String(e.reason) : "inside every limit";
+      return `| ${e.label} | ${verdict} | ${why} | [\`${e.signature.slice(0, 12)}…\`](https://explorer.solana.com/tx/${e.signature}?cluster=devnet) |`;
+    }),
+  ].join("\n");
+  fs.writeFileSync(new URL(`refusals-${stamp}.md`, dir), md + "\n");
+
+  const covered = [...new Set(evidence.map((e) => e.reason).filter(Boolean))];
+  console.log(`\n${evidence.length} proposals, ${covered.length} distinct reasons, written to measurements/refusals-${stamp}.md`);
 }
 
 main().catch((e) => {
