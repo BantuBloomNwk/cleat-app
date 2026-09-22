@@ -45,6 +45,7 @@ const CLUSTER = 456;
 const SAMPLES = Number(process.argv[2] || 12);
 const POLL_MS = 250;
 const WAIT_MS = Number(process.env.GATE_WAIT_MS || 180_000);
+const FAIL = process.env.FAIL === "1";
 
 const IDL = JSON.parse(fs.readFileSync(new URL("../target/idl/cleat.json", import.meta.url), "utf8"));
 const disc = (n) => Buffer.from(IDL.instructions.find((i) => i.name === n).discriminator);
@@ -191,7 +192,21 @@ async function main() {
 
     const priv = x25519.utils.randomPrivateKey();
     const pub = x25519.getPublicKey(priv);
-    const cipher = new RescueCipher(x25519.getSharedSecret(priv, mxePub));
+    // FAIL=1 seals to a key the network does not hold.
+    //
+    // R4 says a computation that does not return must not result in
+    // permitted action, and asserting that is not the same as showing it.
+    // Inducing the failure takes some care: the program refuses any sealed
+    // value that is not the one the vault published, so sending garbage is
+    // rejected before anything is queued and demonstrates nothing. The
+    // value has to be bound correctly and still be undecryptable, which
+    // means publishing the same unopenable ciphertext as the handle. The
+    // program then accepts it, queues the job, and the circuit cannot open
+    // it. What should follow is a computation that closes with no verdict
+    // written and a book that has not moved.
+    const wrongPeer = FAIL ? x25519.getPublicKey(x25519.utils.randomPrivateKey()) : null;
+    const cipher = new RescueCipher(
+      x25519.getSharedSecret(priv, FAIL ? wrongPeer : mxePub));
     const nonce = crypto.randomBytes(16);
     const ct = cipher.encrypt([BigInt(exposureBps)], nonce);
 
@@ -207,6 +222,7 @@ async function main() {
       [Buffer.from("pending"), computation.toBuffer()], PROGRAM_ID);
 
     const before = readLog((await connection.getAccountInfo(log)).data);
+    const bookBefore = (await connection.getAccountInfo(vault)).data.toString("hex");
     const t0 = performance.now();
 
     let sig;
@@ -276,14 +292,22 @@ async function main() {
     const handle = await feeOf(handleSig);
     const outcome = v ? ["cleared", "clamped", "refused"][v.outcome] : (compSeen ? "never ran" : "no verdict");
 
+    const bookAfter = (await connection.getAccountInfo(vault)).data.toString("hex");
     runs.push({
       n, exposureBps, proposedBps, category, outcome, reason: v?.reason ?? null,
+      bookUnchanged: bookBefore === bookAfter,
       queuedMs, totalMs, landed,
       handleFee: handle.fee, queueFee: queue.fee,
       callbackFee: callback.fee, callbackPayer: callback.payer,
       queueSig: sig, callbackSig: callback.sig, computation: computation.toBase58(),
     });
 
+    if (FAIL) {
+      console.log(`${String(n + 1).padStart(2)}/${SAMPLES}  sealed to a key nobody holds  ` +
+        `${landed ? "VERDICT WRITTEN (unexpected)" : (compSeen ? "still queued" : "computation closed, no verdict")}` +
+        `  after ${Math.round(totalMs / 1000)}s  book ${bookBefore === bookAfter ? "unchanged" : "MOVED (R4 violated)"}`);
+      continue;
+    }
     console.log(
       `${String(n + 1).padStart(2)}/${SAMPLES}  held ${String(exposureBps / 100).padStart(4)}%  ` +
       `${outcome.padEnd(9)}  queued ${String(queuedMs).padStart(5)}ms  verdict ${String(totalMs).padStart(6)}ms  ` +
