@@ -19,6 +19,8 @@ import { TickerMark } from './TickerMark';
  */
 interface Row {
   symbol: string;
+  /** PreStocks publishes a mark for every name it lists. */
+  image?: string;
   name: string;
   mint: string;
   markPrice: number | null;
@@ -82,7 +84,7 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
               className="flex items-baseline justify-between gap-3 px-2.5 py-2 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]"
             >
               <span className="flex items-center gap-2 min-w-0">
-                <TickerMark symbol={r.symbol} size={20} />
+                <TickerMark symbol={r.symbol} image={r.image} size={20} />
                 <span className="flex flex-col min-w-0">
                   <span className="font-mono text-[11.5px] font-bold text-[var(--text-primary)]">
                     {r.symbol}

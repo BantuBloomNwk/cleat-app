@@ -99,6 +99,29 @@ export default defineConfig(() => {
       });
 
       server.middlewares.use(async (req: any, res: any, next: () => void) => {
+        if (!req.url?.startsWith('/api/backpack?path=hosted')) return next();
+        const HOSTS = new Set(['www.prestocks.com', 'prestocks.com', 'assets.labsapis.com']);
+        let target: URL;
+        try { target = new URL(new URL(req.url, 'http://x').searchParams.get('url') ?? ''); }
+        catch { res.statusCode = 400; return res.end('bad url'); }
+        if (target.protocol !== 'https:' || !HOSTS.has(target.hostname)) {
+          res.statusCode = 403; return res.end('host not allowed');
+        }
+        try {
+          const r = await fetch(target.toString());
+          if (!r.ok) { res.statusCode = 404; return res.end('no mark'); }
+          const b = Buffer.from(await r.arrayBuffer());
+          const head = b.subarray(0, 64).toString('utf8');
+          const type = head.includes('<svg') ? 'image/svg+xml; charset=utf-8'
+            : b[0] === 0x89 && b[1] === 0x50 ? 'image/png'
+            : b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg'
+            : b[0] === 0x52 && b[1] === 0x49 ? 'image/webp' : null;
+          if (!type) { res.statusCode = 404; return res.end('no mark'); }
+          res.setHeader('content-type', type); res.end(b);
+        } catch { res.statusCode = 502; res.end('upstream'); }
+      });
+
+      server.middlewares.use(async (req: any, res: any, next: () => void) => {
         if (!req.url?.startsWith('/api/backpack?path=haslogo')) return next();
         const symbol = (new URL(req.url, 'http://x').searchParams.get('symbol') ?? '').toUpperCase();
         let ok = false;

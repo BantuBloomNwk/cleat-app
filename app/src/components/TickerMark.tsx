@@ -125,9 +125,24 @@ export function tickerOf(symbol: string): string {
 export const TickerMark: React.FC<{
   /** "NVDA", "NVDA.US" or "NVDA.US_USDC_PERP" all work. */
   symbol: string;
+  /**
+   * A mark the caller already has. PreStocks ships one for every private
+   * company it lists, which is the only source for names no exchange has
+   * listed, and looking those up by ticker was never going to find them.
+   */
+  image?: string | null;
+  /**
+   * Whether this names a listed company at all.
+   *
+   * The venue's endpoint answers for stock tickers, so asking it about a
+   * crypto or commodity feed returns whichever company happens to share
+   * those letters. SOL came back as ReneSola, a solar manufacturer, which
+   * is a worse answer than no answer: a wrong logo is read as fact.
+   */
+  equity?: boolean;
   size?: number;
   className?: string;
-}> = ({ symbol, size = 18, className = '' }) => {
+}> = ({ symbol, image, equity = true, size = 18, className = '' }) => {
   const ticker = tickerOf(symbol);
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -135,6 +150,10 @@ export const TickerMark: React.FC<{
   useEffect(() => {
     let live = true;
     (async () => {
+      if (image) {
+        setSrc(`/api/backpack?path=hosted&url=${encodeURIComponent(image)}`);
+        return;
+      }
       const m = await iconMap();
       // The issuer's own icon first, because it is the one that matches the
       // token. Anything with no token falls through to the venue's mark,
@@ -142,6 +161,9 @@ export const TickerMark: React.FC<{
       // in no token list at all.
       const own = m.get(ticker);
       if (own) { if (live) setSrc(own); return; }
+      // Not a listed company, so there is nothing to ask about and asking
+      // would return somebody else's logo.
+      if (!equity) return;
 
       // Ask before drawing. Pointing an img tag at a name with no mark puts
       // a 404 in the console for every private company on the screen, and a
@@ -165,7 +187,7 @@ export const TickerMark: React.FC<{
     return () => {
       live = false;
     };
-  }, [ticker]);
+  }, [ticker, image, equity]);
 
   const style: React.CSSProperties = { width: size, height: size };
 

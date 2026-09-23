@@ -98,6 +98,42 @@ export default async (req: Request) => {
     });
   }
 
+  // A mark published by somebody other than the venue.
+  //
+  // PreStocks ships a logo for every private company it lists, which is the
+  // only source for names no exchange has listed. Proxied like everything
+  // else so the page opens no new origin, and restricted to hosts we name
+  // rather than any URL handed in, because a proxy that fetches what it is
+  // told is an open relay wearing this domain.
+  if (which === "hosted") {
+    const HOSTS = new Set(["www.prestocks.com", "prestocks.com", "assets.labsapis.com"]);
+    let target: URL;
+    try { target = new URL(url.searchParams.get("url") ?? ""); }
+    catch { return new Response("bad url", { status: 400 }); }
+    if (target.protocol !== "https:" || !HOSTS.has(target.hostname)) {
+      return new Response("host not allowed", { status: 403 });
+    }
+    try {
+      const res = await fetch(target.toString());
+      if (!res.ok) return new Response("no mark", { status: 404 });
+      const buf = new Uint8Array(await res.arrayBuffer());
+      const head = new TextDecoder().decode(buf.subarray(0, 64));
+      const type =
+        head.includes("<svg") ? "image/svg+xml; charset=utf-8"
+        : buf[0] === 0x89 && buf[1] === 0x50 ? "image/png"
+        : buf[0] === 0xff && buf[1] === 0xd8 ? "image/jpeg"
+        : buf[0] === 0x52 && buf[1] === 0x49 ? "image/webp"
+        : null;
+      if (!type) return new Response("no mark", { status: 404 });
+      return new Response(buf, {
+        status: 200,
+        headers: { "content-type": type, "cache-control": "public, max-age=604800, s-maxage=2592000" },
+      });
+    } catch {
+      return new Response("upstream unreachable", { status: 502 });
+    }
+  }
+
   if (which === "logo") {
     const symbol = (url.searchParams.get("symbol") ?? "").toUpperCase();
     if (!/^[A-Z0-9.]{1,12}$/.test(symbol)) {
