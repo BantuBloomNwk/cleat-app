@@ -68,6 +68,36 @@ export default async (req: Request) => {
   // and fetching it from the page would need the origin opened in connect-src
   // for no reason. Proxying fixes the content type, keeps it same origin, and
   // lets the edge cache it for a day.
+  // Does a mark exist for this name.
+  //
+  // Asking by pointing an img tag at it, or by fetching and reading the
+  // status, puts a 404 in the console for every private company on the
+  // screen. A console full of expected failures is where a real one goes to
+  // hide, so this answers in JSON and always answers 200.
+  if (which === "haslogo") {
+    const symbol = (url.searchParams.get("symbol") ?? "").toUpperCase();
+    const ok = /^[A-Z0-9.]{1,12}$/.test(symbol)
+      ? await fetch(`https://backpack.exchange/api/stock-logo/${symbol}`)
+          .then(async (r) => {
+            if (!r.ok) return false;
+            const b = new Uint8Array(await r.arrayBuffer());
+            const head = new TextDecoder().decode(b.subarray(0, 64));
+            return head.includes("<svg")
+              || (b[0] === 0x89 && b[1] === 0x50)
+              || (b[0] === 0xff && b[1] === 0xd8)
+              || (b[0] === 0x52 && b[1] === 0x49);
+          })
+          .catch(() => false)
+      : false;
+    return new Response(JSON.stringify({ ok }), {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "public, max-age=86400, s-maxage=604800",
+      },
+    });
+  }
+
   if (which === "logo") {
     const symbol = (url.searchParams.get("symbol") ?? "").toUpperCase();
     if (!/^[A-Z0-9.]{1,12}$/.test(symbol)) {

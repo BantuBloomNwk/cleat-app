@@ -17,6 +17,9 @@ import React, { useEffect, useState } from 'react';
  * the same colour everywhere it appears and nobody has to maintain a table.
  */
 
+/** Names the venue has no mark for. Asked once, never asked again. */
+const MISSING = new Set<string>();
+
 let cache: Map<string, string> | null = null;
 let inflight: Promise<Map<string, string>> | null = null;
 
@@ -131,14 +134,34 @@ export const TickerMark: React.FC<{
 
   useEffect(() => {
     let live = true;
-    iconMap().then((m) => {
+    (async () => {
+      const m = await iconMap();
       // The issuer's own icon first, because it is the one that matches the
       // token. Anything with no token falls through to the venue's mark,
-      // which covers the names that trade here as perpetuals only and so
-      // appear in no token list at all. Both are same origin; the second is
-      // proxied so its content type is right and nothing new opens in CSP.
-      if (live) setSrc(m.get(ticker) ?? `/api/backpack?path=logo&symbol=${ticker}`);
-    });
+      // which covers names that trade here as perpetuals only and so appear
+      // in no token list at all.
+      const own = m.get(ticker);
+      if (own) { if (live) setSrc(own); return; }
+
+      // Ask before drawing. Pointing an img tag at a name with no mark puts
+      // a 404 in the console for every private company on the screen, and a
+      // console full of expected failures is where a real one goes to hide.
+      // A fetch that comes back 404 is a value, not an error.
+      if (MISSING.has(ticker)) return;
+      try {
+        // Asked in JSON, which always answers 200, so a name with no mark
+        // costs a value rather than an error. Pointing an img at it or
+        // reading a status both put a 404 in the console for every private
+        // company on screen.
+        const res = await fetch(`/api/backpack?path=haslogo&symbol=${ticker}`);
+        const { ok } = (await res.json()) as { ok: boolean };
+        if (!live) return;
+        if (ok) setSrc(`/api/backpack?path=logo&symbol=${ticker}`);
+        else MISSING.add(ticker);
+      } catch {
+        MISSING.add(ticker);
+      }
+    })();
     return () => {
       live = false;
     };

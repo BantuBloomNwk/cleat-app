@@ -1,4 +1,4 @@
-import { WalletGlyph } from './WalletGlyph';
+import { AgentAvatar } from './AgentAvatar';
 import type { SealState } from '../lib/chain';
 import React, { useEffect, useState } from 'react';
 import {
@@ -306,10 +306,12 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {/* Your mark, beside the button that opens your vault. The one
-            thing in this header that belongs to the person rather than to
-            the system. */}
-        <WalletGlyph address={owner} size={22} />
+        {/* One identity, not two.
+            A gradient derived from the key sat here while the agent's face
+            sat on the Log, both meaning "you" and neither agreeing with the
+            other. The face wins: it is the thing that reacts, so it is the
+            thing worth recognising. */}
+        {owner && <AgentAvatar seed={owner} size={26} style="voxel-bot" />}
         <button
           id="btn-intro"
           type="button"

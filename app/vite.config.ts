@@ -99,6 +99,24 @@ export default defineConfig(() => {
       });
 
       server.middlewares.use(async (req: any, res: any, next: () => void) => {
+        if (!req.url?.startsWith('/api/backpack?path=haslogo')) return next();
+        const symbol = (new URL(req.url, 'http://x').searchParams.get('symbol') ?? '').toUpperCase();
+        let ok = false;
+        try {
+          const r = await fetch(`https://backpack.exchange/api/stock-logo/${symbol}`);
+          if (r.ok) {
+            const b = Buffer.from(await r.arrayBuffer());
+            ok = b.subarray(0, 64).toString('utf8').includes('<svg')
+              || (b[0] === 0x89 && b[1] === 0x50)
+              || (b[0] === 0xff && b[1] === 0xd8)
+              || (b[0] === 0x52 && b[1] === 0x49);
+          }
+        } catch { ok = false; }
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok }));
+      });
+
+      server.middlewares.use(async (req: any, res: any, next: () => void) => {
         if (!req.url?.startsWith('/api/backpack?path=logo')) return next();
         const symbol = (new URL(req.url, 'http://x').searchParams.get('symbol') ?? '').toUpperCase();
         if (!/^[A-Z0-9.]{1,12}$/.test(symbol)) { res.statusCode = 400; return res.end('bad symbol'); }

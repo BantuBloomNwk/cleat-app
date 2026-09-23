@@ -91,20 +91,57 @@ interface RawQuote {
   outAmount: string;
 }
 
+/**
+ * Whether the direct call is worth trying again this session.
+ *
+ * The router is called from the page on purpose, because it answers
+ * differently depending on where the request comes from and the region that
+ * decides whether somebody may trade is the one they are sitting in. That
+ * reasoning is sound and it is currently moot: the upstream sends
+ * access-control-allow-origin twice, and a browser rejects a duplicated
+ * header, so the call fails from every origin.
+ *
+ * Trying direct once and falling back still costs one CORS failure in the
+ * console per session, for a call that provably cannot succeed today. So it
+ * starts on the proxy. Flip this back to true when the upstream sends one
+ * header instead of two, and the geo property returns with no other change:
+ * the direct path is still here and still tried first.
+ */
+let directWorks = false;
+
 async function quote(
   toToken: string,
   usd: number,
 ): Promise<RawQuote | "geo" | null> {
+  const payload = JSON.stringify({
+    fromToken: USDC,
+    toToken,
+    fromAmount: String(Math.round(usd * 1e6)),
+  });
   try {
-    const res = await fetch(`${SUNRISE}/v1/quotes`, {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({
-        fromToken: USDC,
-        toToken,
-        fromAmount: String(Math.round(usd * 1e6)),
-      }),
-    });
+    let res: Response;
+    if (directWorks) {
+      try {
+        res = await fetch(`${SUNRISE}/v1/quotes`, {
+          method: "POST",
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body: payload,
+        });
+      } catch {
+        directWorks = false;
+        res = await fetch("/api/sunrise?path=quote", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: payload,
+        });
+      }
+    } else {
+      res = await fetch("/api/sunrise?path=quote", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: payload,
+      });
+    }
     const body = await res.json();
     if (!res.ok) {
       return body?.error?.code === "GEO_BLOCKED" ? "geo" : null;

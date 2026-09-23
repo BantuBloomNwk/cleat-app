@@ -64,7 +64,37 @@ const json = (body: unknown, status = 200, maxAge = 300) =>
     },
   });
 
-export default async () => {
+export default async (req: Request) => {
+  // Pricing a route, from here, because the browser cannot.
+  //
+  // The design was deliberately to call this from the page: the router
+  // answers differently depending on where the request comes from, and the
+  // region that decides whether somebody may trade is the one they are
+  // sitting in, not the one our servers are in. That argument still holds.
+  //
+  // It just does not work. The upstream sends access-control-allow-origin
+  // twice, and a browser rejects a duplicated header, so the call fails
+  // from every origin rather than being geo-blocked from some. A feature
+  // that never runs protects nobody. This proxies it so the price is real,
+  // and the client still tries direct first, so the moment they fix the
+  // header the geo property comes back on its own.
+  if (new URL(req.url).searchParams.get("path") === "quote") {
+    try {
+      const body = await req.text();
+      const res = await fetch(`${SUNRISE}/v1/quotes`, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body,
+      });
+      return new Response(await res.text(), {
+        status: res.status,
+        headers: { "content-type": "application/json", "cache-control": "no-store" },
+      });
+    } catch (err) {
+      return json({ error: String(err).slice(0, 160) }, 502, 0);
+    }
+  }
+
   try {
     const tokens = await universe();
     const rows = tokens
