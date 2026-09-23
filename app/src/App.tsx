@@ -204,6 +204,7 @@ export default function App() {
               onToggleEntry={handleToggleEntry}
               overnightRefusalCount={overnightRefusalCount}
               restraint={restraint}
+              owner={owner?.toBase58() ?? null}
             />
           )}
 

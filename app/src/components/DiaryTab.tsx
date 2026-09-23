@@ -3,6 +3,7 @@ import { Copy, Check, Share2, ShieldCheck, Cpu } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
+import { lastSeen, markSeen, whenWord } from '../lib/lastSeen';
 import { AttackBox } from './AttackBox';
 import { PlainEnglish } from './PlainEnglish';
 import { GateStatus } from './GateStatus';
@@ -13,6 +14,8 @@ import { MagicblockPerDiagram, type TracedRun } from './MagicblockPerDiagram';
 
 interface DiaryTabProps {
   mandateSentence: string;
+  /** Whose log this is, so where they stopped reading can be remembered. */
+  owner?: string | null;
   onOpenVoiceModal: () => void;
   hasMandate?: boolean;
   onOpenRewriteModal: () => void;
@@ -86,6 +89,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   onToggleEntry,
   overnightRefusalCount,
   restraint,
+  owner,
 }) => {
   // The overnight window, from the exchange rather than from a number
   // someone typed. It was written as 22:00 to 06:00 UTC, which is not when
@@ -94,6 +98,12 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   // report what happened overnight should agree with the market about
   // which hours those were.
   const [overnightBadge, setOvernightBadge] = useState<string | null>(null);
+
+  useEffect(() => {
+    // On the way out. Marking on arrival would clear the band in the same
+    // frame that renders it.
+    return () => { markSeen(owner, entries.length); };
+  }, [owner, entries.length]);
 
   useEffect(() => {
     let live = true;
@@ -112,6 +122,33 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   }, []);
 
   const [selectedPeriod, setSelectedPeriod] = useState<'overnight' | 'week' | 'month'>('overnight');
+      {/* What changed since you last opened this.
+          The log is a complete record and a complete record looks the same
+          every morning, which is the whole reason there is nothing to come
+          back for. This is the only line on the screen that is different
+          today than it was yesterday. */}
+      {(() => {
+        const total = entries.length;
+        const seen = lastSeen(owner);
+        if (!owner || total === 0) return null;
+        const fresh = seen ? Math.max(0, total - seen.count) : total;
+        return (
+          <div className="since-band">
+            {fresh > 0 ? (
+              <>
+                <strong>{fresh}</strong> {fresh === 1 ? 'decision' : 'decisions'}{' '}
+                {seen ? `since you looked ${whenWord(seen.at)}` : 'so far'}
+              </>
+            ) : (
+              <span className="since-band-quiet">
+                Nothing new since you looked {seen ? whenWord(seen.at) : 'last'}.
+                Which is also the agent behaving.
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
   const [statusFilter, setStatusFilter] = useState<'all' | 'refused' | 'trimmed' | 'cleared'>('all');
   // Null until somebody fires a real proposal. The trace diagram shows
   // 'not run yet' rather than a number until then.

@@ -1187,6 +1187,19 @@ body {
 .sleeve-chip-add { color: var(--text-tertiary); border-style: dashed; }
 .sleeve-note { font-size: 11px; line-height: 1.6; color: var(--text-tertiary); }
 
+/* The only line on the Log that is different today than it was yesterday. */
+.since-band {
+  padding: 9px 13px;
+  border-radius: 14px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--verdigris-chip-border);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.since-band strong { color: var(--verdigris); font-weight: 700; }
+.since-band-quiet { color: var(--text-secondary); }
+
 /* You, as a mark. */
 .wallet-glyph {
   display: inline-block;
