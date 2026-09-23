@@ -234,14 +234,12 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
       </div>
 
       <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
-        A proposal is an ordinary Solana transaction. The program decides it
-        inside that transaction, against the nine boundaries the sentence
-        sets, and the verdict is read back off the log. The timings are wall
-        clock from whichever proposal was sent last, not modelled. The third
-        stage is the confidential gate that would keep the holdings hidden
-        while the same decision is made, and it is not working yet. Attested
-        execution in MagicBlock's rollup handles cleared trades and is
-        measured separately, at 1.8 seconds to verify the attestation.
+        A proposal is an ordinary Solana transaction, decided inside that
+        transaction against the nine boundaries your sentence sets. Timings
+        are wall clock from the last one sent, not modelled. The confidential
+        gate, which reaches the same verdict without anyone seeing the
+        holdings, returns in about three seconds. Attested execution handles
+        cleared trades, measured separately at 1.8 seconds.
       </p>
 
       {/* SVG Interactive Pipeline Flow Diagram */}

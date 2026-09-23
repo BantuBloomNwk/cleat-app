@@ -59,11 +59,10 @@ export const Watching: React.FC = () => {
       </div>
 
       <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-        Six asset classes from one oracle, none of which keep New York's
-        hours. Thirty days of closes on every row. The interesting one is the
-        oil: the sentence rules out fossil fuels by name, so a crude price
-        moving is a real reason to want energy exposure and the mandate
-        refuses it regardless. Tap a row to read a price on any day.
+        Six asset classes, one oracle, none of them keeping New York's
+        hours. The interesting row is oil: a crude price moving is a real
+        reason to want energy, and the sentence refuses it regardless. Tap a
+        row to read any day.
       </p>
 
       <div className="flex flex-col gap-1.5">

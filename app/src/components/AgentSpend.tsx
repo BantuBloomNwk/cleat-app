@@ -40,11 +40,11 @@ export const AgentSpend: React.FC<{ owner: PublicKey }> = ({ owner }) => {
       </div>
 
       <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-        The sentence bounds what the agent may do with your money. This bounds
-        what it may do with its own. An agent that pays per call for its own
-        thinking is an agent with a wallet and a loop, which is how other
-        people's agents emptied other people's wallets, so there are two
-        ceilings rather than one and you set them both.
+        The sentence bounds what the agent may do with your money. This
+        bounds what it may do with its own. An agent that pays per call for
+        its own thinking is a wallet and a loop, which is how other people's
+        agents emptied other people's wallets. Two ceilings, and you set
+        both.
       </p>
 
       {spend === 'loading' && (
@@ -100,10 +100,10 @@ export const AgentSpend: React.FC<{ owner: PublicKey }> = ({ owner }) => {
           Where the thinking comes from
         </span>
         <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-          Three ways, and the cheapest is the one where nothing reaches us. Use
-          a key you already pay for and the browser talks to that provider
-          directly, so the key and the prompts never pass through our servers.
-          Or run a model on your own machine, where nothing leaves it at all.
+          Three ways, and the cheapest is the one where nothing reaches us.
+          Bring a key you already pay for and the browser talks to that
+          provider directly. Or run a model on your own machine, where nothing
+          leaves it.
         </p>
         <div className="flex flex-col gap-1">
           {PROVIDERS.map((p) => (

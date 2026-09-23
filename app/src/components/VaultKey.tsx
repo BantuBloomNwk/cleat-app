@@ -233,11 +233,10 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
 
       {walletSyncMode() === 'stored' && (
         <p className="text-[11px] leading-[1.6] text-[var(--trimmed-amber)]">
-          This authenticator would not derive the key from the passkey itself,
-          so the seed is kept in this browser. It will not follow you to another
-          device, and a browser that clears its storage takes it with it. Use
-          the same passkey on a device that supports it and you get the same key
-          back.
+          This authenticator would not derive the key from the passkey, so
+          the seed is kept in this browser. It will not follow you to another
+          device, and clearing storage takes it. Use the same passkey on a
+          device that supports it and the key comes back.
         </p>
       )}
 

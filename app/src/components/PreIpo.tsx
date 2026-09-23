@@ -57,11 +57,10 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
       </div>
 
       <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-        These are private companies, tokenised before any exchange lists them.
-        There is no book to be wide or narrow, so the honest measure is the
-        distance between what the token costs and what the vehicle behind it
-        says a share is worth. Both are published, so it is read rather than
-        guessed.
+        Private companies, tokenised before any exchange lists them. With no
+        book to be wide or narrow, the honest measure is the gap between what
+        the token costs and what the vehicle behind it says a share is worth.
+        Both are published, so it is read rather than guessed.
       </p>
 
       <p className="text-[11.5px] leading-[1.6] text-[var(--text-primary)]">

@@ -244,26 +244,20 @@ export const AttackBox: React.FC<{
 
       <div className="poison-box glass-card flex flex-col gap-3.5 w-full" id="attack-card">
         <p className="text-[12px] leading-[1.6] text-[var(--text-secondary)]">
-          The ledger below this is a record of decisions already made, which is
-          something you are asked to believe. This is not. Pick one and a
-          genuine transaction goes to Solana devnet against the same program
-          and the same sentence, signed by an agent whose grant is live. The
-          verdict comes back off the chain and you get the signature, so you
-          can check it somewhere that has never heard of us. The trace
-          underneath animates on whatever actually happens, timed by the
-          clock rather than by us.
+          The ledger below is a record of decisions already made, which you
+          are asked to believe. This is not. Pick one and a real transaction
+          goes to devnet against the same program and the same sentence. You
+          get the signature, so you can check it somewhere that has never
+          heard of us.
         </p>
 
         {current?.path === 'gate' ? (
           <p className="text-[12px] leading-[1.6] text-[var(--text-secondary)]">
-            The top two are the ones worth your time. They ask for the same
-            size, in the same sector, in the same name, and they come back
-            differently. The only thing separating them is how much of the book
-            is already in that name, and that figure is sealed before it leaves
-            here. The agent forwards it without a key to read it, a network of
-            machines that each hold a share of the answer and none of the number
-            decides, and the result lands back on chain in its own transaction a
-            few seconds later. Nothing in the path ever sees the position.
+            The top two are worth your time. Same size, same sector, same
+            name, and they come back differently. The only thing separating
+            them is how much of the book is already in that name, sealed
+            before it leaves here. Nothing in the path ever sees the
+            position.
           </p>
         ) : (
           <p className="text-[12px] leading-[1.6] text-[var(--text-secondary)]">

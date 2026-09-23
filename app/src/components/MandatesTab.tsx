@@ -446,11 +446,11 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                 Ruled out by name
               </span>
               <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)] mt-1">
-                The sentence says no fossil fuels. A program cannot read that, so
-                the clause resolves off chain into {chainMandate.denied.length}{' '}
-                mints and the list is what gets enforced. It has to name every
-                issuer that has wrapped the company, because an agent refused at
-                one address can route to another without breaking a rule.
+                The sentence says no fossil fuels. A program cannot read
+                that, so it resolves off chain into {chainMandate.denied.length}{' '}
+                mints and the list is what gets enforced. Every issuer that
+                wrapped the company has to be named, or an agent refused at one
+                address just routes to another.
               </p>
               <div className="flex flex-col gap-1.5 mt-2">
                 {chainMandate.denied.map((mint) => {
@@ -529,12 +529,11 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
           })()}
 
           <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-            Ranked by the share of everything asked for that the sentence
-            refused or trimmed. Adoptions would be the obvious number and it is
-            the gameable one: a point of it costs one funded wallet. A point of
-            this costs a real proposal that really got refused, which is the
-            thing being measured rather than a way around it. Not Sybil proof,
-            and saying so is cheaper than pretending.
+            Ranked by how much of what was asked for got refused or
+            trimmed. Adoptions would be the obvious number and the gameable
+            one: a point costs a funded wallet. A point of this costs a real
+            proposal that really got refused. Not Sybil proof, and saying so
+            is cheaper than pretending.
           </p>
 
           <div className="flex flex-col gap-1.5">

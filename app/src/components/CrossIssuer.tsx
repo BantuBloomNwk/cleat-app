@@ -218,11 +218,11 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
             <DataOrigin origin="venue" />
           </div>
           <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-            The mandate caps how wide a book the agent may trade into, and that
-            number used to arrive from the agent itself. This asks a router
+            The mandate caps how wide a book the agent may trade into, and
+            that number used to come from the agent itself. This asks a router
             instead: price a hundred dollars, price the real size, and the gap
-            is what the trade costs for being that large. It is a public
-            endpoint, so anyone can run it again and get the same answer.
+            is the cost of being that large. Public endpoint, so anyone can
+            run it again.
           </p>
 
           <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Trade size">
@@ -254,12 +254,11 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
 
           {!costing && cost?.geoBlocked && (
             <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-              The router will not price this from where you are. Backpack's
-              tokens exclude several countries at the account rather than at the
-              token, and this is that rule answering, from your connection and
-              not from a server of ours. You can still hold {ticker} in an
-              ordinary wallet and the mandate still governs it. What is closed
-              is this particular way of buying it.
+              The router will not price this from where you are. The
+              exclusion sits at the account rather than the token, and this is
+              that rule answering from your connection, not from a server of
+              ours. You can still hold {ticker} and the mandate still governs
+              it. Only this way of buying it is closed.
             </p>
           )}
 

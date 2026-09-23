@@ -170,12 +170,10 @@ export const PlainEnglish: React.FC = () => {
               What this is not
             </span>
             <p className="text-[11.5px] leading-[1.7] text-[var(--text-secondary)]">
-              It is not advice. Nobody here tells you what to buy or decides
-              what is good for you. It is an account you direct, with software
-              that places orders inside limits you wrote. That distinction is
-              not decoration: it is the difference between this and a managed
-              fund, and it is why nobody here needs your permission to be
-              regulated as your adviser, because nobody here is acting as one.
+              It is not advice. Nobody here tells you what to buy. It is an
+              account you direct, with software placing orders inside limits
+              you wrote. That is the difference between this and a managed
+              fund, and it is why nobody here is acting as your adviser.
             </p>
             <p className="text-[11.5px] leading-[1.7] text-[var(--text-secondary)]">
               It is also not a promise that you will make money. Every boundary
