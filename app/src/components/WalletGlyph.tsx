@@ -38,17 +38,13 @@ export const WalletGlyph: React.FC<{
   size?: number;
   className?: string;
 }> = ({ address, size = 22, className = '' }) => {
-  // No key yet is a real state and should look like one: an empty ring
-  // rather than a mark belonging to nobody.
-  if (!address) {
-    return (
-      <span
-        className={`wallet-glyph wallet-glyph-empty ${className}`}
-        style={{ width: size, height: size }}
-        aria-hidden="true"
-      />
-    );
-  }
+  // No key, no mark.
+  //
+  // An empty ring seemed like the honest way to show "nothing here yet",
+  // and on screen it reads as a rendering fault sitting next to the Set up
+  // button. The button already says there is nothing here. A mark should
+  // appear when there is something to mark.
+  if (!address) return null;
 
   const [a, b, c, d] = seedOf(address);
   const h1 = a % 360;

@@ -301,7 +301,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
     <section className="tab-screen active flex flex-col gap-3.5 w-full pb-12" id="view-chart">
       {/* Section Header */}
       <div className="section-row-header">
-        <h2 className="section-heading text-[16px] font-bold">Protection Geometry</h2>
+        <h2 className="section-heading text-[16px] font-bold">What it held you back from</h2>
         <span className="flex items-center gap-2">
           <span className="section-hint text-[11px]">Live price, sample refusals</span>
           <DataOrigin origin="venue" />
@@ -728,10 +728,10 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           <div className="flex justify-between items-center font-mono text-[10.5px] text-[var(--text-secondary)]">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[var(--verdigris)] inline-block" />
-              <span>Metallic Scrubber ({activeTimeframe})</span>
+              <span>Drag to scrub ({activeTimeframe})</span>
             </div>
             <span id="scrubberPosLabel" className="text-[var(--ember)] font-bold">
-              {activeMarkers.length} on-chain intercepts
+              {activeMarkers.length} refusals on this line
             </span>
           </div>
 
@@ -842,21 +842,21 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                 className={`px-1.5 py-1.5 rounded-lg text-center leading-tight transition-colors ${traderDetailTab === 'telemetry' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                 onClick={() => { setTraderDetailTab('telemetry'); tactile.selectionTap(); }}
               >
-                Telemetry
+                What happened
               </button>
               <button
                 type="button"
                 className={`px-1.5 py-1.5 rounded-lg text-center leading-tight transition-colors ${traderDetailTab === 'counterfactual' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                 onClick={() => { setTraderDetailTab('counterfactual'); tactile.selectionTap(); }}
               >
-                Counterfactual
+                What it saved
               </button>
               <button
                 type="button"
                 className={`px-1.5 py-1.5 rounded-lg text-center leading-tight transition-colors ${traderDetailTab === 'proof' ? 'bg-[var(--card-surface)] text-[var(--text-primary)] font-bold border border-[var(--card-border)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                 onClick={() => { setTraderDetailTab('proof'); tactile.selectionTap(); }}
               >
-                PER Proof
+                Proof
               </button>
             </div>
 
