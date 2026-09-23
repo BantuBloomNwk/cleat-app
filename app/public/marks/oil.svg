@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Crude oil">
+  <circle cx="24" cy="24" r="24" fill="#14171c"/>
+  <rect x="13" y="12" width="22" height="24" rx="4" fill="#2b3139"/>
+  <rect x="11.5" y="17" width="25" height="3" rx="1.5" fill="#4a535e"/>
+  <rect x="11.5" y="28" width="25" height="3" rx="1.5" fill="#4a535e"/>
+  <path d="M24 19.5c2.9 3.2 4.4 5.6 4.4 7.3a4.4 4.4 0 1 1-8.8 0c0-1.7 1.5-4.1 4.4-7.3z" fill="#e88d43"/>
+</svg>

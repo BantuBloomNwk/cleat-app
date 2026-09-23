@@ -29,6 +29,15 @@ import React, { useEffect, useState } from 'react';
  */
 const LOCAL: Record<string, string> = {
   SOL: '/marks/sol.svg',
+  // Gold, the euro and December crude are not companies, so there is no
+  // company mark to find. They were pointed at the exchange traded funds
+  // that track them, which is a defensible answer and a bad looking one:
+  // two of those funds have the same sponsor, so the index and the currency
+  // came up wearing the same blue circle and read as a duplicate. A plain
+  // symbol says what the thing is and claims nothing that is not true.
+  XAU: '/marks/gold.svg',
+  EUR: '/marks/eur.svg',
+  WTIZ6: '/marks/oil.svg',
 };
 
 /** Names the venue has no mark for. Asked once, never asked again. */
@@ -113,14 +122,6 @@ function cellsOf(seed: number): boolean[][] {
  */
 const ALIASES: Record<string, string> = {
   SPACEX: 'SPCX',
-  // Pyth names a feed, not a tradable thing, and the mark is published
-  // against the instrument people actually buy. Gold is XAU on the oracle
-  // and GLD on an exchange; the euro is EUR and FXE; December crude is
-  // WTIZ6 and USO. Without these three the only rows left bare were the
-  // ones that are not companies, which read as the feature half working.
-  XAU: 'GLD',
-  EUR: 'FXE',
-  WTIZ6: 'USO',
 };
 
 export function tickerOf(symbol: string): string {
