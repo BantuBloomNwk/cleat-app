@@ -17,6 +17,20 @@ import React, { useEffect, useState } from 'react';
  * the same colour everywhere it appears and nobody has to maintain a table.
  */
 
+/**
+ * Marks that ship with the app.
+ *
+ * The venue's endpoint only knows about listed companies, so asking it for
+ * a crypto ticker returns whichever company happens to share the letters:
+ * SOL came back as ReneSola, a solar manufacturer. Not asking at all left
+ * Solana with an identicon on a Solana app, which is worse than wrong in a
+ * different way. These few are held locally, taken from the issuer's own
+ * brand page, so they are right and they cost no request at all.
+ */
+const LOCAL: Record<string, string> = {
+  SOL: '/marks/sol.svg',
+};
+
 /** Names the venue has no mark for. Asked once, never asked again. */
 const MISSING = new Set<string>();
 
@@ -148,13 +162,18 @@ export const TickerMark: React.FC<{
   // so it should be on the first frame. Setting it in the effect instead
   // meant one paint of identicon before the real thing replaced it, which
   // is exactly the flicker people notice on the row that scrolls past.
-  const [src, setSrc] = useState<string | null>(() =>
-    image ? `/api/backpack?path=hosted&url=${encodeURIComponent(image)}` : null);
+  const [src, setSrc] = useState<string | null>(
+    () =>
+      LOCAL[tickerOf(symbol)] ??
+      (image ? `/api/backpack?path=hosted&url=${encodeURIComponent(image)}` : null),
+  );
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let live = true;
     (async () => {
+      const local = LOCAL[ticker];
+      if (local) { setSrc(local); return; }
       if (image) {
         setSrc(`/api/backpack?path=hosted&url=${encodeURIComponent(image)}`);
         return;
@@ -238,7 +257,9 @@ export const TickerMark: React.FC<{
       src={src}
       alt=""
       aria-hidden="true"
-      loading="lazy"
+      // Not lazy. These are eighteen pixel vectors, and lazy loading them
+      // means a tile scrolled off the right of a shelf shows nothing until
+      // it is dragged into view, which is the flicker rather than a saving.
       className={`ticker-mark ${className}`}
       style={style}
       onError={() => setFailed(true)}

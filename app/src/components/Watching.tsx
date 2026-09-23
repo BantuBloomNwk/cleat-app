@@ -62,94 +62,90 @@ export const Watching: React.FC = () => {
       <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
         Six asset classes, one oracle, none of them keeping New York's
         hours. The interesting row is oil: a crude price moving is a real
-        reason to want energy, and the sentence refuses it regardless. Tap a
-        row to read any day.
+        reason to want energy, and the sentence refuses it regardless.
+        Scroll across, and tap one to read any day.
       </p>
 
-      <div className="flex flex-col gap-1.5">
+      {/* A shelf, not a column. Six asset classes side by side is one
+          glance; six of them stacked was a third of a screen each and the
+          reason this tab read as a list. The detail opens once, below,
+          rather than pushing every row under it down the page. */}
+      <div className="shelf" role="list">
         {rows.map((r) => {
           const up = (r.dayBps ?? 0) >= 0;
           const isOpen = open === r.symbol;
           return (
-            <div
+            <button
               key={r.symbol}
-              className="rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] overflow-hidden"
+              type="button"
+              role="listitem"
+              aria-expanded={isOpen}
+              onClick={() => setOpen(isOpen ? null : r.symbol)}
+              className={`shelf-tile${isOpen ? ' is-on' : ''}${r.denied ? ' is-denied' : ''}`}
             >
-              <button
-                type="button"
-                aria-expanded={isOpen}
-                onClick={() => setOpen(isOpen ? null : r.symbol)}
-                className="w-full flex items-baseline justify-between gap-3 px-2.5 py-2 text-left"
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <TickerMark symbol={r.symbol} size={20}
-                    equity={/^Equity\./.test(r.symbol) || /^(Metal|FX|Commodities)\./.test(r.symbol)} />
-                  <span className="flex flex-col min-w-0">
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-[12px] font-bold text-[var(--text-primary)]">
-                      {r.label}
-                    </span>
-                    {r.denied && (
-                      <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--refused-rust)] font-bold shrink-0">
-                        ruled out
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-[10.5px] text-[var(--text-tertiary)]">
-                    {r.klass}
-                  </span>
-                  </span>
-                </span>
-                <span className="flex items-center gap-2.5 shrink-0">
-                  {r.series && r.series.length > 1 && (
-                    <Spark
-                      series={r.series}
-                      stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
-                    />
-                  )}
-                  <span className="flex flex-col items-end font-mono text-[11.5px] tabular-nums">
-                    {r.price !== undefined ? (
-                      <>
-                        <span className="text-[var(--text-primary)] font-bold">
-                          {money(r.price)}
-                        </span>
-                        <span
-                          className="text-[10.5px]"
-                          style={{
-                            color: up ? 'var(--verdigris)' : 'var(--refused-rust)',
-                          }}
-                        >
-                          {up ? '+' : '−'}
-                          {Math.abs((r.dayBps ?? 0) / 100).toFixed(2)}%
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-[var(--text-tertiary)] text-[10.5px]">
-                        not entitled
-                      </span>
-                    )}
-                  </span>
-                </span>
-              </button>
-              {isOpen && (
-                <div className="px-2.5 pb-2.5 pt-2.5 border-t border-[var(--card-border-subtle)] flex flex-col gap-2">
-                  {r.series && r.series.length > 1 && (
-                    <PriceChart
-                      series={r.series}
-                      at={r.at}
-                      label={r.label}
-                      stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
-                    />
-                  )}
-                  <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)]">
-                    {r.note}
-                  </p>
-                </div>
+              <span className="shelf-tile-head">
+                <TickerMark symbol={r.symbol} size={22}
+                  equity={/^Equity\./.test(r.symbol) || /^(Metal|FX|Commodities)\./.test(r.symbol)} />
+                <span className="shelf-tile-name">{r.label}</span>
+              </span>
+
+              <span className="flex items-center justify-between gap-2">
+                <span className="shelf-tile-class">{r.klass}</span>
+                {r.denied && <span className="shelf-tile-flag">ruled out</span>}
+              </span>
+
+              {r.series && r.series.length > 1 ? (
+                <Spark
+                  series={r.series}
+                  stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
+                />
+              ) : (
+                <span className="h-[18px]" />
               )}
-            </div>
+
+              {r.price !== undefined ? (
+                <span className="flex flex-col">
+                  <span className="shelf-tile-price">{money(r.price)}</span>
+                  <span
+                    className="shelf-tile-move"
+                    style={{ color: up ? 'var(--verdigris)' : 'var(--refused-rust)' }}
+                  >
+                    {up ? '+' : '\u2212'}
+                    {Math.abs((r.dayBps ?? 0) / 100).toFixed(2)}%
+                  </span>
+                </span>
+              ) : (
+                <span className="shelf-tile-move text-[var(--text-tertiary)]">
+                  not entitled
+                </span>
+              )}
+            </button>
           );
         })}
       </div>
+
+      {/* One panel for whichever tile is open. */}
+      {(() => {
+        const r = rows.find((x) => x.symbol === open);
+        if (!r) return null;
+        const up = (r.dayBps ?? 0) >= 0;
+        return (
+          <div className="flex flex-col gap-2 rounded-xl px-2.5 py-2.5 bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
+            {r.series && r.series.length > 1 && (
+              <PriceChart
+                series={r.series}
+                at={r.at}
+                label={r.label}
+                stroke={up ? 'var(--verdigris)' : 'var(--refused-rust)'}
+              />
+            )}
+            <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)]">
+              {r.note}
+            </p>
+          </div>
+        );
+      })()}
+
     </section>
   );
 };

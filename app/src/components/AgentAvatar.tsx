@@ -88,7 +88,7 @@ export const AgentAvatar: React.FC<{
         : 'watching'
       }
     >
-      <img src={src} alt="" aria-hidden="true" loading="lazy" draggable={false} />
+      <img src={src} alt="" aria-hidden="true" draggable={false} />
     </span>
   );
 };

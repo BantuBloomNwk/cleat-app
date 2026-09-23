@@ -47,6 +47,9 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   /* Taking a sentence on chain. One at a time, and the result stays on the
      row it came from rather than in a toast that vanishes before it is read. */
   const [takingId, setTakingId] = useState<string | null>(null);
+  // Five to read, the rest a tap away. Eleven sentences is eleven screens
+  // and nobody reads the eleventh.
+  const [shown, setShown] = useState(5);
   const [taken, setTaken] = useState<Record<string, { url: string; sponsored: boolean } | string>>({});
 
   const takeOnChain = async (m: PublishedMandate) => {
@@ -256,7 +259,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
             identity system. No profile, no handle, no domain.
           </p>
 
-          {published.map((m) => (
+          {published.slice(0, shown).map((m) => (
             <article key={m.address} className="glass-card flex flex-col gap-2">
               <div className="card-topbar">
                 <span className="meta-kicker font-mono text-[10.5px]">
@@ -331,24 +334,18 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                   );
                 }
                 return (
-                  <>
-                    <button
-                      type="button"
-                      className="btn-inject"
-                      disabled={busy || mine}
-                      onClick={() => takeOnChain(m)}
-                      title={mine ? 'This one is already yours' : 'Write this sentence to your own account'}
-                    >
-                      {busy ? 'Signing…' : mine ? 'Yours' : 'Take this sentence'}
-                    </button>
-                    {typeof done === 'string' && (
-                      <p className="text-[11px] text-[var(--refused-rust)]">{done}</p>
-                    )}
-                  </>
+                  typeof done === 'string' && (
+                    <p className="text-[11px] text-[var(--refused-rust)]">{done}</p>
+                  )
                 );
               })()}
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] font-mono text-[var(--text-tertiary)]">
+              {/* The take sits in the footer row rather than in a band of
+                  its own. Eleven full width buttons down one screen is the
+                  thing that made this tab read as a feed of adverts: the
+                  sentence is what a person is here to read, and the button
+                  was louder than all eleven of them. */}
+              <div className="mandate-foot text-[10.5px] font-mono text-[var(--text-tertiary)]">
                 {(() => {
                   // What this sentence did, next to what it says. A
                   // sentence with nothing behind it yet says so rather
@@ -374,9 +371,37 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                 >
                   read it on chain
                 </a>
+
+                {(() => {
+                  const done = taken[m.address];
+                  const busy = takingId === m.address;
+                  const mine = keypair?.publicKey.toBase58() === m.owner;
+                  if (typeof done === 'object') return null;
+                  return (
+                    <button
+                      type="button"
+                      className="btn-inject btn-inject-sm"
+                      disabled={busy || mine}
+                      onClick={() => takeOnChain(m)}
+                      title={mine ? 'This one is already yours' : 'Write this sentence to your own account'}
+                    >
+                      {busy ? 'Signing…' : mine ? 'Yours' : 'Take it'}
+                    </button>
+                  );
+                })()}
               </div>
             </article>
           ))}
+
+          {published.length > shown && (
+            <button
+              type="button"
+              className="mesh-chip self-center"
+              onClick={() => setShown(published.length)}
+            >
+              the other {published.length - shown}
+            </button>
+          )}
         </section>
       )}
 

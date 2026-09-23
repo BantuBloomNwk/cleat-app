@@ -2775,3 +2775,169 @@ h1, h2, h3, h4, h5, h6,
   filter: drop-shadow(0 16px 20px rgb(0 0 0 / 0.55));
 }
 .agent-stage-inner .agent-avatar.agent-bare { border-radius: 0; box-shadow: none; }
+
+/* Shelves and tiles, against the column.
+   Everything in this app was a full width row stacked on the row above it,
+   and fourteen of those in a screen is what makes a market read as a log
+   file. A watchlist is the one thing every trading app on a phone puts on
+   a horizontal shelf, because six of them side by side is a glance and six
+   of them stacked is a scroll. What has to be compared rather than glanced
+   at goes in a grid instead, which halves the height without hiding a row. */
+.shelf {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* Bleed to the card edge so the last tile is visibly cut off, which is
+     how a person knows there is more without being told. */
+  margin: 0 -13px;
+  padding: 2px 13px 6px;
+}
+.shelf::-webkit-scrollbar { display: none; }
+.shelf-tile {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  width: 144px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px 10px;
+  border-radius: 14px;
+  text-align: left;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.shelf-tile:active { transform: scale(0.97); }
+.shelf-tile.is-on { border-color: var(--verdigris); }
+.shelf-tile.is-denied { border-color: color-mix(in srgb, var(--refused-rust) 55%, transparent); }
+.shelf-tile-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.shelf-tile-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* One line, always. A class that wraps on one tile and not on the next
+   pushes that tile's sparkline down and the shelf stops reading as a row of
+   equal things, which is the entire reason for a shelf. */
+.shelf-tile-class {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shelf-tile-price { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.shelf-tile-move { font-family: var(--font-mono); font-size: 10.5px; }
+.shelf-tile-flag {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--refused-rust);
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 10px 10px;
+  border-radius: 14px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+}
+.tile.is-over { border-color: color-mix(in srgb, var(--refused-rust) 45%, transparent); }
+.tile-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.tile-sym {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile-name {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A ledger row, at the size a ledger row should be.
+   The verdict used to take a pill on a line of its own above the sentence
+   that already names it. Blocked, Cleared and Trimmed are the first word of
+   every action, so the pill said it twice, and it cost forty pixels a row
+   across sixteen rows. The colour it carried is worth keeping, so it became
+   a rail down the leading edge, which is read in the periphery rather than
+   in the middle of the eye. */
+.ledger-entry { border-left-width: 3px; padding: 11px 13px; }
+.ledger-entry.led-refused { border-left-color: var(--refused-rust); }
+.ledger-entry.led-trimmed { border-left-color: var(--trimmed-amber); }
+.ledger-entry.led-cleared { border-left-color: var(--verdigris); }
+.ledger-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ledger-action {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+.ledger-time {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+.ledger-cause {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.ledger-more {
+  align-self: center;
+  margin-top: 2px;
+}
+
+/* The published sentence card's footer: what it did, where to read it, and
+   the take, all on one wrapping line. */
+.mandate-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+.btn-inject.btn-inject-sm {
+  width: auto;
+  min-height: 0;
+  margin-left: auto;
+  padding: 6px 13px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  box-shadow: none;
+}
+.btn-inject.btn-inject-sm:hover:not(:disabled) { transform: none; box-shadow: none; opacity: 0.9; }

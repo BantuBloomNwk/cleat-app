@@ -105,6 +105,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   // report what happened overnight should agree with the market about
   // which hours those were.
   const [overnightBadge, setOvernightBadge] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   // The verdict, felt when it happens.
   //
@@ -157,6 +158,14 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
     if (statusFilter === 'all') return true;
     return e.status === statusFilter;
   });
+
+  // The whole record is here and nothing is hidden, but sixteen decisions
+  // open at once is four screens of scroll before the tab ends, and a person
+  // opening this to see what happened last night wants the last few. The
+  // rest is one tap away and the button says how many.
+  const CAP = 8;
+  const visibleEntries = showAll ? filteredEntries : filteredEntries.slice(0, CAP);
+  const hidden = filteredEntries.length - visibleEntries.length;
 
   const handleCopyMandate = async () => {
     tactile.mandateAction();
@@ -608,11 +617,11 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
             No {statusFilter} transactions recorded in the {currentPeriodConfig.label} window.
           </div>
         ) : (
-          filteredEntries.map((entry) => (
+          visibleEntries.map((entry) => (
             <article
               key={entry.id}
               id={`ledger-${entry.id}`}
-              className={`ledger-entry ${entry.expanded ? 'expanded' : ''}` +
+              className={`ledger-entry led-${entry.status} ${entry.expanded ? 'expanded' : ''}` +
                 (arrived.has(entry.id) ? ` just-landed just-landed-${entry.status}` : '')}
               onClick={() => {
                 tactile.ledgerTrigger(entry.status);
@@ -628,23 +637,23 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                 }
               }}
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className={`pill-status ${entry.status}`}>
-                  {entry.statusLabel}
-                </span>
-                <span className="text-[10.5px] font-mono text-[var(--text-tertiary)]">
-                  {entry.timestamp}
-                </span>
+              {/* Two lines, not four. The verdict was a pill on its own row,
+                  the time on another, the action on a third and the reason on
+                  a fourth, which is a hundred and ten pixels to say one thing
+                  and sixteen of them is most of the tab. The verb already
+                  says the verdict, so the pill went and the colour moved to
+                  a rail down the edge, which reads faster anyway. */}
+              <div className="ledger-line">
+                <span className="ledger-action">{entry.action}</span>
+                <span className="ledger-time">{entry.timestamp}</span>
               </div>
-              <div className="text-[13.5px] font-bold text-[var(--text-primary)] leading-snug mb-1">
-                {entry.action}
-              </div>
-              <div className="text-[12px] text-[var(--text-secondary)]">
-                {entry.cause}
-              </div>
+              <div className="ledger-cause">{entry.cause}</div>
 
               {entry.expanded && (
                 <div className="mt-2.5 pt-2.5 border-t border-[var(--card-border-subtle)] text-[12px] text-[var(--text-secondary)] leading-relaxed">
+                  <span className={`pill-status ${entry.status} mb-2 inline-block`}>
+                    {entry.statusLabel}
+                  </span>
                   <p>{entry.causeDetail}</p>
                   <div className="mt-2 bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] p-2 rounded-lg font-mono text-[10.5px] text-[var(--text-secondary)]">
                     {entry.agentTrace}
@@ -653,6 +662,16 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
               )}
             </article>
           ))
+        )}
+
+        {hidden > 0 && (
+          <button
+            type="button"
+            className="mesh-chip ledger-more"
+            onClick={() => { tactile.selectionTap(); setShowAll(true); }}
+          >
+            the other {hidden}
+          </button>
         )}
       </div>
 

@@ -75,63 +75,57 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
         point rather than a limitation.
       </p>
 
-      <div className="flex flex-col gap-1.5">
+      {/* Two across rather than eight down. These are meant to be compared
+          against one another and against the cap, and a grid puts four in
+          the eye at once where a column put one. */}
+      <div className="tile-grid">
         {rows.map((r) => {
           const over = Math.abs(r.driftBps) > cap;
           return (
-            <div
-              key={r.symbol}
-              className="flex items-baseline justify-between gap-3 px-2.5 py-2 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]"
-            >
-              <span className="flex items-center gap-2 min-w-0">
+            <div key={r.symbol} className={`tile${over ? ' is-over' : ''}`}>
+              <span className="tile-head">
                 <TickerMark symbol={r.symbol} image={r.image} size={20} />
                 <span className="flex flex-col min-w-0">
-                  <span className="font-mono text-[11.5px] font-bold text-[var(--text-primary)]">
-                    {r.symbol}
-                  </span>
-                  <span className="text-[10.5px] text-[var(--text-tertiary)] truncate">
-                    {r.name}
-                  </span>
+                  <span className="tile-sym">{r.symbol}</span>
+                  <span className="tile-name">{r.name}</span>
                 </span>
               </span>
-              <span className="flex items-center gap-2.5 shrink-0 font-mono text-[11px] tabular-nums">
-                {/* The gap, drawn. There is no history for a pre-IPO token,
-                    so there is no line to draw; what there is, is a mark and
-                    a price, and the distance between them is the whole point.
-                    A bar leaving centre says which side and how far at a
-                    glance, which a signed percentage does not. */}
+
+              {/* The gap, drawn. There is no history for a pre-IPO token, so
+                  there is no line to draw; what there is, is a mark and a
+                  price, and the distance between them is the whole point. A
+                  bar leaving centre says which side and how far at a glance,
+                  which a signed percentage does not. */}
+              <span
+                className="relative h-[16px] w-full rounded bg-[var(--card-surface)] border border-[var(--card-border-subtle)]"
+                title={`${(r.driftBps / 100).toFixed(1)}% from its mark`}
+              >
+                <span className="absolute left-1/2 top-0 bottom-0 w-px bg-[var(--card-border)]" />
                 <span
-                  className="relative h-[18px] w-[64px] rounded bg-[var(--card-surface)] border border-[var(--card-border-subtle)] shrink-0"
-                  title={`${(r.driftBps / 100).toFixed(1)}% from its mark`}
-                >
-                  <span className="absolute left-1/2 top-0 bottom-0 w-px bg-[var(--card-border)]" />
-                  <span
-                    className="absolute top-[4px] bottom-[4px] rounded-sm"
-                    style={{
-                      background: over ? 'var(--refused-rust)' : 'var(--verdigris)',
-                      left: r.driftBps >= 0 ? '50%' : undefined,
-                      right: r.driftBps < 0 ? '50%' : undefined,
-                      width: `${Math.min(50, Math.abs(r.driftBps) / 100 / 30 * 50)}%`,
-                    }}
-                  />
+                  className="absolute top-[3px] bottom-[3px] rounded-sm"
+                  style={{
+                    background: over ? 'var(--refused-rust)' : 'var(--verdigris)',
+                    left: r.driftBps >= 0 ? '50%' : undefined,
+                    right: r.driftBps < 0 ? '50%' : undefined,
+                    width: `${Math.min(50, Math.abs(r.driftBps) / 100 / 30 * 50)}%`,
+                  }}
+                />
+              </span>
+
+              <span className="tile-foot">
+                <span className="text-[var(--text-secondary)]">
+                  {r.tokenPrice !== null ? `$${r.tokenPrice.toFixed(2)}` : ''}
                 </span>
-                {r.tokenPrice !== null && (
-                  <span className="text-[var(--text-secondary)]">
-                    ${r.tokenPrice.toFixed(2)}
-                  </span>
-                )}
                 <span
                   className="font-bold"
-                  style={{
-                    color: over ? 'var(--refused-rust)' : 'var(--verdigris)',
-                  }}
+                  style={{ color: over ? 'var(--refused-rust)' : 'var(--verdigris)' }}
                   title={
                     over
                       ? 'Further from its mark than the sentence allows. Refused.'
                       : 'Inside what the sentence allows.'
                   }
                 >
-                  {r.driftBps >= 0 ? '+' : '−'}
+                  {r.driftBps >= 0 ? '+' : '\u2212'}
                   {Math.abs(r.driftBps / 100).toFixed(1)}%
                 </span>
               </span>
