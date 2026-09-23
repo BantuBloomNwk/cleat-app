@@ -40,6 +40,24 @@ const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL")
 const PER_TX = 814;        // MAX_UPLOAD_PER_TX_BYTES
 const HEADER = 9;          // discriminator + bump
 const MAX_REALLOC = 10240; // solana caps a single realloc at 10KB
+// What one raw circuit account actually holds.
+//
+// Ten megabytes, per the SDK, and the earlier reading of this was wrong in
+// an instructive way. An account that refused to grow past 94009 bytes
+// looked like a hard per-account ceiling, and 94009 happened to be exactly
+// the old circuit plus its header, which made the coincidence convincing.
+//
+// It was not a ceiling. embiggen grows an account to the length the comp
+// def declares, and the comp def was declaring the old length because the
+// deployed program had been built against the old circuit and bakes that
+// number in through the macro. So the account was not refusing to grow, it
+// was already the size it had been told to be. Redeploying the program
+// fixed the declaration and the account grew the rest of the way on its
+// own.
+//
+// The split across accounts stays in the code because the index exists and
+// a genuinely large circuit will need it. It just does not trigger here.
+const PER_ACC = 10_485_760 - 9;
 
 const CIRCUIT = process.argv[2];
 const DO_FINALIZE = process.argv.includes("--finalize");
@@ -71,94 +89,99 @@ const send = async (tx, block) => {
   return sendAndConfirmTransaction(conn, tx, [owner], { commitment: "confirmed", maxRetries: 5 });
 };
 
-async function onchainBytes() {
-  const a = await retry(() => conn.getAccountInfo(getRawCircuitAccAddress(compDef, 0)));
+async function onchainBytes(idx) {
+  const a = await retry(() => conn.getAccountInfo(getRawCircuitAccAddress(compDef, idx)));
   return a ? a.data.slice(HEADER) : null;
 }
 
-// ── Make room ────────────────────────────────────────────────────────
-// initRawCircuitAcc creates the account, embiggenRawCircuitAcc grows it.
-// Both are skipped when the account is already big enough, which is safe
-// because size is the one thing the client's own check gets right.
-{
-  let acc = await retry(() => conn.getAccountInfo(getRawCircuitAccAddress(compDef, 0)));
-  if (!acc) {
-    console.log("creating the raw circuit account");
-    const block = await retry(() => conn.getLatestBlockhash("confirmed"));
-    await send(await program.methods.initRawCircuitAcc(offset, PROGRAM_ID, 0)
-      .accounts({ signer: owner.publicKey }).transaction(), block);
-    await sleep(1200);
-    acc = await retry(() => conn.getAccountInfo(getRawCircuitAccAddress(compDef, 0)));
-  }
-  const want = local.length + HEADER;
-  // embiggen takes no size: it grows by a fixed step, so it is called until
-  // the account is big enough rather than told how big to be.
-  let stuck = 0;
-  while (acc && acc.data.length < want && stuck < 200) {
-    const before = acc.data.length;
-    const block = await retry(() => conn.getLatestBlockhash("confirmed"));
-    try {
-      await send(await program.methods
-        .embiggenRawCircuitAcc(offset, PROGRAM_ID, 0)
-        .accounts({ signer: owner.publicKey }).transaction(), block);
-    } catch (e) {
-      stuck++;
-    }
-    await sleep(250);
-    acc = await retry(() => conn.getAccountInfo(getRawCircuitAccAddress(compDef, 0)));
-    if (acc.data.length === before) stuck++; else stuck = 0;
-    process.stdout.write(`  account ${acc.data.length} of ${want}\r`);
-  }
-  console.log(`\naccount is ${acc.data.length} bytes, need ${want}`);
-}
-
-// ── Write, check, rewrite ────────────────────────────────────────────
-function badWindows(onchain) {
+function badWindows(onchain, slice) {
   const out = [];
-  for (let start = 0; start < local.length; start += PER_TX) {
-    const end = Math.min(start + PER_TX, local.length);
+  for (let start = 0; start < slice.length; start += PER_TX) {
+    const end = Math.min(start + PER_TX, slice.length);
     for (let i = start; i < end; i++) {
-      if (onchain[i] !== local[i]) { out.push(start); break; }
+      if (onchain[i] !== slice[i]) { out.push(start); break; }
     }
   }
   return out;
 }
 
-for (let pass = 1; pass <= 8; pass++) {
-  const onchain = await onchainBytes();
-  if (!onchain) { console.error("no raw circuit account"); process.exit(1); }
-  const windows = badWindows(onchain);
-  console.log(`pass ${pass}: ${windows.length} of ${Math.ceil(local.length / PER_TX)} windows to write`);
-  if (windows.length === 0) { console.log("on chain matches the artifact"); break; }
+const nAcc = Math.ceil(local.length / PER_ACC);
+console.log(`${local.length} bytes across ${nAcc} raw account${nAcc > 1 ? "s" : ""} of ${PER_ACC}`);
 
-  let block = await retry(() => conn.getLatestBlockhash("confirmed"));
-  let ok = 0;
-  for (let i = 0; i < windows.length; i++) {
-    // A fresh blockhash every few, which is the bug this whole script exists
-    // for: the client takes one before the loop and reuses it throughout.
-    if (i % 8 === 0) block = await retry(() => conn.getLatestBlockhash("confirmed"));
-    const start = windows[i];
-    const bytes = Buffer.alloc(PER_TX);
-    local.copy(bytes, 0, start, Math.min(start + PER_TX, local.length));
-    try {
-      await retry(async () => {
-        const tx = await program.methods
-          .uploadCircuit(offset, PROGRAM_ID, 0, Array.from(bytes), start)
-          .accounts({ signer: owner.publicKey }).transaction();
-        return send(tx, block);
-      }, 3);
-      ok++;
-    } catch (e) {
-      if (/AlreadyCompleted/.test(String(e.message))) {
-        console.error("\ncomp def is already finalized; this circuit name is spent");
-        process.exit(2);
-      }
-    }
-    process.stdout.write(`  ${i + 1}/${windows.length}, ${ok} landed\r`);
-    await sleep(Number(process.env.RPC_GAP_MS || 200));
+for (let idx = 0; idx < nAcc; idx++) {
+  const slice = local.subarray(idx * PER_ACC, Math.min((idx + 1) * PER_ACC, local.length));
+  const addr = getRawCircuitAccAddress(compDef, idx);
+  console.log(`\nraw account ${idx}: ${slice.length} bytes at ${addr.toBase58()}`);
+
+  // ── Make room ──────────────────────────────────────────────────────
+  let acc = await retry(() => conn.getAccountInfo(addr));
+  if (!acc) {
+    console.log("  creating it");
+    const block = await retry(() => conn.getLatestBlockhash("confirmed"));
+    await send(await program.methods.initRawCircuitAcc(offset, PROGRAM_ID, idx)
+      .accounts({ signer: owner.publicKey }).transaction(), block);
+    await sleep(1200);
+    acc = await retry(() => conn.getAccountInfo(addr));
   }
-  console.log();
-  if (pass === 8) { console.error("still incomplete"); process.exit(1); }
+  const want = slice.length + HEADER;
+  let stuck = 0;
+  while (acc && acc.data.length < want && stuck < 40) {
+    const before = acc.data.length;
+    const block = await retry(() => conn.getLatestBlockhash("confirmed"));
+    try {
+      await send(await program.methods.embiggenRawCircuitAcc(offset, PROGRAM_ID, idx)
+        .accounts({ signer: owner.publicKey }).transaction(), block);
+    } catch (e) {
+      stuck++;
+      if (stuck === 1) console.log(`\n  embiggen failed at ${before}: ${String(e.message || e).slice(0, 200)}`);
+    }
+    await sleep(900);
+    acc = await retry(() => conn.getAccountInfo(addr));
+    if (acc.data.length === before) stuck++; else stuck = 0;
+    process.stdout.write(`  growing ${acc.data.length} of ${want}\r`);
+  }
+  console.log(`\n  ${acc.data.length} bytes, need ${want}`);
+  if (acc.data.length < want) {
+    console.error(`  cannot grow account ${idx} past ${acc.data.length}. PER_ACC is wrong.`);
+    process.exit(1);
+  }
+
+  // ── Write, check, rewrite ──────────────────────────────────────────
+  for (let pass = 1; pass <= 8; pass++) {
+    const onchain = await onchainBytes(idx);
+    if (!onchain) { console.error("  account vanished"); process.exit(1); }
+    const windows = badWindows(onchain, slice);
+    console.log(`  pass ${pass}: ${windows.length} of ${Math.ceil(slice.length / PER_TX)} windows to write`);
+    if (windows.length === 0) { console.log("  matches the artifact"); break; }
+
+    let block = await retry(() => conn.getLatestBlockhash("confirmed"));
+    let ok = 0;
+    for (let i = 0; i < windows.length; i++) {
+      if (i % 8 === 0) block = await retry(() => conn.getLatestBlockhash("confirmed"));
+      const at = windows[i];
+      const bytes = Buffer.alloc(PER_TX);
+      slice.copy(bytes, 0, at, Math.min(at + PER_TX, slice.length));
+      try {
+        await retry(async () => {
+          const tx = await program.methods
+            // The offset is within this account, not within the circuit.
+            .uploadCircuit(offset, PROGRAM_ID, idx, Array.from(bytes), at)
+            .accounts({ signer: owner.publicKey }).transaction();
+          return send(tx, block);
+        }, 3);
+        ok++;
+      } catch (e) {
+        if (/AlreadyCompleted/.test(String(e.message))) {
+          console.error("\n  comp def is already finalized; this circuit name is spent");
+          process.exit(2);
+        }
+      }
+      process.stdout.write(`    ${i + 1}/${windows.length}, ${ok} landed\r`);
+      await sleep(Number(process.env.RPC_GAP_MS || 200));
+    }
+    console.log();
+    if (pass === 8) { console.error("  still incomplete"); process.exit(1); }
+  }
 }
 
 if (DO_FINALIZE) {

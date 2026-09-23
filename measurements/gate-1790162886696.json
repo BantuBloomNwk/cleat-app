@@ -1,0 +1,110 @@
+{
+  "measuredAt": "2026-09-23T11:28:06.693Z",
+  "program": "2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL",
+  "cluster": 456,
+  "circuit": "gate_breach_v7",
+  "samples": 4,
+  "landed": 3,
+  "pollMs": 250,
+  "refusedBeforeQueue": 1,
+  "latencyMs": {
+    "min": 3057,
+    "p50": 3316,
+    "p90": 3508,
+    "max": 3508,
+    "mean": 3294
+  },
+  "byOutcomeMs": {
+    "cleared": {
+      "n": 0,
+      "p50": null
+    },
+    "refused": {
+      "n": 3,
+      "p50": 3316
+    }
+  },
+  "queueMs": {
+    "p50": 986
+  },
+  "lamports": {
+    "handle": 5000,
+    "queue": 5000,
+    "callback": 5219,
+    "callbackPaidBy": [
+      "2fYMTn21qr8KA5rraCLaF1rjTB7vf9gxkJFT4FTcb8VV",
+      "5QPtFKv3AJ3cqbPpWc3mp9FnNZokEHduX3hqR8xuthA3"
+    ]
+  },
+  "runs": [
+    {
+      "n": 0,
+      "exposureBps": 100,
+      "proposedBps": 300,
+      "category": 1,
+      "outcome": "refused before queue",
+      "reason": "SectorCapBreached",
+      "queuedMs": 900,
+      "totalMs": null,
+      "landed": false,
+      "publicRefusal": true
+    },
+    {
+      "n": 1,
+      "exposureBps": 1400,
+      "proposedBps": 300,
+      "category": 2,
+      "outcome": "refused",
+      "reason": 1,
+      "bookUnchanged": true,
+      "queuedMs": 986,
+      "totalMs": 3508,
+      "landed": true,
+      "handleFee": 5000,
+      "queueFee": 5000,
+      "callbackFee": 5219,
+      "callbackPayer": "2fYMTn21qr8KA5rraCLaF1rjTB7vf9gxkJFT4FTcb8VV",
+      "queueSig": "4iPsYoiihPseVEkhLpypaxvMSL52aKrB4ZMSgueMeMfAZQZr8voaYHCPTCVWdWGLep4c2b31SRxQntyMC53gBjdt",
+      "callbackSig": "3mm3G5KywLd7PPpUC3WqmNiuxaPaPFk8sVuziK4xNDMhC4YCKccgR1f9zNcAsdSTf1Sz6n66AQuZzQ7Wmuz2D9L9",
+      "computation": "4K9HcVqgdPcGuPZ4juvyibfNLtzsyw8Wwa9e3GVtWzgZ"
+    },
+    {
+      "n": 2,
+      "exposureBps": 100,
+      "proposedBps": 300,
+      "category": 3,
+      "outcome": "refused",
+      "reason": 1,
+      "bookUnchanged": true,
+      "queuedMs": 1053,
+      "totalMs": 3057,
+      "landed": true,
+      "handleFee": 5000,
+      "queueFee": 5000,
+      "callbackFee": 5229,
+      "callbackPayer": "5QPtFKv3AJ3cqbPpWc3mp9FnNZokEHduX3hqR8xuthA3",
+      "queueSig": "3E8EtbHyMCJZrPXYf4fXVRKqrHVUTvTuyzMdwqetWiR9ZYiyrCyoMr7UxLAded4zrrc7N5sLSD1ZgTTBqKue7zDA",
+      "callbackSig": "4ESp7gctMr7gPkFkvYCnBxAJsNDwEQMBtJocqYHYohdsQn2MRHJRqbJ27mvfbyrWPhZxAFj24o7BPT26wP9ts7fH",
+      "computation": "5xSWWyUs8em86NvEi5biFrHfjruLBiUsUbGyyo9RfCAF"
+    },
+    {
+      "n": 3,
+      "exposureBps": 1400,
+      "proposedBps": 300,
+      "category": 4,
+      "outcome": "refused",
+      "reason": 1,
+      "bookUnchanged": true,
+      "queuedMs": 1309,
+      "totalMs": 3316,
+      "landed": true,
+      "handleFee": 5000,
+      "queueFee": 5000,
+      "callbackFee": 5051,
+      "callbackPayer": "5QPtFKv3AJ3cqbPpWc3mp9FnNZokEHduX3hqR8xuthA3",
+      "queueSig": "5vPeXTVwyY5KhYYKGCTr8xBsH4NWCd4u21JVRDyAMWgeCD14XSydohZXkNTJHn13NLbQnKSEb7wrjwXQimgHjU8r",
+      "callbackSig": "495xVctzR78N9nLNhDbfkyjpDwRXetjYi7TGz2JECiKJ1Ri6uFx9un3Ri4dH5oUMDmYxAuVpbRif4G7n4S9reQFC",
+      "computation": "77x8GeNzGXetuTzrmFQeSgWX9cquJzxENsQzJLpdoaui"
+    }
+  ]
+}

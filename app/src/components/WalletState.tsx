@@ -69,6 +69,16 @@ export const WalletState: React.FC<{
     };
   }, [owner]);
 
+  // Five rows, each with a sentence under it, is a page of documentation
+  // sitting where a returning user wants a glance. The sentences are worth
+  // keeping, they are the honest part, so they fold instead of going away.
+  //
+  // Open by default for somebody who has nothing set up yet, because then
+  // the explanation is the content. Closed once there is a key, because by
+  // then they have read it.
+  const [why, setWhy] = useState<boolean | null>(null);
+  const open = why ?? !exists;
+
   const Row: React.FC<{ label: string; yes: boolean | null; detail: string }> = ({
     label,
     yes,
@@ -91,9 +101,11 @@ export const WalletState: React.FC<{
           {label}
         </span>
       </span>
-      <span className="text-[11px] leading-[1.6] text-[var(--text-secondary)] pl-3">
-        {detail}
-      </span>
+      {open && (
+        <span className="text-[11px] leading-[1.6] text-[var(--text-secondary)] pl-3">
+          {detail}
+        </span>
+      )}
     </div>
   );
 
@@ -103,7 +115,17 @@ export const WalletState: React.FC<{
         <span className="meta-kicker">
           {mine ? 'What you actually have' : 'Reading the devnet demo account'}
         </span>
-        <DataOrigin origin="chain" />
+        <span className="flex items-center gap-2">
+          <button
+            type="button"
+            className="vault-key-refresh"
+            onClick={() => setWhy(!open)}
+            aria-expanded={open}
+          >
+            {open ? 'less' : 'why'}
+          </button>
+          <DataOrigin origin="chain" />
+        </span>
       </div>
 
       <Row

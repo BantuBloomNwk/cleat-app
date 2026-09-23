@@ -1,3 +1,4 @@
+import { WalletGlyph } from './WalletGlyph';
 import type { SealState } from '../lib/chain';
 import React, { useEffect, useState } from 'react';
 import {
@@ -15,6 +16,8 @@ import emblemLight from '../assets/emblem-light.png';
 
 interface HeaderProps {
   theme: 'dark' | 'light';
+  /** The person's own key, so something on screen is theirs. */
+  owner?: string | null;
   onToggleTheme: () => void;
   onOpenOnboarding: () => void;
   /** Read off the vault, not asserted. See lib/chain.ts. */
@@ -60,6 +63,7 @@ const SEAL_COPY: Record<
 
 export const Header: React.FC<HeaderProps> = ({
   theme,
+  owner,
   onToggleTheme,
   onOpenOnboarding,
   sealed,
@@ -302,6 +306,10 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        {/* Your mark, beside the button that opens your vault. The one
+            thing in this header that belongs to the person rather than to
+            the system. */}
+        <WalletGlyph address={owner} size={22} />
         <button
           id="btn-intro"
           type="button"

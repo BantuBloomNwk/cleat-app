@@ -44,7 +44,14 @@ export const DataOrigin: React.FC<{ origin: Origin; className?: string }> = ({
       title={title}
     >
       <span className="data-origin-pip" aria-hidden="true" />
-      {label}
+      {/* Live says nothing a reader was not already assuming.
+          Saying it on every card, six times down one scroll, stopped it
+          being read at all, and buried the one variant that carries
+          information. So live is a dot with the explanation on hover, and
+          sample keeps its word. The honesty is unchanged: anything not
+          marked is live, and anything that is not gets a label you cannot
+          miss. */}
+      {live ? <span className="sr-only">{label}</span> : label}
     </span>
   );
 };

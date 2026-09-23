@@ -45,8 +45,25 @@ mod circuits {
         max_position_bps: u64,
     ) -> (Enc<Mxe, u64>, Enc<Shared, u64>, bool) {
         let held = exposure_bps.to_arcis();
+
+        // Is this a holding at all.
+        //
+        // A holding is a share of the book in basis points, so ten thousand
+        // is the whole book and anything above it never was one. The check
+        // exists because of what the measurements showed when a value was
+        // sealed to a key the network does not hold: the circuit opened it
+        // to an arbitrary number, the arbitrary number exceeded the cap, and
+        // the proposal was refused. Six times out of six.
+        //
+        // That reads as failing closed and it is not, quite. Nothing was
+        // detecting that the value was meaningless. An arbitrary number
+        // drawn from sixty four bits almost always exceeds a percentage cap,
+        // so the cap was doing the work by accident, and a garbage value
+        // that happened to open small would have cleared. Almost always is
+        // not a property. This makes it one.
+        let wellformed = held <= 10_000;
         let next = held + effective_bps;
-        let breaches = next > max_position_bps;
+        let breaches = !wellformed || next > max_position_bps;
 
         // The exposure the client would be left holding, sealed straight
         // back to their own key. A refused trade leaves it where it was.

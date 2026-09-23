@@ -13,6 +13,7 @@ import {
   type Ticker,
   type MarketSession, loadTokenized, marketsFor, type TokenizedAsset } from '../lib/backpack';
 import { tactile } from '../utils/haptics';
+import { TickerMark } from './TickerMark';
 import { FlipDigits } from './FlipDigits';
 
 /**
@@ -168,10 +169,14 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
         onBlur={() => setPaused(false)}
         aria-expanded={picking}
         style={{ ['--ticker-dwell' as string]: `${DWELL}ms` }}
-        className={`flex items-baseline gap-2 min-w-0 text-left ${
+        className={`flex items-center gap-2 min-w-0 text-left ${
           autoRunning && !paused && !picking ? 'ticker-auto' : ''
         }`}
       >
+        {/* The mark sits beside the flick, not inside it. The digits are
+            the thing that moves and putting an image in that animation
+            would fight it. */}
+        <TickerMark symbol={active.symbol} size={22} />
         <span className="font-bold text-[16px] text-[var(--text-primary)] whitespace-nowrap">
           <FlipDigits value={symbolTicker(active.symbol)} />
         </span>
@@ -278,7 +283,8 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
                   t.symbol === symbol ? 'bg-[var(--card-surface)]' : ''
                 }`}
               >
-                <span className="flex items-baseline gap-1.5 min-w-0">
+                <span className="flex items-center gap-2 min-w-0">
+                  <TickerMark symbol={t.symbol} size={18} />
                   <span className="font-bold text-[12px] text-[var(--text-primary)] whitespace-nowrap">
                     {symbolTicker(t.symbol)}
                   </span>
@@ -320,7 +326,8 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
                   className="w-full flex items-baseline justify-between gap-2 px-2.5 py-2 opacity-60"
                   title={`${a.name} · ${a.mint}`}
                 >
-                  <span className="flex items-baseline gap-1.5 min-w-0">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <TickerMark symbol={a.ticker} size={18} />
                     <span className="font-bold text-[12px] text-[var(--text-primary)] whitespace-nowrap">
                       {a.ticker}
                     </span>

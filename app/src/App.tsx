@@ -186,6 +186,7 @@ export default function App() {
         {/* Sticky Header */}
         <Header
           theme={theme}
+          owner={owner?.toBase58() ?? null}
           onToggleTheme={toggleTheme}
           onOpenOnboarding={() => setIsOnboardingOpen(true)}
           sealed={sealed}

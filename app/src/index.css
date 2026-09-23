@@ -1187,6 +1187,35 @@ body {
 .sleeve-chip-add { color: var(--text-tertiary); border-style: dashed; }
 .sleeve-note { font-size: 11px; line-height: 1.6; color: var(--text-tertiary); }
 
+/* You, as a mark. */
+.wallet-glyph {
+  display: inline-block;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+.wallet-glyph-empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--card-border-subtle);
+}
+
+/* The company's mark. Circular, quiet, never a broken image. */
+.ticker-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: var(--card-surface-raised);
+}
+.ticker-mark-fallback {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
 .vault-actions { display: flex; flex-direction: column; gap: 8px; }
 .vault-field {
   display: flex; align-items: center; gap: 8px;
@@ -2406,7 +2435,24 @@ h1, h2, h3, h4, h5, h6,
 }
 .data-origin.is-live {
   color: var(--verdigris);
-  border-color: var(--verdigris-chip-border);
+  border-color: transparent;
+  background: transparent;
+  padding: 2px 0;
+  gap: 0;
+}
+/* Readable to a screen reader, invisible to the eye, because the label is
+   for the case where somebody needs it and not for the layout. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.data-origin.is-sample {
+  font-weight: 600;
 }
 .data-origin.is-live .data-origin-pip {
   background: var(--verdigris);

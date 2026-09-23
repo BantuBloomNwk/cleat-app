@@ -60,6 +60,14 @@
 # the first is a small delta on an attack that has already won, and the
 # second is a property we cannot get any other way.
 #
+# img-src is the third widening and the cheapest to reason about. Every
+# tokenized name the venue lists publishes its own icon, on those two hosts
+# and nowhere else. An image cannot execute, these are not script or style
+# origins, and the alternative was either a bare monospace ticker on every
+# screen or proxying a few kilobytes of SVG through a function for no
+# security gain. The component falls back to a monogram when a fetch fails,
+# so a blocked or missing icon degrades to a letter rather than a hole.
+#
 # The build emits no inline script and no inline style block, so
 # script-src needs no escape hatch. style-src does need unsafe-inline,
 # and that is worth being precise about rather than waving at: React
@@ -80,7 +88,9 @@
       script-src 'self';
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com data:;
-      img-src 'self' data: blob:;
+      img-src 'self' data: blob:
+        https://assets.labsapis.com
+        https://backpack.exchange;
       connect-src 'self'
         https://api.sunrise.xyz
         https://api.anthropic.com

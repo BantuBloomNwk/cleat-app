@@ -29,16 +29,16 @@ const PERIOD_CONFIGS = {
     badge: null as string | null, // see overnightBadge below
     headingSuffix: 'overnight trade refusals',
     description:
-      'Your overnight boundaries held solid. While you slept, the agent attempted automated portfolio rebalances and your plain English mandate stopped every one of them, without a balance moving.',
+      'While you slept the agent kept proposing. Your sentence refused every one, and nothing moved.',
     stats: [
       { label: 'Blocked', value: '$1,330 USDC', type: 'refused' },
-      { label: 'Latency', value: '14ms Kernel Abort', type: 'cleared' },
-      { label: 'Sleep Protection', value: '100% Unbreached', type: 'cleared' },
+      { label: 'Decided in', value: '14ms', type: 'cleared' },
+      { label: 'Got through', value: 'Nothing', type: 'cleared' },
     ],
     intelligence: {
-      tag: 'Nocturnal Activity Cluster',
-      title: 'Peak impulse recorded at 03:42 UTC',
-      detail: 'Asian market opening sparked automated macro triggers into Chevron (CVX). Cryptographic mandate enforcer killed transaction submission pre-broadcast.',
+      tag: 'Busiest hour',
+      title: 'Most of it came at 03:42 UTC',
+      detail: 'Asia opened and the agent went after Chevron. Your sentence rules out fossil fuels, so it was refused before anything was sent.',
     },
   },
   week: {
@@ -46,7 +46,7 @@ const PERIOD_CONFIGS = {
     badge: '7-Day Rolling Audit',
     headingSuffix: 'weekly trade interventions (9 Refusals, 5 Trims)',
     description:
-      'Weekly macro enforcement summary: 14 rogue orders intercepted across volatile crude oil spikes and semiconductor rallies. $4,850 USDC held back from single-stock risk ceiling breaches.',
+      'Fourteen proposals stopped across a week of oil and chip swings. $4,850 never left, because one name was already as large as your sentence allows.',
     stats: [
       { label: '9 Refusals', value: '$3,820 USDC', type: 'refused' },
       { label: '5 Trims', value: '$1,030 Buffered', type: 'trimmed' },
@@ -358,9 +358,6 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
               {currentPeriodConfig.badge ?? overnightBadge ?? 'Overnight session'}
             </span>
             <span className="flex items-center gap-2">
-              <span className="text-[10.5px] font-mono text-[var(--text-tertiary)]">
-                Enforcer Engine v2.4
-              </span>
               {/* The count is read off the chain. The dollar figures are not,
                   because the program deliberately records no amounts, and a
                   card that mixes the two without saying so is the thing this
@@ -385,13 +382,15 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
               do not exist yet, and those rows stay marked as samples rather
               than being filled in with something plausible. */}
           <div className="flex items-center flex-wrap gap-2 mt-2 pt-2 border-t border-[var(--card-border-subtle)]">
+            {/* Two numbers, not three.
+                The card already says how many were refused in its own
+                heading, so a "held the line, 12 of 16" pill underneath was
+                the same fact in a second costume. What asked and allowed do
+                that the heading cannot is put the two side by side, and the
+                gap between them is the only thing on this card worth
+                reading twice. */}
             {(selectedPeriod === 'overnight' && restraint
               ? [
-                  {
-                    label: 'Held the line',
-                    value: `${entries.filter((e) => e.status !== 'cleared').length} of ${entries.length}`,
-                    type: 'refused',
-                  },
                   {
                     label: 'Asked for',
                     value: `${(restraint.askedBps / 100).toFixed(0)}% of the book`,
@@ -425,9 +424,11 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
           <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--verdigris)] font-bold">
             {currentPeriodConfig.intelligence.tag}
           </span>
-          <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
-            Verified On-Chain
-          </span>
+          {/* This card is written, not read. It said "Verified On-Chain"
+              over content nobody verified, which is the single worst thing
+              a product arguing you should not have to trust it can put on
+              a screen. */}
+          <DataOrigin origin="sample" />
         </div>
         <div className="text-[13px] font-bold text-[var(--text-primary)]">
           {currentPeriodConfig.intelligence.title}
