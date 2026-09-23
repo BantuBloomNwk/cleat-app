@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { PALETTES, buildIndex } from '../lib/agentBuilds';
 
 /**
  * A face for the agent, and motion that means something.
@@ -19,9 +20,11 @@ import React, { useEffect, useRef, useState } from 'react';
  * motion here follows the same ranking, so the eye, the hand and the ear
  * all agree about which of the three just happened.
  *
- * The face itself is deterministic. Same key, same avatar, on every device,
- * with nothing stored and no upload, which is the only kind of profile
- * picture a product like this can honestly offer.
+ * This is the small one. It is a still of the same robot the vault turns,
+ * rendered once per build and reused, because a live canvas per fingernail
+ * sized avatar is absurd and a different drawing would mean two agents. The
+ * colour is on screen in the first frame and the render arrives behind it,
+ * so there is never a hole where the face goes.
  */
 
 export type AgentMood =
@@ -43,15 +46,14 @@ const REACTION_MS: Record<AgentMood, number> = {
 };
 
 export const AgentAvatar: React.FC<{
-  /** Anything stable. A wallet address gives the same face forever. */
+  /** Anything stable. A wallet address gives the same robot forever. */
   seed: string;
+  /** A second build for the same key, when somebody has chosen one. */
+  variant?: number;
   mood?: AgentMood;
   size?: number;
-  style?: 'voxel-bot' | 'voxel-art' | 'bottts' | 'thumbs';
-  /** No plate behind it. For the large one, which stands rather than sits. */
-  bare?: boolean;
   className?: string;
-}> = ({ seed, mood = 'idle', size = 40, style = 'voxel-bot', bare = false, className = '' }) => {
+}> = ({ seed, variant = 0, mood = 'idle', size = 40, className = '' }) => {
   // A reaction should play and then stop. Holding the caller's prop would
   // leave the character stuck mid-flinch until something else happened.
   const [shown, setShown] = useState<AgentMood>(mood);
@@ -69,13 +71,32 @@ export const AgentAvatar: React.FC<{
     };
   }, [mood]);
 
-  const src =
-    `/api/avatar?style=${style}&seed=${encodeURIComponent(seed)}` + (bare ? '&bg=none' : '');
+  const index = buildIndex(seed, variant);
+  const palette = PALETTES[index];
+
+  const [portrait, setPortrait] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    // Behind the colour, never in front of it. A browser with no WebGL just
+    // keeps the colour, which is still this agent and still nobody else's.
+    import('../three/portrait')
+      .then((m) => {
+        if (live) setPortrait(m.portraitOf(index));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [index]);
 
   return (
     <span
-      className={`agent-avatar${bare ? ' agent-bare' : ''} agent-${shown} ${className}`}
-      style={{ width: size, height: size }}
+      className={`agent-avatar agent-${shown} ${className}`}
+      style={{
+        width: size,
+        height: size,
+        background: `radial-gradient(circle at 34% 28%, ${palette.body}, ${palette.trim})`,
+      }}
       // The mood is announced rather than only drawn, because somebody using
       // a screen reader should get the verdict too.
       role="img"
@@ -88,7 +109,7 @@ export const AgentAvatar: React.FC<{
         : 'watching'
       }
     >
-      <img src={src} alt="" aria-hidden="true" draggable={false} />
+      {portrait && <img src={portrait} alt="" aria-hidden="true" draggable={false} />}
     </span>
   );
 };

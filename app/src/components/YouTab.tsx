@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AgentStage } from './AgentStage';
 import type { AgentMood } from './AgentAvatar';
+import type { TalkStats } from '../lib/agentTalk';
 import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
 import { VaultKey } from './VaultKey';
@@ -21,7 +22,8 @@ interface YouTabProps {
   walletApi: ReturnType<typeof import('../hooks/useWallet').useWallet>;
   /** What the agent is doing, so the stage reacts rather than just sits. */
   agentMood?: AgentMood;
-  agentStatus?: string;
+  /** What has actually happened, so the agent has something true to say. */
+  agentStats: TalkStats;
 }
 
 export const YouTab: React.FC<YouTabProps> = ({
@@ -31,7 +33,7 @@ export const YouTab: React.FC<YouTabProps> = ({
   wallet,
   walletApi,
   agentMood = 'idle',
-  agentStatus,
+  agentStats,
 }) => {
   const [vibrationEnabled, setVibrationEnabled] = useState<boolean>(() => tactile.isVibrationEnabled());
   const [testPulseNotice, setTestPulseNotice] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export const YouTab: React.FC<YouTabProps> = ({
           opens with the thing those belong to, because a person coming back
           to check on something should see it before they read about it. */}
       <article className="glass-card agent-stage-card" id="agent-stage">
-        <AgentStage seed={owner} mood={agentMood} status={agentStatus} />
+        <AgentStage seed={owner} mood={agentMood} stats={agentStats} />
       </article>
 
       <div className="section-row-header">

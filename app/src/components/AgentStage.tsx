@@ -1,114 +1,135 @@
-import React, { useRef, useState } from 'react';
-import { AgentAvatar, type AgentMood } from './AgentAvatar';
-import { AGENT_STYLES, faceSeed, setLook, useAgentLook } from '../lib/agentLook';
+import React, { useEffect, useRef, useState } from 'react';
+import { Settings2 } from 'lucide-react';
+import { AgentModel } from './AgentModel';
+import { AgentPicker } from './AgentPicker';
+import type { AgentMood } from './AgentAvatar';
+import { BUILD_NAMES, buildIndex } from '../lib/agentBuilds';
+import { setVariant, useAgentVariant } from '../lib/agentLook';
+import { agentLine, type TalkStats } from '../lib/agentTalk';
 import { tactile } from '../utils/haptics';
 
 /**
- * The agent, large, at the top of the vault.
+ * The agent, in the corner of its own card, saying something.
  *
- * The small face beside a line of text is an indicator. This is the thing
- * itself: it has depth, it holds your gaze, it moves when the agent does
- * something, and it is the one part of the screen a person will look at
- * before they read anything.
+ * The first version of this put it large and centred at the top of the
+ * vault with a caption under it, which is a poster rather than a presence:
+ * it took a third of the screen to say nothing and the rest of the card
+ * arranged itself awkwardly around it. Now it stands in the corner at a
+ * sensible size and the space beside it carries a line that changes, which
+ * is a smaller card doing more.
  *
- * The argument for having it at all is not decoration. A product nobody
- * opens protects nobody, and a screen of verdicts and percentages gives a
- * person no reason to come back however good its guarantees are. The
- * argument against is that making the agent likeable undermines a pitch
- * built on not having to trust it. Both are right, and the resolution is
- * in which moment gets the performance: the refusal is the biggest thing
- * this character does. It is never more pleased to have cleared a trade
- * than to have stopped one.
+ * The argument for having a character at all is not decoration. A product
+ * nobody opens protects nobody, and a screen of verdicts and percentages
+ * gives a person no reason to come back however good its guarantees are.
+ * The argument against is that making the agent likeable undermines a pitch
+ * built on not having to trust it. Both are right, and the resolution is in
+ * which moment gets the performance: the refusal is the biggest thing this
+ * character does, and it is never more pleased to have cleared a trade than
+ * to have stopped one.
  *
- * The depth is CSS rather than a 3D engine. A rigged model would mean a
- * renderer, an asset pipeline and a battery cost on a phone, to move a
- * thing forty millimetres across. Perspective, a tilt that follows the
- * pointer, a floating idle and a shadow that reacts to the float get the
- * same read for nothing.
+ * It is a real object, drawn with a renderer, and it can be turned with a
+ * finger. That is worth the weight because "can I spin it" is the whole
+ * difference between a picture of a robot and a robot, and because three
+ * only loads on the screens that show one.
  */
-
 export const AgentStage: React.FC<{
-  /** The key this agent belongs to. Its face is derived from this. */
+  /** The key this agent belongs to. Which of the eight it is comes from here. */
   seed: string;
   mood?: AgentMood;
-  /** What the agent is doing, in the fewest words that are true. */
-  status?: string;
-}> = ({ seed, mood = 'idle', status }) => {
-  // Held in one place, because the same agent is drawn in the header and
-  // beside the log and it should be the same agent in all three.
-  const { style, variant } = useAgentLook();
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [dressing, setDressing] = useState(false);
-  const stage = useRef<HTMLDivElement>(null);
+  /** What has actually happened, so it has something true to say. */
+  stats: TalkStats;
+}> = ({ seed, mood = 'idle', stats }) => {
+  const variant = useAgentVariant();
+  const [picking, setPicking] = useState(false);
+  const [turn, setTurn] = useState(0);
+  const [visible, setVisible] = useState(true);
 
-  /** Follow the pointer, gently, so it reads as an object with a front. */
-  const onMove = (e: React.PointerEvent) => {
-    const el = stage.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
-    const dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
-    setTilt({ x: Math.max(-1, Math.min(1, dy)) * -9, y: Math.max(-1, Math.min(1, dx)) * 14 });
-  };
+  const index = buildIndex(seed, variant);
+  const name = BUILD_NAMES[index % BUILD_NAMES.length];
 
-  const face = faceSeed(seed, variant);
+  // A line that changes on its own, and fades rather than cutting. Nobody
+  // watches it change; the point is that it is different when they come
+  // back to the tab.
+  const timers = useRef<number[]>([]);
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      setVisible(false);
+      const t = window.setTimeout(() => {
+        setTurn((n) => n + 1);
+        setVisible(true);
+      }, 320);
+      timers.current.push(t);
+    }, 9000);
+    return () => {
+      window.clearInterval(tick);
+      for (const t of timers.current) window.clearTimeout(t);
+      timers.current = [];
+    };
+  }, []);
+
+  // A verdict landing outranks whatever it was in the middle of saying.
+  useEffect(() => {
+    if (mood === 'idle') return;
+    setVisible(false);
+    const t = window.setTimeout(() => {
+      setTurn((n) => n + 1);
+      setVisible(true);
+    }, 260);
+    return () => window.clearTimeout(t);
+  }, [mood]);
+
+  const line = agentLine(turn, stats, index);
 
   return (
-    <div className="agent-stage-wrap">
-      <div
-        ref={stage}
-        className="agent-stage"
-        onPointerMove={onMove}
-        onPointerLeave={() => setTilt({ x: 0, y: 0 })}
-        onClick={() => {
-          // A poke does nothing to the account and is allowed to be fun.
-          tactile.selectionTap();
-          setTilt((t) => ({ ...t, y: t.y + 24 }));
-          setTimeout(() => setTilt({ x: 0, y: 0 }), 260);
-        }}
-      >
+    <>
+      <div className="agent-bay">
         <div
-          className="agent-stage-inner"
-          style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
+          className="agent-bay-model"
+          onPointerUp={() => tactile.selectionTap()}
+          title="Drag to turn it"
         >
-          <AgentAvatar seed={face} mood={mood} size={124} style={style} bare />
+          <AgentModel seed={seed} variant={variant} mood={mood} size={104} autoSpin />
         </div>
-        <span className="agent-stage-shadow" aria-hidden="true" />
+
+        <div className="agent-bay-talk">
+          <div className="agent-bay-name">
+            <span>{name}</span>
+            <button
+              type="button"
+              className="agent-bay-gear"
+              onClick={() => { tactile.selectionTap(); setPicking(true); }}
+              aria-label="Choose your agent"
+              title="Choose your agent"
+            >
+              <Settings2 size={13} strokeWidth={2.2} />
+            </button>
+          </div>
+
+          {/* Announced politely rather than interrupting: somebody reading
+              the page with a screen reader should not be dragged back here
+              every nine seconds. */}
+          <p
+            className={`agent-bubble${visible ? ' is-in' : ''}`}
+            aria-live="polite"
+          >
+            {line}
+          </p>
+        </div>
       </div>
 
-      <p className="agent-stage-status">{status ?? 'Watching. Nothing to answer for yet.'}</p>
-
-      <button
-        type="button"
-        className="mesh-chip agent-stage-dress"
-        onClick={() => { tactile.selectionTap(); setDressing((d) => !d); }}
-        aria-expanded={dressing}
-      >
-        {dressing ? 'done' : 'change how it looks'}
-      </button>
-
-      {dressing && (
-        <div className="agent-stage-picker">
-          {AGENT_STYLES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`agent-style-chip${s === style ? ' is-on' : ''}`}
-              onClick={() => { tactile.selectionTap(); setLook({ style: s, variant }); }}
-              title={s}
-            >
-              <AgentAvatar seed={face} size={34} style={s} />
-            </button>
-          ))}
-          <button
-            type="button"
-            className="mesh-chip"
-            onClick={() => { tactile.mandateAction(); setLook({ style, variant: (variant + 1) % 8 }); }}
-          >
-            another face
-          </button>
-        </div>
+      {picking && (
+        <AgentPicker
+          seed={seed}
+          current={variant}
+          onPick={(v) => setVariant(v)}
+          onClose={() => {
+            setPicking(false);
+            // Back in the corner, and it opens its mouth with a hello.
+            setTurn(0);
+            setVisible(true);
+          }}
+        />
       )}
-    </div>
+    </>
   );
 };

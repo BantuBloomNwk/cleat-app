@@ -45,6 +45,7 @@ export default function App() {
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(INITIAL_LEDGER_ENTRIES);
   // One agent, so one reaction, held above the tabs that draw it.
   const pulse = useAgentPulse(ledgerEntries);
+
   const [chartMarkers, setChartMarkers] = useState<ChartMarker[]>(INITIAL_CHART_MARKERS);
   // null until we know, then true if the screen is showing real devnet decisions
   const [isLive, setIsLive] = useState<boolean | null>(null);
@@ -92,6 +93,20 @@ export default function App() {
   // three the same. Anything that moves value still uses `owner` and still
   // refuses when there is none.
   const identity = (owner ?? DEMO_OWNER).toBase58();
+  // What the agent is allowed to talk about: counts and a percentage, all
+  // of them already public on the chain. Never a position, an instrument or
+  // an amount, because confidentiality is the product and a chatty mascot
+  // is exactly how that would leak.
+  const agentStats = {
+    decisions: stats.cleared + stats.trimmed + stats.refused,
+    refused: stats.refused,
+    trimmed: stats.trimmed,
+    cleared: stats.cleared,
+    heldPct: restraint && restraint.askedBps > 0
+      ? (restraint.heldBps / restraint.askedBps) * 100
+      : null,
+  };
+
   useEffect(() => {
     let cancelled = false;
     loadChainSnapshot(owner ?? undefined, wallet.sleeve)
@@ -248,7 +263,7 @@ export default function App() {
               wallet={wallet.state}
               walletApi={wallet}
               agentMood={pulse.mood}
-              agentStatus={pulse.status}
+              agentStats={agentStats}
             />
           )}
         </main>

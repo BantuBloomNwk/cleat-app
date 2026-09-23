@@ -3,6 +3,7 @@ import { DataOrigin } from './DataOrigin';
 import { TickerMark } from './TickerMark';
 import { Spark } from './Spark';
 import { PriceChart } from './PriceChart';
+import { Shelf } from './Shelf';
 
 /**
  * What the agent is looking at, and what the sentence makes of it.
@@ -70,7 +71,7 @@ export const Watching: React.FC = () => {
           glance; six of them stacked was a third of a screen each and the
           reason this tab read as a list. The detail opens once, below,
           rather than pushing every row under it down the page. */}
-      <div className="shelf" role="list">
+      <Shelf label="What the agent is watching">
         {rows.map((r) => {
           const up = (r.dayBps ?? 0) >= 0;
           const isOpen = open === r.symbol;
@@ -122,7 +123,7 @@ export const Watching: React.FC = () => {
             </button>
           );
         })}
-      </div>
+      </Shelf>
 
       {/* One panel for whichever tile is open. */}
       {(() => {

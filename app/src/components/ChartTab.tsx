@@ -1234,7 +1234,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                       survived into the build. Seeded on the handle, so the
                       same person is the same face every time without an
                       account, an upload or anything stored. */}
-                  <AgentAvatar seed={msg.sender} size={26} style="voxel-bot" />
+                  <AgentAvatar seed={msg.sender} size={26} />
                   <span className="font-mono font-bold text-[12px] text-[var(--text-primary)]">
                     @{msg.sender}
                   </span>

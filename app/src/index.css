@@ -1187,86 +1187,202 @@ body {
 .sleeve-chip-add { color: var(--text-tertiary); border-style: dashed; }
 .sleeve-note { font-size: 11px; line-height: 1.6; color: var(--text-tertiary); }
 
-/* The agent, on a stage.
-   Depth from perspective and a shadow rather than from a renderer. A rigged
-   model would cost a 3D engine, an asset pipeline and a phone's battery to
-   move a thing forty millimetres, and this reads the same. */
-.agent-stage-wrap {
+/* The agent's corner of the vault.
+   It stands at the left at a size that leaves room for something to be said
+   beside it, rather than filling the card and leaving the card to arrange
+   itself around a poster. */
+.agent-bay {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 12px;
+}
+.agent-bay-model {
+  flex: 0 0 auto;
+  cursor: grab;
+  touch-action: none;
+  filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.5));
+}
+.agent-bay-model:active { cursor: grabbing; }
+.agent-model canvas { display: block; }
+.agent-bay-talk { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.agent-bay-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--verdigris);
+}
+.agent-bay-gear {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 999px;
+  color: var(--text-tertiary);
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface-raised);
+  transition: color 140ms ease, border-color 140ms ease, rotate 260ms ease;
+}
+.agent-bay-gear:hover { color: var(--verdigris); border-color: var(--verdigris); rotate: 40deg; }
+
+/* The line it is saying. Fades between one and the next rather than
+   cutting, because a cut reads as a glitch and a fade reads as a thought. */
+.agent-bubble {
+  position: relative;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  padding: 9px 11px;
+  border-radius: 13px;
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface-raised);
+  opacity: 0;
+  translate: 0 4px;
+  transition: opacity 300ms ease, translate 300ms ease;
+}
+.agent-bubble.is-in { opacity: 1; translate: 0 0; }
+/* The tail, pointing back at whoever is talking. */
+.agent-bubble::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 17px;
+  width: 9px;
+  height: 9px;
+  rotate: 45deg;
+  background: var(--card-surface-raised);
+  border-left: 1px solid var(--card-border-subtle);
+  border-bottom: 1px solid var(--card-border-subtle);
+}
+
+/* The line up, over everything else. */
+.agent-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgb(0 0 0 / 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: sheet-fade 200ms ease;
+}
+@keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+.agent-sheet {
+  width: min(430px, 100%);
+  max-height: 88dvh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 18px 14px 14px;
+  gap: 11px;
+  padding: 14px 15px 18px;
+  border-radius: 22px;
+  background: var(--card-surface);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 -8px 40px rgb(0 0 0 / 0.6);
+  animation: sheet-up 260ms cubic-bezier(.22,1,.36,1);
 }
-.agent-stage {
-  position: relative;
-  width: 132px;
-  height: 132px;
-  perspective: 620px;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.agent-stage-inner {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  transform-style: preserve-3d;
-  transition: transform 320ms cubic-bezier(.22,1,.36,1);
-  animation: stage-float 5.4s ease-in-out infinite;
-}
-.agent-stage-inner .agent-avatar {
-  border-radius: 26px;
-  box-shadow: 0 18px 34px -16px rgb(0 0 0 / 0.75), inset 0 0 0 1px rgb(255 255 255 / 0.12);
-}
-@keyframes stage-float {
-  0%, 100% { translate: 0 0; }
-  50%      { translate: 0 -7px; }
-}
-/* The shadow shrinks as it rises, which is most of why it reads as a thing
-   in a space rather than a picture on a wall. */
-.agent-stage-shadow {
-  position: absolute;
-  left: 50%;
-  bottom: 2px;
-  width: 74px;
-  height: 11px;
-  translate: -50% 0;
+@keyframes sheet-up { from { translate: 0 22px; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+.agent-sheet-head { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.agent-sheet-x {
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
   border-radius: 999px;
-  background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.55), transparent 72%);
-  animation: stage-shadow 5.4s ease-in-out infinite;
+  color: var(--text-tertiary);
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface-raised);
 }
-@keyframes stage-shadow {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50%      { transform: scale(0.82); opacity: 0.4; }
-}
-.agent-stage-status {
-  font-size: 12.5px;
-  line-height: 1.5;
-  text-align: center;
+.agent-sheet-x:hover { color: var(--text-primary); }
+.agent-sheet-note {
+  font-size: 11.5px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  max-width: 30ch;
+  text-align: center;
 }
-.agent-stage-dress { align-self: center; }
-.agent-stage-picker {
+.agent-sheet-hint { font-size: 10.5px; color: var(--text-tertiary); }
+
+.agent-lineup {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.agent-lineup-rail {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding-top: 4px;
+  gap: 4px;
+  min-width: 0;
+  height: 176px;
+  /* Clipped, because the neighbours used to spill over the arrows and sit
+     on top of the one control that moves the line up. */
+  overflow: hidden;
 }
-.agent-style-chip {
-  padding: 4px;
-  border-radius: 14px;
-  border: 1px solid var(--card-border-subtle);
-  background: var(--card-surface);
+/* The one being considered is the one that is moving. Everything either
+   side is a still, dimmed and smaller, so there is never a question about
+   which one is in front of you. */
+.agent-lineup-live {
+  flex: 0 0 auto;
+  border-radius: 20px;
+  background: radial-gradient(ellipse at 50% 78%, rgb(255 255 255 / 0.05), transparent 70%);
+  cursor: grab;
+}
+.agent-lineup-live:active { cursor: grabbing; }
+.agent-lineup-side {
+  flex: 0 0 auto;
   line-height: 0;
+  transition: opacity 200ms ease, scale 200ms ease;
 }
-.agent-style-chip.is-on { border-color: var(--verdigris); }
+.agent-lineup-side.off1 { opacity: 0.55; }
+.agent-lineup-side:hover { opacity: 0.95; scale: 1.06; }
+.agent-lineup-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.agent-lineup-dots { display: flex; gap: 5px; }
+.agent-lineup-dots span {
+  width: 5px; height: 5px;
+  border-radius: 999px;
+  background: var(--card-border);
+  transition: background 180ms ease, width 180ms ease;
+}
+.agent-lineup-dots span.on { background: var(--verdigris); width: 14px; }
+
+.agent-sheet-reveal { gap: 8px; padding-top: 22px; }
+.agent-reveal-name {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--verdigris);
+}
+.agent-reveal-line {
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: center;
+  color: var(--text-secondary);
+  max-width: 32ch;
+  margin-bottom: 4px;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-stage-inner, .agent-stage-shadow { animation: none; }
+  .agent-sheet, .agent-sheet-scrim { animation: none; }
+  .agent-bubble { transition: none; }
 }
 
 /* The agent, with a face.
@@ -2794,6 +2910,10 @@ h1, h2, h3, h4, h5, h6,
      how a person knows there is more without being told. */
   margin: 0 -13px;
   padding: 2px 13px 6px;
+  /* Without this the snap aligns a tile to the box edge rather than to the
+     padding edge, so the row comes to rest thirteen pixels in with the
+     first tile already clipped and the back arrow already live. */
+  scroll-padding-inline: 13px;
 }
 .shelf::-webkit-scrollbar { display: none; }
 .shelf-tile {
@@ -2941,3 +3061,35 @@ h1, h2, h3, h4, h5, h6,
   box-shadow: none;
 }
 .btn-inject.btn-inject-sm:hover:not(:disabled) { transform: none; box-shadow: none; opacity: 0.9; }
+
+/* The arrows sit above the row, right aligned, and grey out at each end so
+   they say how much is left as well as moving it. */
+.shelf-wrap { position: relative; }
+.shelf-nav {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: -2px;
+}
+.shelf-arrow {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 17px;
+  line-height: 1;
+  padding-bottom: 2px;
+  color: var(--text-primary);
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+  transition: border-color 140ms ease, opacity 140ms ease;
+}
+.shelf-arrow:hover:not(:disabled) { border-color: var(--verdigris); }
+.shelf-arrow:disabled { opacity: 0.3; }
+/* The last tile fades out rather than being chopped, which reads as more
+   rather than as a clipping bug. */
+.shelf.has-more {
+  mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
+}

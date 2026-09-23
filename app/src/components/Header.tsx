@@ -1,5 +1,5 @@
 import { AgentAvatar, type AgentMood } from './AgentAvatar';
-import { faceSeed, useAgentLook } from '../lib/agentLook';
+import { useAgentVariant } from '../lib/agentLook';
 import type { SealState } from '../lib/chain';
 import React, { useEffect, useState } from 'react';
 import {
@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
   sealed,
   mood,
 }) => {
-  const look = useAgentLook();
+  const variant = useAgentVariant();
   // The real session, from the exchange's own calendar.
   //
   // It sits next to WATCHING and SEALED because those two say the agent is
@@ -317,7 +317,7 @@ export const Header: React.FC<HeaderProps> = ({
             other. The face wins: it is the thing that reacts, so it is the
             thing worth recognising. */}
         {owner && (
-          <AgentAvatar seed={faceSeed(owner, look.variant)} mood={mood} size={26} style={look.style} />
+          <AgentAvatar seed={owner} variant={variant} mood={mood} size={26} />
         )}
         <button
           id="btn-intro"
