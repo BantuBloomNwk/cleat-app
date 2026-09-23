@@ -1,4 +1,5 @@
-import { AgentAvatar } from './AgentAvatar';
+import { AgentAvatar, type AgentMood } from './AgentAvatar';
+import { faceSeed, useAgentLook } from '../lib/agentLook';
 import type { SealState } from '../lib/chain';
 import React, { useEffect, useState } from 'react';
 import {
@@ -22,6 +23,8 @@ interface HeaderProps {
   onOpenOnboarding: () => void;
   /** Read off the vault, not asserted. See lib/chain.ts. */
   sealed: SealState;
+  /** The agent's reaction, so it is felt on whichever tab you are on. */
+  mood?: AgentMood;
 }
 
 /**
@@ -67,7 +70,9 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onOpenOnboarding,
   sealed,
+  mood,
 }) => {
+  const look = useAgentLook();
   // The real session, from the exchange's own calendar.
   //
   // It sits next to WATCHING and SEALED because those two say the agent is
@@ -311,7 +316,9 @@ export const Header: React.FC<HeaderProps> = ({
             sat on the Log, both meaning "you" and neither agreeing with the
             other. The face wins: it is the thing that reacts, so it is the
             thing worth recognising. */}
-        {owner && <AgentAvatar seed={owner} size={26} style="voxel-bot" />}
+        {owner && (
+          <AgentAvatar seed={faceSeed(owner, look.variant)} mood={mood} size={26} style={look.style} />
+        )}
         <button
           id="btn-intro"
           type="button"

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { AgentAvatar, type AgentMood } from './AgentAvatar';
+import { AGENT_STYLES, faceSeed, setLook, useAgentLook } from '../lib/agentLook';
 import { tactile } from '../utils/haptics';
 
 /**
@@ -26,20 +27,6 @@ import { tactile } from '../utils/haptics';
  * same read for nothing.
  */
 
-const STYLES = ['voxel-bot', 'voxel-art', 'bottts', 'thumbs'] as const;
-type Style = (typeof STYLES)[number];
-
-const STYLE_KEY = 'cleat_agent_style';
-const VARIANT_KEY = 'cleat_agent_variant';
-
-const readStored = (k: string, fallback: string) => {
-  try {
-    return localStorage.getItem(k) ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-
 export const AgentStage: React.FC<{
   /** The key this agent belongs to. Its face is derived from this. */
   seed: string;
@@ -47,24 +34,12 @@ export const AgentStage: React.FC<{
   /** What the agent is doing, in the fewest words that are true. */
   status?: string;
 }> = ({ seed, mood = 'idle', status }) => {
-  const [style, setStyle] = useState<Style>(
-    () => readStored(STYLE_KEY, 'voxel-bot') as Style,
-  );
-  // A variant lets somebody change the face without changing the key. The
-  // key still decides the default, so two people never start the same.
-  const [variant, setVariant] = useState(() => Number(readStored(VARIANT_KEY, '0')) || 0);
+  // Held in one place, because the same agent is drawn in the header and
+  // beside the log and it should be the same agent in all three.
+  const { style, variant } = useAgentLook();
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [dressing, setDressing] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STYLE_KEY, style);
-      localStorage.setItem(VARIANT_KEY, String(variant));
-    } catch {
-      /* a browser that will not remember still shows the default */
-    }
-  }, [style, variant]);
 
   /** Follow the pointer, gently, so it reads as an object with a front. */
   const onMove = (e: React.PointerEvent) => {
@@ -76,7 +51,7 @@ export const AgentStage: React.FC<{
     setTilt({ x: Math.max(-1, Math.min(1, dy)) * -9, y: Math.max(-1, Math.min(1, dx)) * 14 });
   };
 
-  const faceSeed = variant > 0 ? `${seed}#${variant}` : seed;
+  const face = faceSeed(seed, variant);
 
   return (
     <div className="agent-stage-wrap">
@@ -96,7 +71,7 @@ export const AgentStage: React.FC<{
           className="agent-stage-inner"
           style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
         >
-          <AgentAvatar seed={faceSeed} mood={mood} size={124} style={style} bare />
+          <AgentAvatar seed={face} mood={mood} size={124} style={style} bare />
         </div>
         <span className="agent-stage-shadow" aria-hidden="true" />
       </div>
@@ -114,21 +89,21 @@ export const AgentStage: React.FC<{
 
       {dressing && (
         <div className="agent-stage-picker">
-          {STYLES.map((s) => (
+          {AGENT_STYLES.map((s) => (
             <button
               key={s}
               type="button"
               className={`agent-style-chip${s === style ? ' is-on' : ''}`}
-              onClick={() => { tactile.selectionTap(); setStyle(s); }}
+              onClick={() => { tactile.selectionTap(); setLook({ style: s, variant }); }}
               title={s}
             >
-              <AgentAvatar seed={faceSeed} size={34} style={s} />
+              <AgentAvatar seed={face} size={34} style={s} />
             </button>
           ))}
           <button
             type="button"
             className="mesh-chip"
-            onClick={() => { tactile.mandateAction(); setVariant((v) => (v + 1) % 8); }}
+            onClick={() => { tactile.mandateAction(); setLook({ style, variant: (variant + 1) % 8 }); }}
           >
             another face
           </button>

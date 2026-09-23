@@ -5,6 +5,7 @@ import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
 import { lastSeen, markSeen, whenWord } from '../lib/lastSeen';
 import { AgentAvatar, type AgentMood } from './AgentAvatar';
+import { faceSeed, useAgentLook } from '../lib/agentLook';
 import { AttackBox } from './AttackBox';
 import { PlainEnglish } from './PlainEnglish';
 import { GateStatus } from './GateStatus';
@@ -106,6 +107,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   // which hours those were.
   const [overnightBadge, setOvernightBadge] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const look = useAgentLook();
 
   // The verdict, felt when it happens.
   //
@@ -253,7 +255,12 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                 and reacts when a verdict lands, hardest on a refusal. Its
                 face comes from the key, so it is the same one every time
                 without anybody uploading anything. */}
-            <AgentAvatar seed={owner} mood={mood} size={38} style="voxel-bot" />
+            <AgentAvatar
+              seed={faceSeed(owner, look.variant)}
+              mood={mood}
+              size={38}
+              style={look.style}
+            />
             <span className="since-band-text">
             {total === 0 ? (
               <span className="since-band-quiet">

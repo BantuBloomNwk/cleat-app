@@ -20,7 +20,7 @@ import {
   COMMUNITY_MANDATES,
 } from './data/initialData';
 import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
-import { loadChainSnapshot } from './lib/chain';
+import { DEMO_OWNER, loadChainSnapshot } from './lib/chain';
 import { useWallet } from './hooks/useWallet';
 import { hasWallet } from './lib/passkey';
 import type { Mandate, Restraint, SealState, SectorExposure } from './lib/chain';
@@ -86,6 +86,12 @@ export default function App() {
    * at.
    */
   const owner = wallet.state.status === 'ready' ? wallet.state.address : null;
+  // Who the agent belongs to, for the purpose of drawing it. Somebody who
+  // has not made a key yet is looking at the demo account, so that is whose
+  // agent they see, in the header and beside the log and on the vault, all
+  // three the same. Anything that moves value still uses `owner` and still
+  // refuses when there is none.
+  const identity = (owner ?? DEMO_OWNER).toBase58();
   useEffect(() => {
     let cancelled = false;
     loadChainSnapshot(owner ?? undefined, wallet.sleeve)
@@ -189,10 +195,11 @@ export default function App() {
         {/* Sticky Header */}
         <Header
           theme={theme}
-          owner={owner?.toBase58() ?? null}
+          owner={identity}
           onToggleTheme={toggleTheme}
           onOpenOnboarding={() => setIsOnboardingOpen(true)}
           sealed={sealed}
+          mood={pulse.mood}
         />
 
         {/* Scrollable Content View */}
@@ -207,7 +214,7 @@ export default function App() {
               onToggleEntry={handleToggleEntry}
               overnightRefusalCount={overnightRefusalCount}
               restraint={restraint}
-              owner={owner?.toBase58() ?? null}
+              owner={identity}
               mood={pulse.mood}
               arrived={pulse.arrived}
             />
