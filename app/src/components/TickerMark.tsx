@@ -96,6 +96,14 @@ function cellsOf(seed: number): boolean[][] {
  */
 const ALIASES: Record<string, string> = {
   SPACEX: 'SPCX',
+  // Pyth names a feed, not a tradable thing, and the mark is published
+  // against the instrument people actually buy. Gold is XAU on the oracle
+  // and GLD on an exchange; the euro is EUR and FXE; December crude is
+  // WTIZ6 and USO. Without these three the only rows left bare were the
+  // ones that are not companies, which read as the feature half working.
+  XAU: 'GLD',
+  EUR: 'FXE',
+  WTIZ6: 'USO',
 };
 
 export function tickerOf(symbol: string): string {

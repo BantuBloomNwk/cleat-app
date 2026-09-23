@@ -75,17 +75,30 @@ export default async (req: Request) => {
     }
     try {
       const res = await fetch(`https://backpack.exchange/api/stock-logo/${symbol}`);
-      const body = await res.text();
-      // Only serve something that is actually an SVG. Anything else is a
-      // miss, and a miss should fall through to the identicon rather than
-      // put a stranger's bytes in an image tag.
-      if (!res.ok || !body.includes("<svg")) {
-        return new Response("no mark", { status: 404 });
-      }
-      return new Response(body, {
+      if (!res.ok) return new Response("no mark", { status: 404 });
+      const buf = new Uint8Array(await res.arrayBuffer());
+
+      // Sniff it rather than trust it. The endpoint serves SVG for most
+      // names and PNG for others, all of it as text/plain, so the type has
+      // to be worked out here. An earlier version only accepted SVG, which
+      // silently dropped every mark that happened to be a bitmap and looked
+      // exactly like the logo not existing.
+      const head = new TextDecoder().decode(buf.subarray(0, 64));
+      const type =
+        head.includes("<svg") ? "image/svg+xml; charset=utf-8"
+        : buf[0] === 0x89 && buf[1] === 0x50 ? "image/png"
+        : buf[0] === 0xff && buf[1] === 0xd8 ? "image/jpeg"
+        : buf[0] === 0x52 && buf[1] === 0x49 ? "image/webp"
+        : null;
+      // Anything that is not a recognised image is a miss, and a miss falls
+      // through to the identicon rather than putting unknown bytes in an
+      // image tag.
+      if (!type) return new Response("no mark", { status: 404 });
+
+      return new Response(buf, {
         status: 200,
         headers: {
-          "content-type": "image/svg+xml; charset=utf-8",
+          "content-type": type,
           "cache-control": "public, max-age=86400, s-maxage=604800",
         },
       });

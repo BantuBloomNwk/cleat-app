@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Copy, Check, Share2, ShieldCheck, Cpu } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
@@ -98,6 +98,34 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   // report what happened overnight should agree with the market about
   // which hours those were.
   const [overnightBadge, setOvernightBadge] = useState<string | null>(null);
+
+  // The verdict, felt when it happens.
+  //
+  // Three haptic and audio signatures already existed and were wired to
+  // tapping a row, which is touch feedback dressed as agent feedback. The
+  // one moment this product generates that owes nothing to the market is a
+  // decision arriving, and it was silent. This fires on arrival and marks
+  // the new rows so they can announce themselves.
+  const seenIds = useRef<Set<string> | null>(null);
+  const [arrived, setArrived] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = new Set(entries.map((e) => e.id));
+    if (seenIds.current === null) { seenIds.current = ids; return; }
+    const fresh = entries.filter((e) => !seenIds.current!.has(e.id));
+    seenIds.current = ids;
+    if (fresh.length === 0) return;
+
+    // One signature per arrival, worst first. Two verdicts landing together
+    // should feel like the more serious of the two, not like a rattle.
+    const rank = { refused: 2, trimmed: 1, cleared: 0 } as const;
+    const loudest = fresh.reduce((a, b) =>
+      (rank[b.status as keyof typeof rank] ?? 0) > (rank[a.status as keyof typeof rank] ?? 0) ? b : a);
+    tactile.ledgerTrigger(loudest.status);
+
+    setArrived(new Set(fresh.map((e) => e.id)));
+    const t = setTimeout(() => setArrived(new Set()), 2200);
+    return () => clearTimeout(t);
+  }, [entries]);
 
   useEffect(() => {
     // On the way out. Marking on arrival would clear the band in the same
@@ -581,7 +609,8 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
             <article
               key={entry.id}
               id={`ledger-${entry.id}`}
-              className={`ledger-entry ${entry.expanded ? 'expanded' : ''}`}
+              className={`ledger-entry ${entry.expanded ? 'expanded' : ''}` +
+                (arrived.has(entry.id) ? ` just-landed just-landed-${entry.status}` : '')}
               onClick={() => {
                 tactile.ledgerTrigger(entry.status);
                 onToggleEntry(entry.id);

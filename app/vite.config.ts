@@ -84,10 +84,18 @@ export default defineConfig(() => {
         if (!/^[A-Z0-9.]{1,12}$/.test(symbol)) { res.statusCode = 400; return res.end('bad symbol'); }
         try {
           const r = await fetch(`https://backpack.exchange/api/stock-logo/${symbol}`);
-          const body = await r.text();
-          if (!r.ok || !body.includes('<svg')) { res.statusCode = 404; return res.end('no mark'); }
-          res.setHeader('content-type', 'image/svg+xml; charset=utf-8');
-          res.end(body);
+          if (!r.ok) { res.statusCode = 404; return res.end('no mark'); }
+          const buf = Buffer.from(await r.arrayBuffer());
+          const head = buf.subarray(0, 64).toString('utf8');
+          const type =
+            head.includes('<svg') ? 'image/svg+xml; charset=utf-8'
+            : buf[0] === 0x89 && buf[1] === 0x50 ? 'image/png'
+            : buf[0] === 0xff && buf[1] === 0xd8 ? 'image/jpeg'
+            : buf[0] === 0x52 && buf[1] === 0x49 ? 'image/webp'
+            : null;
+          if (!type) { res.statusCode = 404; return res.end('no mark'); }
+          res.setHeader('content-type', type);
+          res.end(buf);
         } catch { res.statusCode = 502; res.end('upstream'); }
       });
     },

@@ -1187,6 +1187,50 @@ body {
 .sleeve-chip-add { color: var(--text-tertiary); border-style: dashed; }
 .sleeve-note { font-size: 11px; line-height: 1.6; color: var(--text-tertiary); }
 
+/* A verdict announcing itself.
+   Motion carries the same ranking as the haptics: refused is the most
+   physical, cleared the least, so the eye and the hand agree about which
+   of the three just happened. */
+@keyframes landed-refused {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(-7px); }
+  32%  { transform: translateX(6px); }
+  50%  { transform: translateX(-4px); }
+  68%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+@keyframes landed-trimmed {
+  0%   { transform: scaleX(1); }
+  40%  { transform: scaleX(0.965); }
+  100% { transform: scaleX(1); }
+}
+@keyframes landed-cleared {
+  0%   { transform: translateY(4px); opacity: 0.6; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.just-landed { position: relative; }
+.just-landed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: landed-glow 2.2s ease-out forwards;
+}
+@keyframes landed-glow {
+  0%   { box-shadow: 0 0 0 1px currentColor, 0 0 22px -4px currentColor; opacity: 0.55; }
+  100% { box-shadow: 0 0 0 1px transparent, 0 0 0 transparent; opacity: 0; }
+}
+.just-landed-refused { animation: landed-refused 420ms ease-out; color: var(--refused-rust); }
+.just-landed-trimmed { animation: landed-trimmed 340ms ease-out; color: var(--trimmed-amber); }
+.just-landed-cleared { animation: landed-cleared 280ms ease-out; color: var(--verdigris); }
+
+/* Somebody who has turned motion off gets the colour and none of the shake. */
+@media (prefers-reduced-motion: reduce) {
+  .just-landed-refused, .just-landed-trimmed, .just-landed-cleared { animation: none; }
+  .just-landed::after { animation: landed-glow 2.2s ease-out forwards; }
+}
+
 /* The only line on the Log that is different today than it was yesterday. */
 .since-band {
   padding: 9px 13px;
