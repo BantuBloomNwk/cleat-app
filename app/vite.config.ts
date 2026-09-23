@@ -90,7 +90,8 @@ export default defineConfig(() => {
         if (!seed) { res.statusCode = 400; return res.end('bad seed'); }
         try {
           const r = await fetch(
-            `https://api.dicebear.com/10.x/${style}/svg?seed=${encodeURIComponent(seed)}`);
+            `https://api.dicebear.com/10.x/${style}/svg?seed=${encodeURIComponent(seed)}` +
+            (q.get('bg') === 'none' ? '&backgroundColor=00000000' : ''));
           const body = await r.text();
           if (!r.ok || !body.includes('<svg')) { res.statusCode = 404; return res.end('no avatar'); }
           res.setHeader('content-type', 'image/svg+xml; charset=utf-8');

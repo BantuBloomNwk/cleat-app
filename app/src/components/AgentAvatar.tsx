@@ -48,8 +48,10 @@ export const AgentAvatar: React.FC<{
   mood?: AgentMood;
   size?: number;
   style?: 'voxel-bot' | 'voxel-art' | 'bottts' | 'thumbs';
+  /** No plate behind it. For the large one, which stands rather than sits. */
+  bare?: boolean;
   className?: string;
-}> = ({ seed, mood = 'idle', size = 40, style = 'voxel-bot', className = '' }) => {
+}> = ({ seed, mood = 'idle', size = 40, style = 'voxel-bot', bare = false, className = '' }) => {
   // A reaction should play and then stop. Holding the caller's prop would
   // leave the character stuck mid-flinch until something else happened.
   const [shown, setShown] = useState<AgentMood>(mood);
@@ -67,11 +69,12 @@ export const AgentAvatar: React.FC<{
     };
   }, [mood]);
 
-  const src = `/api/avatar?style=${style}&seed=${encodeURIComponent(seed)}`;
+  const src =
+    `/api/avatar?style=${style}&seed=${encodeURIComponent(seed)}` + (bare ? '&bg=none' : '');
 
   return (
     <span
-      className={`agent-avatar agent-${shown} ${className}`}
+      className={`agent-avatar${bare ? ' agent-bare' : ''} agent-${shown} ${className}`}
       style={{ width: size, height: size }}
       // The mood is announced rather than only drawn, because somebody using
       // a screen reader should get the verdict too.

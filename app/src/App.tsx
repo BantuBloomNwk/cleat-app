@@ -7,6 +7,7 @@ import { DiaryTab } from './components/DiaryTab';
 import { ChartTab } from './components/ChartTab';
 import { MandatesTab } from './components/MandatesTab';
 import { YouTab } from './components/YouTab';
+import { useAgentPulse } from './hooks/useAgentPulse';
 import { OnboardingModal } from './components/OnboardingModal';
 import { VoiceModal } from './components/VoiceModal';
 import { TickDrawer } from './components/TickDrawer';
@@ -42,6 +43,8 @@ export default function App() {
   const [stats, setStats] = useState<EnforcerStats>(INITIAL_STATS);
   const [overnightRefusalCount, setOvernightRefusalCount] = useState(4);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(INITIAL_LEDGER_ENTRIES);
+  // One agent, so one reaction, held above the tabs that draw it.
+  const pulse = useAgentPulse(ledgerEntries);
   const [chartMarkers, setChartMarkers] = useState<ChartMarker[]>(INITIAL_CHART_MARKERS);
   // null until we know, then true if the screen is showing real devnet decisions
   const [isLive, setIsLive] = useState<boolean | null>(null);
@@ -205,6 +208,8 @@ export default function App() {
               overnightRefusalCount={overnightRefusalCount}
               restraint={restraint}
               owner={owner?.toBase58() ?? null}
+              mood={pulse.mood}
+              arrived={pulse.arrived}
             />
           )}
 
@@ -235,6 +240,8 @@ export default function App() {
               activeMandate={mandateSentence}
               wallet={wallet.state}
               walletApi={wallet}
+              agentMood={pulse.mood}
+              agentStatus={pulse.status}
             />
           )}
         </main>

@@ -32,6 +32,13 @@ export default async (req: Request) => {
   const url = new URL(req.url);
   const style = url.searchParams.get("style") ?? "voxel-bot";
   const seed = url.searchParams.get("seed") ?? "";
+  // DiceBear draws every style on a coloured plate. In a 40px circle that
+  // plate is the avatar's background and looks right. At 124px on a dark
+  // card it looks like a sticker somebody stuck to the screen, so the big
+  // one asks for no plate and gets its depth from a shadow instead.
+  // The API rejects the word transparent and wants hex, so a fully
+  // transparent colour is eight zeroes rather than a keyword.
+  const bare = url.searchParams.get("bg") === "none";
 
   // An allowlist rather than a passthrough: the style goes into an upstream
   // URL, so it is checked rather than trusted.
@@ -50,7 +57,8 @@ export default async (req: Request) => {
 
   try {
     const upstream =
-      `https://api.dicebear.com/10.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+      `https://api.dicebear.com/10.x/${style}/svg?seed=${encodeURIComponent(seed)}` +
+      (bare ? "&backgroundColor=00000000" : "");
     const res = await fetch(upstream, { headers: { accept: "image/svg+xml" } });
     const body = await res.text();
     if (!res.ok || !body.includes("<svg")) {

@@ -144,7 +144,12 @@ export const TickerMark: React.FC<{
   className?: string;
 }> = ({ symbol, image, equity = true, size = 18, className = '' }) => {
   const ticker = tickerOf(symbol);
-  const [src, setSrc] = useState<string | null>(null);
+  // When the caller already handed over a mark there is nothing to look up,
+  // so it should be on the first frame. Setting it in the effect instead
+  // meant one paint of identicon before the real thing replaced it, which
+  // is exactly the flicker people notice on the row that scrolls past.
+  const [src, setSrc] = useState<string | null>(() =>
+    image ? `/api/backpack?path=hosted&url=${encodeURIComponent(image)}` : null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -153,6 +158,12 @@ export const TickerMark: React.FC<{
       if (image) {
         setSrc(`/api/backpack?path=hosted&url=${encodeURIComponent(image)}`);
         return;
+      }
+      // A cached map answers in the same tick, so a mark already known does
+      // not flash an identicon on the way in either.
+      if (cache) {
+        const hit = cache.get(ticker);
+        if (hit) { setSrc(hit); return; }
       }
       const m = await iconMap();
       // The issuer's own icon first, because it is the one that matches the

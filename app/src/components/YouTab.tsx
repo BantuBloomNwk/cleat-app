@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { AgentStage } from './AgentStage';
+import type { AgentMood } from './AgentAvatar';
 import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
 import { VaultKey } from './VaultKey';
@@ -17,6 +19,9 @@ interface YouTabProps {
   wallet: WalletStatus;
   /** The one wallet, so this tab can unlock it and move value with it. */
   walletApi: ReturnType<typeof import('../hooks/useWallet').useWallet>;
+  /** What the agent is doing, so the stage reacts rather than just sits. */
+  agentMood?: AgentMood;
+  agentStatus?: string;
 }
 
 export const YouTab: React.FC<YouTabProps> = ({
@@ -25,6 +30,8 @@ export const YouTab: React.FC<YouTabProps> = ({
   activeMandate,
   wallet,
   walletApi,
+  agentMood = 'idle',
+  agentStatus,
 }) => {
   const [vibrationEnabled, setVibrationEnabled] = useState<boolean>(() => tactile.isVibrationEnabled());
   const [testPulseNotice, setTestPulseNotice] = useState<string | null>(null);
@@ -44,8 +51,23 @@ export const YouTab: React.FC<YouTabProps> = ({
       setTestPulseNotice(null);
     }, 2200);
   };
+  // The face is derived from the key, and somebody who has not made a key
+  // yet still gets one: the demo account draws the same agent for everyone,
+  // which is the point of it. Hiding the character until a passkey exists
+  // would mean the first thing a new person sees is the screen without it.
+  const owner =
+    wallet.status === 'ready' ? wallet.address.toBase58() : DEMO_OWNER.toBase58();
+
   return (
     <section className="tab-screen active flex flex-col gap-3.5 w-full pb-12" id="view-you">
+      {/* The agent itself, before anything about it.
+          Every other screen here opens with a number or a rule. This one
+          opens with the thing those belong to, because a person coming back
+          to check on something should see it before they read about it. */}
+      <article className="glass-card agent-stage-card" id="agent-stage">
+        <AgentStage seed={owner} mood={agentMood} status={agentStatus} />
+      </article>
+
       <div className="section-row-header">
         <h2 className="section-heading text-[16px] font-bold">Your Enforcer Profile</h2>
         <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
