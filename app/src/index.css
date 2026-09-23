@@ -1187,6 +1187,77 @@ body {
 .sleeve-chip-add { color: var(--text-tertiary); border-style: dashed; }
 .sleeve-note { font-size: 11px; line-height: 1.6; color: var(--text-tertiary); }
 
+/* The agent, with a face.
+   Idle breathes so it reads as watching rather than asleep. Thinking is
+   tighter and faster, and resolves within the three seconds the gate takes.
+   The three verdicts are deliberately unequal: refused is the biggest
+   movement in the set and cleared the smallest, because a character more
+   pleased by a clearance than by a refusal is a character cheering the
+   agent on, which is the one thing this product cannot have. */
+.agent-avatar {
+  display: inline-block;
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--card-surface-raised);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  transform-origin: 50% 85%;
+}
+.agent-avatar img { width: 100%; height: 100%; display: block; }
+
+@keyframes agent-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-1.5px) scale(1.015); }
+}
+@keyframes agent-think {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25%      { transform: translateY(-1px) rotate(-3deg); }
+  75%      { transform: translateY(-1px) rotate(3deg); }
+}
+@keyframes agent-cleared {
+  0%   { transform: translateY(0) scale(1); }
+  45%  { transform: translateY(-3px) scale(1.04); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes agent-trimmed {
+  0%   { transform: scale(1, 1); }
+  40%  { transform: scale(1.06, 0.9); }
+  70%  { transform: scale(0.98, 1.02); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes agent-refused {
+  0%   { transform: translateX(0) rotate(0deg) scale(1); }
+  12%  { transform: translateX(-5px) rotate(-7deg) scale(1.05); }
+  28%  { transform: translateX(5px) rotate(6deg) scale(1.05); }
+  44%  { transform: translateX(-4px) rotate(-5deg) scale(1.03); }
+  60%  { transform: translateX(3px) rotate(3deg) scale(1.01); }
+  100% { transform: translateX(0) rotate(0deg) scale(1); }
+}
+@keyframes agent-sealed {
+  0%   { transform: scale(1); filter: brightness(1); }
+  35%  { transform: scale(1.09); filter: brightness(1.35); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.agent-idle    { animation: agent-breathe 4.2s ease-in-out infinite; }
+.agent-thinking{ animation: agent-think 900ms ease-in-out infinite; }
+.agent-cleared { animation: agent-cleared 900ms ease-out; }
+.agent-trimmed { animation: agent-trimmed 1100ms cubic-bezier(.34,1.56,.64,1); }
+.agent-refused { animation: agent-refused 1600ms cubic-bezier(.36,.07,.19,.97); }
+.agent-sealed  { animation: agent-sealed 1400ms ease-out; }
+
+/* A ring in the verdict's own colour, so the state reads at a glance and
+   not only in motion. Somebody with motion turned off still gets this. */
+.agent-refused { box-shadow: inset 0 0 0 1.5px var(--refused-rust); }
+.agent-trimmed { box-shadow: inset 0 0 0 1.5px var(--trimmed-amber); }
+.agent-cleared { box-shadow: inset 0 0 0 1.5px var(--verdigris); }
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-idle, .agent-thinking, .agent-cleared,
+  .agent-trimmed, .agent-refused, .agent-sealed { animation: none; }
+}
+
 /* A verdict announcing itself.
    Motion carries the same ranking as the haptics: refused is the most
    physical, cleared the least, so the eye and the hand agree about which
@@ -1242,6 +1313,8 @@ body {
   line-height: 1.5;
 }
 .since-band strong { color: var(--verdigris); font-weight: 700; }
+.since-band-withagent { display: flex; align-items: center; gap: 11px; }
+.since-band-text { flex: 1; min-width: 0; }
 .since-band-quiet { color: var(--text-secondary); }
 
 /* You, as a mark. */

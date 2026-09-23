@@ -10,6 +10,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChartMarker, SocialTradeMessage } from '../types';
 import { TIMEFRAME_CONFIGS, INITIAL_SOCIAL_TRADE_MESSAGES } from '../data/initialData';
 import { tactile } from '../utils/haptics';
+import { AgentAvatar } from './AgentAvatar';
 import { D3VolumeProgressBar } from './D3VolumeProgressBar';
 import { D3VolumeSparkline } from './D3VolumeSparkline';
 import { DataInsightsModal } from './DataInsightsModal';
@@ -1229,9 +1230,11 @@ export const ChartTab: React.FC<ChartTabProps> = ({
             <div key={msg.id} className="social-msg-item">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-[var(--card-surface)] border border-[var(--card-border)] flex items-center justify-center font-mono font-bold text-[9px] text-[var(--verdigris)]">
-                    {msg.avatar}
-                  </div>
+                  {/* Two letters in a circle was the placeholder that
+                      survived into the build. Seeded on the handle, so the
+                      same person is the same face every time without an
+                      account, an upload or anything stored. */}
+                  <AgentAvatar seed={msg.sender} size={26} style="voxel-bot" />
                   <span className="font-mono font-bold text-[12px] text-[var(--text-primary)]">
                     @{msg.sender}
                   </span>

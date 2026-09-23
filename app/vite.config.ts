@@ -78,6 +78,26 @@ export default defineConfig(() => {
   const devLogo = {
     name: 'cleat-dev-logo',
     configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
+      // Avatars, same reasoning as the logos below: the function exists in
+      // production and dev borrows the deployed ones, so a path that has not
+      // shipped answers from the old build and the feature looks broken
+      // rather than unshipped.
+      server.middlewares.use(async (req: any, res: any, next: () => void) => {
+        if (!req.url?.startsWith('/api/avatar')) return next();
+        const q = new URL(req.url, 'http://x').searchParams;
+        const style = q.get('style') ?? 'voxel-bot';
+        const seed = q.get('seed') ?? '';
+        if (!seed) { res.statusCode = 400; return res.end('bad seed'); }
+        try {
+          const r = await fetch(
+            `https://api.dicebear.com/10.x/${style}/svg?seed=${encodeURIComponent(seed)}`);
+          const body = await r.text();
+          if (!r.ok || !body.includes('<svg')) { res.statusCode = 404; return res.end('no avatar'); }
+          res.setHeader('content-type', 'image/svg+xml; charset=utf-8');
+          res.end(body);
+        } catch { res.statusCode = 502; res.end('upstream'); }
+      });
+
       server.middlewares.use(async (req: any, res: any, next: () => void) => {
         if (!req.url?.startsWith('/api/backpack?path=logo')) return next();
         const symbol = (new URL(req.url, 'http://x').searchParams.get('symbol') ?? '').toUpperCase();

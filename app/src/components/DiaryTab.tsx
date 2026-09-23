@@ -4,6 +4,7 @@ import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
 import { lastSeen, markSeen, whenWord } from '../lib/lastSeen';
+import { AgentAvatar, type AgentMood } from './AgentAvatar';
 import { AttackBox } from './AttackBox';
 import { PlainEnglish } from './PlainEnglish';
 import { GateStatus } from './GateStatus';
@@ -108,6 +109,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   // the new rows so they can announce themselves.
   const seenIds = useRef<Set<string> | null>(null);
   const [arrived, setArrived] = useState<Set<string>>(new Set());
+  const [mood, setMood] = useState<AgentMood>('idle');
   useEffect(() => {
     const ids = new Set(entries.map((e) => e.id));
     if (seenIds.current === null) { seenIds.current = ids; return; }
@@ -121,6 +123,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
     const loudest = fresh.reduce((a, b) =>
       (rank[b.status as keyof typeof rank] ?? 0) > (rank[a.status as keyof typeof rank] ?? 0) ? b : a);
     tactile.ledgerTrigger(loudest.status);
+    setMood(loudest.status as AgentMood);
 
     setArrived(new Set(fresh.map((e) => e.id)));
     const t = setTimeout(() => setArrived(new Set()), 2200);
@@ -150,32 +153,6 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   }, []);
 
   const [selectedPeriod, setSelectedPeriod] = useState<'overnight' | 'week' | 'month'>('overnight');
-      {/* What changed since you last opened this.
-          The log is a complete record and a complete record looks the same
-          every morning, which is the whole reason there is nothing to come
-          back for. This is the only line on the screen that is different
-          today than it was yesterday. */}
-      {(() => {
-        const total = entries.length;
-        const seen = lastSeen(owner);
-        if (!owner || total === 0) return null;
-        const fresh = seen ? Math.max(0, total - seen.count) : total;
-        return (
-          <div className="since-band">
-            {fresh > 0 ? (
-              <>
-                <strong>{fresh}</strong> {fresh === 1 ? 'decision' : 'decisions'}{' '}
-                {seen ? `since you looked ${whenWord(seen.at)}` : 'so far'}
-              </>
-            ) : (
-              <span className="since-band-quiet">
-                Nothing new since you looked {seen ? whenWord(seen.at) : 'last'}.
-                Which is also the agent behaving.
-              </span>
-            )}
-          </div>
-        );
-      })()}
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'refused' | 'trimmed' | 'cleared'>('all');
   // Null until somebody fires a real proposal. The trace diagram shows
@@ -263,6 +240,48 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
 
   return (
     <section className="tab-screen active flex flex-col gap-3.5 w-full pb-12" id="view-diary">
+      {/* What changed since you last opened this.
+          The log is a complete record and a complete record looks the same
+          every morning, which is the whole reason there is nothing to come
+          back for. This is the only line on the screen that is different
+          today than it was yesterday. */}
+      {(() => {
+        const total = entries.length;
+        const seen = lastSeen(owner);
+        // Show it as soon as there is a key, not once there is history.
+        // Hiding the agent until something has happened means a new account
+        // sees nothing at all, which is exactly when a person most needs to
+        // be told something is running.
+        if (!owner) return null;
+        const fresh = seen ? Math.max(0, total - seen.count) : total;
+        return (
+          <div className="since-band since-band-withagent">
+            {/* The agent, watching. It breathes while nothing is happening
+                and reacts when a verdict lands, hardest on a refusal. Its
+                face comes from the key, so it is the same one every time
+                without anybody uploading anything. */}
+            <AgentAvatar seed={owner} mood={mood} size={38} style="voxel-bot" />
+            <span className="since-band-text">
+            {total === 0 ? (
+              <span className="since-band-quiet">
+                Watching. Nothing has been proposed yet, and your sentence is
+                already standing.
+              </span>
+            ) : fresh > 0 ? (
+              <>
+                <strong>{fresh}</strong> {fresh === 1 ? 'decision' : 'decisions'}{' '}
+                {seen ? `since you looked ${whenWord(seen.at)}` : 'so far'}
+              </>
+            ) : (
+              <span className="since-band-quiet">
+                Nothing new since you looked {seen ? whenWord(seen.at) : 'last'}.
+                Which is also the agent behaving.
+              </span>
+            )}
+            </span>
+          </div>
+        );
+      })()}
       <PlainEnglish />
 
       {/* Hero Mandate Card with 3D Specular Halo */}
