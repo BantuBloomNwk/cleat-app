@@ -36,11 +36,29 @@ export default defineConfig(() => {
   // travels in the query string and a proxy that rewrites the path to nothing
   // drops it. Rewriting to the full path and query keeps it, and keeps it out
   // of the bundle at the same time.
+  // Everything else under /api is a Netlify function, and running the
+  // Netlify CLI alongside vite to get them has been unreliable on this
+  // machine: it reports the dev server ready and then nothing is listening.
+  // The deployed functions are public and stateless, so dev borrows them.
+  // Nothing secret goes through here; the one endpoint that carries a key
+  // is /api/rpc, which is proxied separately to the upstream directly.
+  const FUNCTIONS = process.env.CLEAT_FUNCTIONS_ORIGIN
+    ?? 'https://cleat-preview.netlify.app';
+
   const proxy = (() => {
-    if (!rpc) return undefined;
+    const forwarded = Object.fromEntries(
+      ['backpack', 'sunrise', 'issuers', 'prestocks', 'pyth', 'adopt', 'attack', 'gate']
+        .map((name) => [`/api/${name}`, {
+          target: FUNCTIONS,
+          changeOrigin: true,
+          secure: true,
+        }]),
+    );
+    if (!rpc) return forwarded;
     const u = new URL(rpc);
     const rest = `${u.pathname}${u.search}`;
     return {
+      ...forwarded,
       '/api/rpc': {
         target: u.origin,
         changeOrigin: true,
