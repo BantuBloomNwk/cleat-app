@@ -43,12 +43,41 @@ async function iconMap(): Promise<Map<string, string>> {
   return inflight;
 }
 
-/** Stable hue from the letters, so a name keeps its colour across screens. */
-const hueOf = (s: string) => {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
-  return h;
+/**
+ * A deterministic identicon, the Gravatar way.
+ *
+ * The first version of this put two letters in a coloured circle, which is
+ * the same thing a thousand other products do and reads as a placeholder
+ * rather than as a mark. An identicon is the older and better idea: hash the
+ * name, use the bits to fill a small grid, mirror it so the result looks
+ * deliberate rather than noisy, and take the colour from the same hash.
+ *
+ * Same name, same mark, everywhere, forever, with nothing stored and nothing
+ * fetched. It also matters more here than in most places, because half the
+ * things this app names are not listed companies at all: a Pyth asset class
+ * or a private company before any exchange lists it has no published logo to
+ * fall back to, and those rows were the ones left bare.
+ */
+const hashOf = (s: string) => {
+  let a = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    a ^= s.charCodeAt(i);
+    a = Math.imul(a, 0x01000193) >>> 0;
+  }
+  return a;
 };
+
+/** Five columns, mirrored about the centre, so it reads as a shape. */
+function cellsOf(seed: number): boolean[][] {
+  const rows: boolean[][] = [];
+  let h = seed;
+  const next = () => (h = Math.imul(h ^ (h >>> 15), 0x2545f491) >>> 0);
+  for (let y = 0; y < 5; y++) {
+    const left = [0, 1, 2].map(() => (next() & 0x3) > 0);
+    rows.push([left[0], left[1], left[2], left[1], left[0]]);
+  }
+  return rows;
+}
 
 export const TickerMark: React.FC<{
   /** "NVDA", "NVDA.US" or "NVDA.US_USDC_PERP" all work. */
@@ -70,26 +99,36 @@ export const TickerMark: React.FC<{
     };
   }, [ticker]);
 
-  const hue = hueOf(ticker);
-  const style: React.CSSProperties = {
-    width: size,
-    height: size,
-    fontSize: Math.max(7, Math.round(size * 0.42)),
-  };
+  const style: React.CSSProperties = { width: size, height: size };
 
   if (!src || failed) {
+    const seed = hashOf(ticker);
+    const hue = seed % 360;
+    const cells = cellsOf(seed);
     return (
-      <span
-        className={`ticker-mark ticker-mark-fallback ${className}`}
-        style={{
-          ...style,
-          background: `hsl(${hue} 42% 22%)`,
-          color: `hsl(${hue} 70% 78%)`,
-        }}
-        aria-hidden="true"
+      <svg
+        className={`ticker-mark ${className}`}
+        style={style}
+        viewBox="0 0 5 5"
+        role="img"
+        aria-label={ticker}
       >
-        {ticker.slice(0, 2)}
-      </span>
+        <rect width="5" height="5" fill={`hsl(${hue} 38% 17%)`} />
+        {cells.map((row, y) =>
+          row.map((on, x) =>
+            on ? (
+              <rect
+                key={`${x}-${y}`}
+                x={x}
+                y={y}
+                width="1"
+                height="1"
+                fill={`hsl(${hue} 62% ${58 + ((x * 7 + y * 5) % 14)}%)`}
+              />
+            ) : null,
+          ),
+        )}
+      </svg>
     );
   }
 

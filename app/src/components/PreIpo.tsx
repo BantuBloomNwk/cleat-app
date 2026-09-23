@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DataOrigin } from './DataOrigin';
+import { TickerMark } from './TickerMark';
 
 /**
  * The hardest case the mandate has to handle.
@@ -80,12 +81,15 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
               key={r.symbol}
               className="flex items-baseline justify-between gap-3 px-2.5 py-2 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]"
             >
-              <span className="flex flex-col min-w-0">
-                <span className="font-mono text-[11.5px] font-bold text-[var(--text-primary)]">
-                  {r.symbol}
-                </span>
-                <span className="text-[10.5px] text-[var(--text-tertiary)] truncate">
-                  {r.name}
+              <span className="flex items-center gap-2 min-w-0">
+                <TickerMark symbol={r.symbol} size={20} />
+                <span className="flex flex-col min-w-0">
+                  <span className="font-mono text-[11.5px] font-bold text-[var(--text-primary)]">
+                    {r.symbol}
+                  </span>
+                  <span className="text-[10.5px] text-[var(--text-tertiary)] truncate">
+                    {r.name}
+                  </span>
                 </span>
               </span>
               <span className="flex items-center gap-2.5 shrink-0 font-mono text-[11px] tabular-nums">
