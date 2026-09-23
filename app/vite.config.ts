@@ -68,8 +68,33 @@ export default defineConfig(() => {
     };
   })();
 
+  // The logo endpoint, in dev.
+  //
+  // It lives in a Netlify function in production. Dev borrows the deployed
+  // functions, so a path that has not shipped yet answers 400 from the old
+  // build and every mark falls back to an identicon, which looks like the
+  // feature not working rather than the feature not being deployed. Fifteen
+  // lines here means dev shows what production will.
+  const devLogo = {
+    name: 'cleat-dev-logo',
+    configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
+      server.middlewares.use(async (req: any, res: any, next: () => void) => {
+        if (!req.url?.startsWith('/api/backpack?path=logo')) return next();
+        const symbol = (new URL(req.url, 'http://x').searchParams.get('symbol') ?? '').toUpperCase();
+        if (!/^[A-Z0-9.]{1,12}$/.test(symbol)) { res.statusCode = 400; return res.end('bad symbol'); }
+        try {
+          const r = await fetch(`https://backpack.exchange/api/stock-logo/${symbol}`);
+          const body = await r.text();
+          if (!r.ok || !body.includes('<svg')) { res.statusCode = 404; return res.end('no mark'); }
+          res.setHeader('content-type', 'image/svg+xml; charset=utf-8');
+          res.end(body);
+        } catch { res.statusCode = 502; res.end('upstream'); }
+      });
+    },
+  };
+
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), devLogo],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

@@ -79,20 +79,57 @@ function cellsOf(seed: number): boolean[][] {
   return rows;
 }
 
+/**
+ * The ticker inside whatever the feed calls it.
+ *
+ * Three feeds name the same company three ways and none of them match the
+ * key the issuer publishes its icon under. Backpack says NVDA.US_USDC_PERP.
+ * Pyth says Equity.US.TSLA/USD, or Commodities.WTIZ6/USD for a thing that
+ * is not a company at all. PreStocks says SPACEX where the issuer says
+ * SPCX. Every row in two whole lists was falling back to an identicon, and
+ * because the identicon looks deliberate rather than broken, it looked like
+ * a design choice instead of a failed lookup.
+ *
+ * Anything with no published icon still falls back, which is correct: a
+ * crude oil future and a private company nobody has listed do not have
+ * logos, and inventing one would be worse than drawing a mark.
+ */
+const ALIASES: Record<string, string> = {
+  SPACEX: 'SPCX',
+};
+
+export function tickerOf(symbol: string): string {
+  let t = symbol.split('/')[0];        // Equity.US.TSLA/USD -> Equity.US.TSLA
+  t = t.split('_')[0];                 // NVDA.US_USDC_PERP  -> NVDA.US
+  const parts = t.split('.');
+  // NVDA.US keeps its head, Equity.US.TSLA keeps its tail. The difference
+  // is whether the last segment is the country tag.
+  t = parts.length > 1 && /^(US|USD)$/i.test(parts[parts.length - 1])
+    ? parts[0]
+    : parts[parts.length - 1];
+  t = t.toUpperCase();
+  return ALIASES[t] ?? t;
+}
+
 export const TickerMark: React.FC<{
   /** "NVDA", "NVDA.US" or "NVDA.US_USDC_PERP" all work. */
   symbol: string;
   size?: number;
   className?: string;
 }> = ({ symbol, size = 18, className = '' }) => {
-  const ticker = symbol.split('_')[0].replace(/\.US$/i, '').toUpperCase();
+  const ticker = tickerOf(symbol);
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let live = true;
     iconMap().then((m) => {
-      if (live) setSrc(m.get(ticker) ?? null);
+      // The issuer's own icon first, because it is the one that matches the
+      // token. Anything with no token falls through to the venue's mark,
+      // which covers the names that trade here as perpetuals only and so
+      // appear in no token list at all. Both are same origin; the second is
+      // proxied so its content type is right and nothing new opens in CSP.
+      if (live) setSrc(m.get(ticker) ?? `/api/backpack?path=logo&symbol=${ticker}`);
     });
     return () => {
       live = false;

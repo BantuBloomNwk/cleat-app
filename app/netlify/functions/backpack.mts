@@ -59,6 +59,41 @@ export default async (req: Request) => {
   const url = new URL(req.url);
   const which = url.searchParams.get("path") ?? "securities";
 
+  // A company's mark, re-served from here.
+  //
+  // The venue publishes an SVG for any ticker, which is the only source that
+  // covers the names with no token behind them: Tesla and the Nasdaq trade
+  // here as perpetuals only, so they appear in no token list and had no logo
+  // anywhere. It serves them as text/plain, which an img tag will not render,
+  // and fetching it from the page would need the origin opened in connect-src
+  // for no reason. Proxying fixes the content type, keeps it same origin, and
+  // lets the edge cache it for a day.
+  if (which === "logo") {
+    const symbol = (url.searchParams.get("symbol") ?? "").toUpperCase();
+    if (!/^[A-Z0-9.]{1,12}$/.test(symbol)) {
+      return new Response("bad symbol", { status: 400 });
+    }
+    try {
+      const res = await fetch(`https://backpack.exchange/api/stock-logo/${symbol}`);
+      const body = await res.text();
+      // Only serve something that is actually an SVG. Anything else is a
+      // miss, and a miss should fall through to the identicon rather than
+      // put a stranger's bytes in an image tag.
+      if (!res.ok || !body.includes("<svg")) {
+        return new Response("no mark", { status: 404 });
+      }
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "content-type": "image/svg+xml; charset=utf-8",
+          "cache-control": "public, max-age=86400, s-maxage=604800",
+        },
+      });
+    } catch {
+      return new Response("upstream unreachable", { status: 502 });
+    }
+  }
+
   // An allowlist rather than a passthrough. A proxy that forwards whatever
   // path it is handed is an open relay wearing this project's domain.
   const takesSymbol = SYMBOL_PATHS.has(which);
