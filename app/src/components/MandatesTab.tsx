@@ -235,105 +235,6 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
         </button>
       </div>
 
-      {exposure.length > 0 && (
-        <article className="glass-card" id="sector-standing">
-          <div className="card-topbar">
-            <span className="meta-kicker">Where the book stands</span>
-            <DataOrigin origin="chain" />
-          </div>
-          <p className="text-[11.5px] leading-[1.5] text-[var(--text-secondary)] mb-3">
-            What has been cleared into each sector, against the ceiling the
-            sentence sets. This is the running total that makes a position cap a
-            position cap. It counts decisions, never holdings.
-          </p>
-          <div className="flex flex-col gap-2.5">
-            {exposure.map((e) => {
-              const full = e.capBps > 0 && e.bps >= e.capBps;
-              const width = e.capBps > 0
-                ? Math.min(100, (e.bps / e.capBps) * 100)
-                : 0;
-              return (
-                <div key={e.sector} className="flex flex-col gap-1">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[12px] font-medium text-[var(--text-primary)]">
-                      {e.sector}
-                    </span>
-                    <span
-                      className="text-[11px] font-mono tabular-nums"
-                      style={{
-                        color: full
-                          ? 'var(--refused-rust)'
-                          : 'var(--text-secondary)',
-                      }}
-                    >
-                      {(e.bps / 100).toFixed(2)}% of {(e.capBps / 100).toFixed(2)}%
-                    </span>
-                  </div>
-                  <div
-                    className="h-[5px] rounded-full overflow-hidden bg-[var(--card-surface)] border border-[var(--card-border-subtle)]"
-                    role="meter"
-                    aria-valuenow={e.bps}
-                    aria-valuemin={0}
-                    aria-valuemax={e.capBps}
-                    aria-label={`${e.sector} exposure`}
-                  >
-                    <div
-                      className="h-full rounded-full transition-[width] duration-500"
-                      style={{
-                        width: `${width}%`,
-                        background: full
-                          ? 'var(--refused-rust)'
-                          : 'var(--verdigris)',
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {chainMandate && chainMandate.denied.length > 0 && (
-            <div className="mt-3.5 pt-3 border-t border-[var(--card-border-subtle)]">
-              <span className="text-[10.5px] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
-                Ruled out by name
-              </span>
-              <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)] mt-1">
-                The sentence says no fossil fuels. A program cannot read that, so
-                the clause resolves off chain into {chainMandate.denied.length}{' '}
-                mints and the list is what gets enforced. It has to name every
-                issuer that has wrapped the company, because an agent refused at
-                one address can route to another without breaking a rule.
-              </p>
-              <div className="flex flex-col gap-1.5 mt-2">
-                {chainMandate.denied.map((mint) => {
-                  const known = denied.find((d) => d.mint === mint);
-                  return (
-                    <div key={mint} className="flex flex-col gap-0.5">
-                      {known?.name && (
-                        <span className="text-[11px] text-[var(--text-primary)]">
-                          {known.name}
-                          <span className="text-[var(--text-tertiary)]">
-                            {' '}
-                            via {issuerLabel(known.issuer)}
-                            {known.symbol ? `, ${known.symbol}` : ''}
-                          </span>
-                        </span>
-                      )}
-                      <code className="text-[10px] font-mono text-[var(--text-tertiary)] break-all">
-                        {mint}
-                      </code>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {chainMandate?.halted && (
-            <p className="mt-3 text-[11.5px] font-medium text-[var(--text-primary)]">
-              This mandate is halted. Nothing proposes until the owner lifts it.
-            </p>
-          )}
-        </article>
-      )}
 
       {standings.length > 0 && (
         <section className="flex flex-col gap-2.5" id="published-mandates">
@@ -350,11 +251,9 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
           </div>
 
           <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-            Every one of these lives at an address derived from its author's own
-            key, so nobody can publish somebody else's sentence. That is the
-            whole of the identity system, and it needs no profile, no handle and
-            no domain. A name, when there is one, is a label on top of a proof
-            that already holds without it.
+            Each lives at an address derived from its author's own key, so
+            nobody can publish somebody else's sentence. That is the whole
+            identity system. No profile, no handle, no domain.
           </p>
 
           {published.map((m) => (
@@ -479,6 +378,110 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
             </article>
           ))}
         </section>
+      )}
+
+      {/* Your own book, under other people's sentences.
+          This tab is named for what other people wrote and this card
+          is about you, so it led the screen purely because it was
+          written first. */}
+      {exposure.length > 0 && (
+        <article className="glass-card" id="sector-standing">
+          <div className="card-topbar">
+            <span className="meta-kicker">Where the book stands</span>
+            <DataOrigin origin="chain" />
+          </div>
+          <p className="text-[11.5px] leading-[1.5] text-[var(--text-secondary)] mb-3">
+            What has been cleared into each sector, against the ceiling the
+            sentence sets. This is the running total that makes a position cap a
+            position cap. It counts decisions, never holdings.
+          </p>
+          <div className="flex flex-col gap-2.5">
+            {exposure.map((e) => {
+              const full = e.capBps > 0 && e.bps >= e.capBps;
+              const width = e.capBps > 0
+                ? Math.min(100, (e.bps / e.capBps) * 100)
+                : 0;
+              return (
+                <div key={e.sector} className="flex flex-col gap-1">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[12px] font-medium text-[var(--text-primary)]">
+                      {e.sector}
+                    </span>
+                    <span
+                      className="text-[11px] font-mono tabular-nums"
+                      style={{
+                        color: full
+                          ? 'var(--refused-rust)'
+                          : 'var(--text-secondary)',
+                      }}
+                    >
+                      {(e.bps / 100).toFixed(2)}% of {(e.capBps / 100).toFixed(2)}%
+                    </span>
+                  </div>
+                  <div
+                    className="h-[5px] rounded-full overflow-hidden bg-[var(--card-surface)] border border-[var(--card-border-subtle)]"
+                    role="meter"
+                    aria-valuenow={e.bps}
+                    aria-valuemin={0}
+                    aria-valuemax={e.capBps}
+                    aria-label={`${e.sector} exposure`}
+                  >
+                    <div
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{
+                        width: `${width}%`,
+                        background: full
+                          ? 'var(--refused-rust)'
+                          : 'var(--verdigris)',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {chainMandate && chainMandate.denied.length > 0 && (
+            <div className="mt-3.5 pt-3 border-t border-[var(--card-border-subtle)]">
+              <span className="text-[10.5px] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+                Ruled out by name
+              </span>
+              <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)] mt-1">
+                The sentence says no fossil fuels. A program cannot read that, so
+                the clause resolves off chain into {chainMandate.denied.length}{' '}
+                mints and the list is what gets enforced. It has to name every
+                issuer that has wrapped the company, because an agent refused at
+                one address can route to another without breaking a rule.
+              </p>
+              <div className="flex flex-col gap-1.5 mt-2">
+                {chainMandate.denied.map((mint) => {
+                  const known = denied.find((d) => d.mint === mint);
+                  return (
+                    <div key={mint} className="flex flex-col gap-0.5">
+                      {known?.name && (
+                        <span className="text-[11px] text-[var(--text-primary)]">
+                          {known.name}
+                          <span className="text-[var(--text-tertiary)]">
+                            {' '}
+                            via {issuerLabel(known.issuer)}
+                            {known.symbol ? `, ${known.symbol}` : ''}
+                          </span>
+                        </span>
+                      )}
+                      <code className="text-[10px] font-mono text-[var(--text-tertiary)] break-all">
+                        {mint}
+                      </code>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {chainMandate?.halted && (
+            <p className="mt-3 text-[11.5px] font-medium text-[var(--text-primary)]">
+              This mandate is halted. Nothing proposes until the owner lifts it.
+            </p>
+          )}
+        </article>
       )}
 
       {published.length > 0 && (
