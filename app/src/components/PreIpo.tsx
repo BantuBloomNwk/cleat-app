@@ -75,6 +75,37 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
         point rather than a limitation.
       </p>
 
+      {/* The cap, and where everything sits against it.
+          The grid says how far each name is from its mark, one at a time,
+          and a person has to hold eight numbers in their head to see the
+          shape. This is the same eight on one axis with the allowed band
+          shaded, so the answer to "how much of this can the agent touch"
+          is a picture rather than an exercise. */}
+      <div className="drift-ruler" aria-hidden="true">
+        <span className="drift-band" style={{ width: `${Math.min(100, (cap / 100 / 30) * 100)}%` }} />
+        <span className="drift-axis" />
+        {rows.map((r) => {
+          const over = Math.abs(r.driftBps) > cap;
+          const at = 50 + Math.max(-49, Math.min(49, (r.driftBps / 100 / 30) * 50));
+          return (
+            <span
+              key={r.symbol}
+              className={`drift-dot${over ? ' is-over' : ''}`}
+              style={{ left: `${at}%` }}
+              title={`${r.symbol} ${(r.driftBps / 100).toFixed(1)}%`}
+            />
+          );
+        })}
+      </div>
+      <div className="drift-scale" aria-hidden="true">
+        <span>30% under</span>
+        {/* The band is a sliver because the cap is a sliver. Saying the
+            number under it is the difference between reading that as a
+            tight rule and reading it as a rendering fault. */}
+        <span className="drift-allowed">allowed: {(cap / 100).toFixed(2)}%</span>
+        <span>30% over</span>
+      </div>
+
       {/* Two across rather than eight down. These are meant to be compared
           against one another and against the cap, and a grid puts four in
           the eye at once where a column put one. */}

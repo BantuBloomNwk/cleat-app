@@ -3093,3 +3093,58 @@ h1, h2, h3, h4, h5, h6,
   mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
 }
+
+/* Eight names against one cap.
+   The band in the middle is what the sentence allows; a dot outside it is
+   a name the agent cannot buy. It is the same eight numbers the grid below
+   already carries, arranged so the shape of the answer arrives before the
+   reading does. */
+.drift-ruler {
+  position: relative;
+  height: 26px;
+  margin-top: 2px;
+  border-radius: 8px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+  overflow: hidden;
+}
+.drift-band {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  translate: -50% 0;
+  min-width: 3px;
+  background: color-mix(in srgb, var(--verdigris) 18%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent);
+}
+.drift-axis {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--card-border);
+}
+.drift-dot {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: var(--verdigris);
+  box-shadow: 0 0 0 2px var(--card-surface-raised);
+}
+.drift-dot.is-over { background: var(--refused-rust); }
+.drift-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  margin-top: -2px;
+}
+.drift-scale .drift-allowed { color: var(--verdigris); }
