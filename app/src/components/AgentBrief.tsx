@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { PublicKey } from '@solana/web3.js';
 import { KeyRound, Check } from 'lucide-react';
+import {
+  connection, decodeVerdictLog, newestVerdict, reasonText, verdictCount,
+} from '../lib/chain';
 import {
   PROVIDERS, chooseProvider, chosenProvider, keyStore, providerReady, type Provider,
 } from '../lib/models';
@@ -98,14 +102,45 @@ export const AgentBrief: React.FC<{
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ?? `the gate said ${res.status}`);
-      const v: Verdict = {
-        status: body.status ?? body.verdict ?? 'refused',
-        reason: body.reason ?? body.headline ?? '',
-        ms: body.ms,
-        signature: body.signature,
-        explorer: body.explorer,
-      };
+      if (!res.ok || body?.error) {
+        throw new Error(body?.error ?? `the gate said ${res.status}`);
+      }
+      if (!body.log || !body.computation) {
+        throw new Error('the gate took the proposal but did not say where to read it');
+      }
+
+      // The queue transaction does not carry the answer. The circuit runs,
+      // a callback writes a verdict into the log, and the only honest place
+      // to read it is off the chain, which is the same reason the box on the
+      // Log tab reads it that way rather than believing a response body.
+      const log = new PublicKey(body.log);
+      let before = 0;
+      try {
+        const info = await connection.getAccountInfo(log);
+        before = info ? verdictCount(decodeVerdictLog(new Uint8Array(info.data))) : 0;
+      } catch { before = 0; }
+
+      const startedAt = Date.now();
+      let v: Verdict | null = null;
+      for (let waited = 0; waited < 90_000 && !v; waited += 1500) {
+        await new Promise((r) => setTimeout(r, 1500));
+        let info;
+        try { info = await connection.getAccountInfo(log); } catch { continue; }
+        if (!info) continue;
+        const data = new Uint8Array(info.data);
+        if (verdictCount(decodeVerdictLog(data)) <= before) continue;
+        const nv = newestVerdict(data);
+        if (!nv) continue;
+        v = {
+          status: nv.outcome === 0 ? 'cleared' : nv.outcome === 1 ? 'trimmed' : 'refused',
+          reason: reasonText(nv.reason),
+          ms: Date.now() - startedAt,
+          signature: body.signature,
+          explorer: body.explorer,
+        };
+      }
+      if (!v) throw new Error('the circuit did not answer inside ninety seconds');
+
       setVerdict(v);
       tactile.ledgerTrigger(v.status);
       onMood(v.status as AgentMood);
@@ -208,10 +243,22 @@ export const AgentBrief: React.FC<{
             </p>
           )}
 
+          {busy === 'gating' && (
+            <p className="brief-privacy">
+              The circuit is deciding. It takes a few seconds, and the answer
+              is read back off the chain rather than reported from here.
+            </p>
+          )}
+
           {verdict && (
             <div className={`brief-verdict brief-${verdict.status}`}>
               <span className="brief-verdict-word">{verdict.status}</span>
               <span>{verdict.reason}</span>
+              {verdict.ms !== undefined && (
+                <span className="font-mono text-[10px] text-[var(--text-tertiary)]">
+                  {(verdict.ms / 1000).toFixed(1)}s
+                </span>
+              )}
               {verdict.explorer && (
                 <a href={verdict.explorer} target="_blank" rel="noreferrer noopener" className="brief-link">
                   read it on chain
