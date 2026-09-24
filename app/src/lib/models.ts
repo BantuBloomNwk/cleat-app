@@ -82,15 +82,12 @@ export const PROVIDERS: Provider[] = [
     privacy: 'Nothing leaves your device. The most private option and the one that needs the most setup.',
     needsKey: false,
   },
-  {
-    id: 'metered',
-    name: 'Pay per call',
-    tier: 'metered',
-    endpoint: '/api/inference',
-    privacy:
-      'No key to manage. The agent pays for each call out of the allowance you set on chain, and the prompt passes through our proxy.',
-    needsKey: false,
-  },
+  // Pay per call is described above and is not in this list, because it is
+  // not built. It wanted a proxy on this origin that meters against the on
+  // chain allowance over x402, and that endpoint does not exist. Listing it
+  // as a choice a person can make, next to four that work, would be the
+  // product claiming something the code does not do, which is the one thing
+  // an app about refusals cannot get away with.
 ];
 
 import { deriveLocalSecretKey, seal, unseal } from './passkey';
@@ -197,6 +194,9 @@ export function chosenProvider(): Provider {
   } catch {
     /* fall through to the default */
   }
+  // Falls back to the local model rather than to the first in the list: the
+  // default should be the one that needs no key and sends nothing anywhere,
+  // even though it is also the one that needs the most setup.
   return PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[PROVIDERS.length - 1];
 }
 

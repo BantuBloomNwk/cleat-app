@@ -114,7 +114,7 @@ export const AgentSpend: React.FC<{ owner: PublicKey }> = ({ owner }) => {
                   ? 'your key, direct'
                   : p.tier === 'local'
                     ? 'on your machine'
-                    : 'metered, we pay'}
+                    : 'metered, you pay'}
               </span>
             </div>
           ))}

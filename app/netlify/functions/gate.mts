@@ -142,10 +142,44 @@ export default async (req: Request) => {
   }
 
   let key: string;
-  try { key = String(((await req.json()) as any)?.scenario ?? ""); }
-  catch { return json({ error: "not json" }, 400); }
-  const s = SCENARIOS[key];
-  if (!s) return json({ error: "unknown scenario" }, 400);
+  let ask: { category?: unknown; bps?: unknown; side?: unknown } | undefined;
+  try {
+    const body = (await req.json()) as any;
+    key = String(body?.scenario ?? "");
+    ask = body?.ask;
+  } catch { return json({ error: "not json" }, 400); }
+  const base = SCENARIOS[key];
+  if (!base) return json({ error: "unknown scenario" }, 400);
+
+  // A caller may bring their own ask. Their own agent drafted it, so the
+  // sector, the size and the direction are theirs to choose.
+  //
+  // What they may not bring is `heldBps`. That is the secret the whole
+  // exercise turns on: it is sealed to the MXE, it is the only difference
+  // between a pair of otherwise identical proposals, and a caller who could
+  // set it would have turned a confidential gate into an oracle they can
+  // read by asking it about a holding they already know. So the ask is the
+  // caller's and the book is the scenario's, which is also the honest shape
+  // of the product: you say what you want, and what you already hold is not
+  // yours to declare to the thing checking you.
+  const s = { ...base };
+  if (ask && typeof ask === "object") {
+    const cat = Number((ask as any).category);
+    const bps = Number((ask as any).bps);
+    const side = Number((ask as any).side);
+    if (!Number.isInteger(cat) || cat < 1 || cat > 5) {
+      return json({ error: "no such sector" }, 400);
+    }
+    if (!Number.isInteger(bps) || bps < 1 || bps > 2000) {
+      return json({ error: "a size has to be between 1 and 2000 basis points" }, 400);
+    }
+    if (side !== 0 && side !== 1) return json({ error: "side is 0 or 1" }, 400);
+    s.category = cat;
+    s.bps = bps;
+    s.side = side;
+    s.label = `${(bps / 100).toFixed(bps % 100 ? 2 : 0)}% of sector ${cat}`;
+    s.tests = "an ask this account's own agent wrote";
+  }
 
   try {
     const owner = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(ownerSecret)));

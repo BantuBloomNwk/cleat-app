@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Settings2 } from 'lucide-react';
 import { AgentModel } from './AgentModel';
 import { AgentPicker } from './AgentPicker';
+import { AgentBrief } from './AgentBrief';
 import type { AgentMood } from './AgentAvatar';
 import { BUILD_NAMES, buildIndex } from '../lib/agentBuilds';
 import { setVariant, useAgentVariant } from '../lib/agentLook';
@@ -47,6 +48,9 @@ export const AgentStage: React.FC<{
   // simply appears, which is a text field updating; with it, something
   // above its head crackles and then it speaks, which is the thing doing it.
   const [charging, setCharging] = useState(false);
+  // A verdict the person asked for outranks the polling one, and it is the
+  // same character reacting either way.
+  const [asked, setAsked] = useState<AgentMood | null>(null);
 
   const index = buildIndex(seed, variant);
   const name = BUILD_NAMES[index % BUILD_NAMES.length];
@@ -98,7 +102,7 @@ export const AgentStage: React.FC<{
           <AgentModel
             seed={seed}
             variant={variant}
-            mood={mood}
+            mood={asked ?? mood}
             size={104}
             charging={charging}
             talking={visible}
@@ -130,6 +134,8 @@ export const AgentStage: React.FC<{
           </p>
         </div>
       </div>
+
+      <AgentBrief onMood={setAsked} />
 
       {picking && (
         <AgentPicker

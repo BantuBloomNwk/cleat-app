@@ -3156,3 +3156,107 @@ h1, h2, h3, h4, h5, h6,
   text-transform: lowercase;
   color: var(--text-tertiary);
 }
+
+/* Giving the agent something to try.
+   Folded away by default. The vault is a place people come to check on
+   something, not to type, and a text field sitting open at the top of it
+   would be the loudest thing on a screen whose job is to be quiet. */
+.brief { border-top: 1px solid var(--card-border-subtle); }
+.brief-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 13px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: left;
+}
+.brief-provider {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+.brief-body { display: flex; flex-direction: column; gap: 9px; padding: 0 13px 13px; }
+.brief-note, .brief-privacy {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.brief-privacy { font-size: 11px; color: var(--text-tertiary); }
+.brief-providers { display: flex; flex-wrap: wrap; gap: 6px; }
+.brief-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface-raised);
+  color: var(--text-secondary);
+}
+.brief-chip.is-on {
+  border-color: var(--verdigris);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.brief-key, .brief-ask { display: flex; align-items: center; gap: 7px; }
+.brief-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 11px;
+  border-radius: 11px;
+  border: 1px solid var(--card-border-subtle);
+  background: var(--card-surface-raised);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.brief-input:focus { outline: 2px solid var(--verdigris); outline-offset: 1px; }
+.brief-link {
+  color: var(--verdigris);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: inherit;
+}
+.brief-draft { font-size: 11.5px; line-height: 1.55; color: var(--text-secondary); }
+.brief-why { color: var(--text-tertiary); font-style: italic; }
+.brief-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border-subtle);
+  border-left-width: 3px;
+  background: var(--card-surface-raised);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.brief-verdict-word {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.brief-cleared { border-left-color: var(--verdigris); }
+.brief-cleared .brief-verdict-word { color: var(--verdigris); }
+.brief-trimmed { border-left-color: var(--trimmed-amber); }
+.brief-trimmed .brief-verdict-word { color: var(--trimmed-amber); }
+.brief-refused { border-left-color: var(--refused-rust); }
+.brief-refused .brief-verdict-word { color: var(--refused-rust); }
+.brief-err { font-size: 11.5px; line-height: 1.5; color: var(--refused-rust); }
+/* A disabled Ask has to look disabled. The shared rule only dims to 0.75
+   with a wait cursor, which reads as "working" rather than as "not yet",
+   and here the reason it is off is usually that no key has been added. */
+.brief-ask .btn-inject:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: saturate(0.5);
+}

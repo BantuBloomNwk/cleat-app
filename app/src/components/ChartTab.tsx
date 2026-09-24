@@ -1076,8 +1076,18 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               label="Open enforcement volume in full"
             />
           </div>
-          <span className="font-mono text-[10px] text-[var(--text-tertiary)] px-2 py-0.5 rounded-full bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] whitespace-nowrap ml-auto shrink-0">
-            Rolling {activeTimeframe} Window
+          <span className="flex items-center gap-2 ml-auto shrink-0">
+            <span className="font-mono text-[10px] text-[var(--text-tertiary)] px-2 py-0.5 rounded-full bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] whitespace-nowrap">
+              Rolling {activeTimeframe} Window
+            </span>
+            {/* These figures are illustrative and have to say so. The devnet
+                program has processed a few dozen decisions in its life, not
+                three thousand eight hundred, and this panel was the one place
+                in the app carrying invented numbers under a live pulse with
+                no label on them. Every other sampled surface here is marked;
+                this one was not, which made the submission notes wrong as
+                well as the screen. */}
+            <DataOrigin origin="sample" />
           </span>
         </div>
 

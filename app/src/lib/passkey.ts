@@ -267,13 +267,29 @@ export async function createWallet(): Promise<Keypair> {
     /* fall through to the stored seed path */
   }
 
-  // No PRF on this authenticator. Keep a seed, which is what every passkey
-  // wallet did before PRF existed, so this browser is no worse off.
-  const seed = randomBytes(32);
-  store.set(MODE_KEY, 'stored');
-  store.set(CRED_KEY, credId);
-  store.set(SEED_KEY, toHex(seed));
-  return Keypair.fromSeed(seed);
+  // No PRF on this authenticator, so no wallet.
+  //
+  // This used to fall back to keeping a random seed in local storage, on the
+  // reasoning that it is what every passkey wallet did before PRF existed, so
+  // the browser was no worse off. That was wrong twice over. The seed sat
+  // there as plain hex, which makes "nothing secret is stored" untrue on
+  // exactly this path, and it is the path least likely to be noticed because
+  // everything above it works. And a stored seed has no way back: the whole
+  // reason for deriving from PRF is that the key follows the passkey to the
+  // person's other devices, and a seed in one browser's storage is one
+  // eviction away from gone with nothing to restore it from.
+  //
+  // Refusing is the honest answer. Every platform authenticator shipping
+  // today does PRF, so what this actually rules out is an old security key
+  // and a browser pretending to have one, and for both of those a clear no
+  // beats a wallet that cannot be recovered and was never as private as the
+  // rest of the app claims.
+  throw new Error(
+    'This device cannot make a key Cleat can stand behind. Its passkey ' +
+    'does not support the extension the wallet is derived from, which is ' +
+    'also what lets the key follow you to another device. Try Safari on an ' +
+    'iPhone, or Chrome with a platform passkey.',
+  );
 }
 
 /** Unlock the existing wallet. Falls back to discoverable if nothing is known. */

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { PublicKey, type Keypair } from '@solana/web3.js';
 import { connection } from '../lib/chain';
 import { tactile } from '../utils/haptics';
-import { delegateVault, moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
+import { moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
 import { confirmPresence, walletSyncMode } from '../lib/passkey';
 
 /**
@@ -319,21 +319,24 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
           </button>
         </div>
 
-        {/* Delegation, for real rather than as a badge.
-            This hands the vault to MagicBlock's rollup so decisions settle in
-            milliseconds instead of slots. The app knows it happened because
-            the account's owner changes, which it reads rather than is told. */}
-        <div className="vault-buttons">
-          <button
-            type="button"
-            className="mesh-chip"
-            disabled={!keypair || !!busy || vaultLamports === null || delegated}
-            onClick={() => run('Delegation', () => delegateVault(keypair!, wallet.sleeve))}
-            title={delegated ? 'Already running on the rollup' : 'Hand the vault to the attested rollup'}
-          >
-            {busy === 'Delegation' ? 'Signing…' : delegated ? 'Running fast' : 'Make it fast'}
-          </button>
-        </div>
+        {/* Delegation, and why the button for it is not here.
+            Handing the vault to MagicBlock's rollup is real, it works, and
+            the app can see it happen because the account's owner changes on
+            base, which it reads rather than is told. The trip back cannot be
+            made from here: seal and release are signed inside the rollup
+            rather than against base, which means the rollup's client in this
+            bundle and its host in the policy, and neither is a change to
+            make the night before something is due.
+            So the button is gone rather than half working. A control that
+            hands your vault somewhere this app cannot reach it from, with no
+            way back on the same screen, is worse than no control. The loop
+            is proven end to end by scripts/roundtrip.mjs, which is where the
+            timings quoted elsewhere on this tab come from. */}
+        <p className="text-[11px] leading-[1.6] text-[var(--text-tertiary)]">
+          {delegated
+            ? 'This vault is running on the attested rollup. Bringing it back is signed inside the rollup, so it is done with scripts/roundtrip.mjs rather than from here.'
+            : 'Delegation to the attested rollup is proven end to end by scripts/roundtrip.mjs, with the timings quoted on the Log tab. It is not wired to a button here, because the trip back has to be signed inside the rollup and this screen cannot reach it yet.'}
+        </p>
       </div>
 
       {note && (
