@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PublicKey } from '@solana/web3.js';
 import { KeyRound, Check } from 'lucide-react';
 import {
@@ -31,6 +32,14 @@ import { tactile } from '../utils/haptics';
  * the secret the gate turns on, it stays on the server side of this call, and
  * a proposal that could declare it would have turned a confidential check
  * into a lookup.
+ *
+ * It opens as a sheet rather than unfolding in place. Expanding inline shoved
+ * the whole vault down the screen the moment anybody touched it, which is the
+ * wrong thing for a tab people open to check on something: the answer they
+ * came for should not move because they poked at a control. A sheet covers
+ * the screen while it is being used and gives it straight back, and it
+ * escapes the card's backdrop filter through a portal for the same reason the
+ * agent picker does.
  */
 
 interface Verdict {
@@ -152,19 +161,21 @@ export const AgentBrief: React.FC<{
     }
   };
 
-  return (
-    <section className="brief">
-      <button
-        type="button"
-        className="brief-toggle"
-        onClick={() => { tactile.selectionTap(); setOpen((o) => !o); }}
-        aria-expanded={open}
+  const sheet = (
+    <div className="agent-sheet-scrim" onClick={() => setOpen(false)}>
+      <div
+        className="agent-sheet brief-sheet"
+        role="dialog"
+        aria-label="Give your agent something to try"
+        onClick={(e) => e.stopPropagation()}
       >
-        <span>{open ? 'Close' : 'Give it something to try'}</span>
-        <span className="brief-provider">{provider.name}{ready ? '' : ' · no key'}</span>
-      </button>
+        <div className="agent-sheet-head">
+          <span className="meta-kicker">Give it something to try</span>
+          <button type="button" className="agent-sheet-x" onClick={() => setOpen(false)} aria-label="close">
+            ✕
+          </button>
+        </div>
 
-      {open && (
         <div className="brief-body">
           <p className="brief-note">
             Your model has the idea, and it runs on your key from this browser.
@@ -269,7 +280,23 @@ export const AgentBrief: React.FC<{
 
           {err && <p className="brief-err">{err}</p>}
         </div>
-      )}
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="brief">
+      <button
+        type="button"
+        className="brief-toggle"
+        onClick={() => { tactile.selectionTap(); setOpen(true); }}
+        aria-haspopup="dialog"
+      >
+        <span>Give it something to try</span>
+        <span className="brief-provider">{provider.name}{ready ? '' : ' · no key'}</span>
+      </button>
+
+      {open && createPortal(sheet, document.body)}
     </section>
   );
 };

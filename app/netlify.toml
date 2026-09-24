@@ -5,6 +5,10 @@
   publish = "dist"
   # Already bundled by scripts/bundle-functions.mjs. See the note below.
   functions = "netlify/functions-dist"
+  # Said explicitly rather than left to the default, because a deploy that
+  # skips the build step does not always go looking for this directory, and
+  # a missing edge function is a 404 rather than an error anybody notices.
+  edge_functions = "netlify/edge-functions"
 
 # Bundle the functions rather than shipping node_modules.
 #

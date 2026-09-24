@@ -3260,3 +3260,68 @@ h1, h2, h3, h4, h5, h6,
   cursor: not-allowed;
   filter: saturate(0.5);
 }
+
+/* The brief, as a sheet.
+   It unfolded in place at first, which pushed the whole vault down the
+   screen the moment anybody touched it. A tab people open to check on
+   something should not move the thing they came for because they poked a
+   control, so it covers the screen while it is in use and gives it back. */
+.brief-sheet { align-items: stretch; gap: 0; padding: 14px 15px 16px; }
+.brief-sheet .brief-body { padding: 10px 0 0; }
+.brief { border-top: 1px solid var(--card-border-subtle); }
+
+/* The spending policy, made visible.
+   It was real, fail closed and correct, and it lived entirely in a CLI
+   script and a code comment, which meant the one control that stops the
+   agent before its key is used could not be pointed at. */
+.ows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: var(--card-surface-raised);
+  border: 1px solid var(--card-border-subtle);
+}
+.ows-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ows-tag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+.ows-note { font-size: 11px; line-height: 1.6; color: var(--text-secondary); }
+.ows-quiet { color: var(--text-tertiary); }
+.ows-note code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--card-surface);
+}
+.ows-rules { display: flex; flex-direction: column; gap: 4px; }
+.ows-rule {
+  display: grid;
+  grid-template-columns: 52px minmax(0, auto) 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  border-left: 2px solid transparent;
+  background: var(--card-surface);
+  font-size: 10.5px;
+}
+.ows-verdict {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ows-deny { border-left-color: var(--refused-rust); }
+.ows-deny .ows-verdict { color: var(--refused-rust); }
+.ows-allow { border-left-color: var(--verdigris); }
+.ows-allow .ows-verdict { color: var(--verdigris); }
+.ows-when { color: var(--text-primary); font-weight: 600; }
+.ows-why { color: var(--text-tertiary); min-width: 0; }

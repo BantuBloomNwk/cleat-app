@@ -106,6 +106,14 @@ interface RawQuote {
  * starts on the proxy. Flip this back to true when the upstream sends one
  * header instead of two, and the geo property returns with no other change:
  * the direct path is still here and still tried first.
+ *
+ * The proxy it falls back to is now an edge function rather than a regular
+ * one, and that is the whole difference between a geofence that works and a
+ * geofence that lies. Regular functions run in us-east-1, Sunrise blocks the
+ * United States, and so every person everywhere was handed Virginia's
+ * answer. Edge functions run at the point of presence nearest the viewer, so
+ * the check lands roughly where the person is, which is what the paragraph
+ * above always claimed was the point.
  */
 let directWorks = false;
 
@@ -129,14 +137,14 @@ async function quote(
         });
       } catch {
         directWorks = false;
-        res = await fetch("/api/sunrise?path=quote", {
+        res = await fetch("/api/quote", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: payload,
         });
       }
     } else {
-      res = await fetch("/api/sunrise?path=quote", {
+      res = await fetch("/api/quote", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: payload,

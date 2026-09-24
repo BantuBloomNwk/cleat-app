@@ -92,8 +92,63 @@ export const AgentSpend: React.FC<{ owner: PublicKey }> = ({ owner }) => {
             how often the agent was stopped from spending is the same kind of
             fact as how often it was stopped from trading.
           </p>
+
         </div>
       )}
+
+        {/* What stops it before it signs.
+            The numbers above are the on chain ceiling, and the program is
+            the thing that finally enforces them. But a refusal at the
+            program is a transaction that was already built and signed, and
+            the earlier and cheaper place to say no is before the agent's
+            key is used at all. That is what this is, and it was doing its
+            job in a file nobody could see from the app. */}
+        <div className="ows">
+          <div className="ows-head">
+            <span className="meta-kicker">Before it can even sign</span>
+            <span className="ows-tag">Open Wallet Standard · x402</span>
+          </div>
+          <p className="ows-note">
+            The agent's key is held by an OWS signing core, which is the part
+            that is genuinely hard and the part OWS does well: the model
+            never sees the key, the core decrypts in hardened memory, signs,
+            and wipes. What OWS does not ship is a spend cap. Its own rules
+            are which chains a key may use and when the grant runs out, and
+            its docs say a ceiling has to be written as an executable policy.
+          </p>
+          <p className="ows-note">
+            An executable policy is a file on the agent's own machine, under
+            the same operator, which is fine for an operator protecting
+            itself and no use to a client who wants a number they can check.
+            So the policy here holds no number. It reads the two figures
+            above off this account, which you wrote and the agent cannot
+            raise, and refuses anything that would not fit.
+          </p>
+          <div className="ows-rules">
+            {[
+              ['no account', 'deny', 'nothing opened, so nothing may be spent'],
+              ['over the ceiling', 'deny', 'the period total would not fit'],
+              ['wrong agent', 'deny', 'not the key this account names'],
+              ['cannot read the chain', 'deny', 'an unreadable ceiling is not an absent one'],
+              ['inside it', 'allow', 'and the program checks again anyway'],
+            ].map(([when, verdict, why]) => (
+              <div key={when} className={`ows-rule ows-${verdict}`}>
+                <span className="ows-verdict">{verdict}</span>
+                <span className="ows-when">{when}</span>
+                <span className="ows-why">{why}</span>
+              </div>
+            ))}
+          </div>
+          <p className="ows-note ows-quiet">
+            Four of the five are denials and the last one defers, which is
+            the shape a policy should have: it fails closed, so a policy
+            that cannot reach the chain stops the agent rather than waving
+            it through. Run it yourself with no environment set and it
+            answers <code>{'{"decision":"deny"}'}</code> and a reason. The
+            policy is <code>scripts/ows-policy.mjs</code>, and it is the
+            authority; this panel only says what it does.
+          </p>
+        </div>
 
       <div className="flex flex-col gap-1.5 pt-2.5 border-t border-[var(--card-border-subtle)]">
         <span className="text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-tertiary)]">
