@@ -4,6 +4,7 @@ import { CrossIssuer } from './CrossIssuer';
 import { PreIpo } from './PreIpo';
 import { Watching } from './Watching';
 import { DataOrigin } from './DataOrigin';
+import { ARCIUM, PER, PUBLIC_GATE, ms, provenance } from '../lib/measured';
 import { ChartMesh } from './ChartMesh';
 import { symbolTicker, loadTickers, loadDepth, bookQuality, isPerp } from '../lib/backpack';
 import React, { useState, useEffect, useRef } from 'react';
@@ -15,35 +16,54 @@ import { D3VolumeProgressBar } from './D3VolumeProgressBar';
 import { D3VolumeSparkline } from './D3VolumeSparkline';
 import { DataInsightsModal } from './DataInsightsModal';
 
+/**
+ * What the record actually says, in the unit the record is kept in.
+ *
+ * This was a table of dollars: ninety four million over thirty days, one
+ * point two four billion all time, on a devnet program that has decided a
+ * few dozen things in its life. It was not merely made up, it was made up in
+ * a currency this system is incapable of producing. The verdict struct holds
+ * a slot, a category and two basis point figures, deliberately, because a
+ * complete log with amounts in it would leak the portfolio by inference over
+ * a few weeks and undo the thing the vault exists to protect.
+ *
+ * So the metric changes rather than the source. Basis points asked against
+ * basis points allowed is the one accounting a confidential system can
+ * publish, it is already on chain, and it happens to be the more interesting
+ * number: how much of what the agent wanted it was not given.
+ */
+interface Enforcement {
+  /** Basis points the agent asked for and did not get. */
+  refused: number;
+  /** Basis points it was allowed. */
+  cleared: number;
+  totalFormatted: string;
+  txCount: number;
+  refusedCount: number;
+  clearedCount: number;
+}
+
+const EMPTY_ENFORCEMENT: Enforcement = {
+  refused: 0, cleared: 0, totalFormatted: '0%', txCount: 0, refusedCount: 0, clearedCount: 0,
+};
+
 interface ChartTabProps {
   markers: ChartMarker[];
   onOpenTickDrawer: () => void;
   /** The widest book the mandate will trade into. Zero means unset. */
   maxSpreadBps: number;
+  /** What the log actually holds, or null while it is being read. */
+  enforcement: Enforcement | null;
+  /** The record in order, as running totals, for the line under it. */
+  trend: { day: string; cleared: number; refused: number }[];
 }
 
-const TIMEFRAME_VOLUMES: Record<
-  '1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL',
-  {
-    refused: number;
-    cleared: number;
-    totalFormatted: string;
-    txCount: number;
-    refusedCount: number;
-    clearedCount: number;
-  }
-> = {
-  '1H': { refused: 0.14, cleared: 0.42, totalFormatted: '$0.56M', txCount: 22, refusedCount: 7, clearedCount: 15 },
-  '24H': { refused: 1.64, cleared: 3.18, totalFormatted: '$4.82M', txCount: 188, refusedCount: 64, clearedCount: 124 },
-  '7D': { refused: 8.92, cleared: 19.68, totalFormatted: '$28.60M', txCount: 940, refusedCount: 290, clearedCount: 650 },
-  '30D': { refused: 27.30, cleared: 66.90, totalFormatted: '$94.20M', txCount: 3820, refusedCount: 1110, clearedCount: 2710 },
-  '1Y': { refused: 198.50, cleared: 441.50, totalFormatted: '$640.0M', txCount: 24600, refusedCount: 7600, clearedCount: 17000 },
-  'ALL': { refused: 384.00, cleared: 856.00, totalFormatted: '$1.24B', txCount: 48900, refusedCount: 15150, clearedCount: 33750 },
-};
 
 export const ChartTab: React.FC<ChartTabProps> = ({
   onOpenTickDrawer,
   maxSpreadBps,
+  enforcement,
+  trend,
 }) => {
   const [activeTimeframe, setActiveTimeframe] = useState<'1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL'>('30D');
   const [is3DActive, setIs3DActive] = useState(false);
@@ -190,7 +210,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
     }
   };
 
-  const currentVolume = TIMEFRAME_VOLUMES[activeTimeframe] || TIMEFRAME_VOLUMES['24H'];
+  const currentVolume = enforcement ?? EMPTY_ENFORCEMENT;
 
   const handleMarkerSelect = (marker: ChartMarker) => {
     setSelectedMarker(marker);
@@ -998,33 +1018,76 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           }}
         >
           {showKernelLayers
-            ? 'Hide Cryptographic Execution Layers'
-            : 'Inspect 3D Cryptographic Execution Layers (drawn)'}
+            ? 'Hide what each layer cost'
+            : 'What each layer actually cost'}
         </button>
 
         {showKernelLayers && (
           <div className="flex flex-col gap-2 mt-1" id="kernelLayersContainer">
-            <div className="bg-[var(--card-surface-raised)] border border-[var(--card-border)] rounded-xl p-2.5 flex items-center justify-between font-mono text-[11px] border-l-[3px] border-l-[var(--verdigris)]">
-              <div>
-                <div className="font-bold text-[var(--text-primary)] font-sans">Layer 1: Magicblock Ephemeral Rollup (PER)</div>
-                <div className="text-[10px] text-[var(--text-tertiary)]">Sub-millisecond confidential transaction execution</div>
+            {/* Measured, not written down.
+                These three rows used to read 14ms, 22ms and Interrupted.
+                The confidential gate's measured median is three and a
+                quarter seconds, so the middle one was wrong by two orders
+                of magnitude in the flattering direction, and wrong in a way
+                anybody discovers by pressing the button on the Log tab and
+                counting. A number nobody can reproduce is worse than no
+                number. These come out of measurements/, which the scripts
+                that did the runs wrote, and they move when a better run is
+                recorded. */}
+            {[
+              {
+                name: 'Layer 1: Solana, in one transaction',
+                what: 'The public caps. Position, trade size, sector, deny list, halt.',
+                value: ms(PUBLIC_GATE.p50),
+                note: provenance(PUBLIC_GATE),
+                colour: 'var(--verdigris)',
+              },
+              {
+                name: 'Layer 2: Arcium, confidential',
+                what: 'The same verdict without anybody seeing the holding it turned on.',
+                value: ms(ARCIUM.p50),
+                note: provenance(ARCIUM),
+                colour: 'var(--ember)',
+              },
+              {
+                name: 'Layer 3: MagicBlock, attested rollup',
+                what: 'Where a cleared trade executes. A refused one never arrives.',
+                value: ms(PER.attestationMs + PER.sealMs + PER.releaseMs),
+                note: `${PER.attestationMs}ms to verify the attestation, ${PER.sealMs}ms to seal, ${PER.releaseMs}ms to release`,
+                colour: 'var(--refused-rust)',
+              },
+            ].map((layer) => (
+              <div
+                key={layer.name}
+                className="bg-[var(--card-surface-raised)] border border-[var(--card-border)] rounded-xl p-2.5 flex items-start justify-between gap-3 border-l-[3px]"
+                style={{ borderLeftColor: layer.colour }}
+              >
+                <div className="min-w-0">
+                  <div className="font-bold text-[11.5px] text-[var(--text-primary)] font-sans">
+                    {layer.name}
+                  </div>
+                  <div className="text-[10.5px] leading-[1.5] text-[var(--text-secondary)]">
+                    {layer.what}
+                  </div>
+                  <div className="text-[9.5px] font-mono text-[var(--text-tertiary)] mt-0.5">
+                    {layer.note}
+                  </div>
+                </div>
+                <span
+                  className="font-mono text-[13px] font-bold shrink-0 tabular-nums"
+                  style={{ color: layer.colour }}
+                >
+                  {layer.value}
+                </span>
               </div>
-              <span className="text-[var(--verdigris)] font-bold">14ms</span>
-            </div>
-            <div className="bg-[var(--card-surface-raised)] border border-[var(--card-border)] rounded-xl p-2.5 flex items-center justify-between font-mono text-[11px] border-l-[3px] border-l-[var(--ember)]">
-              <div>
-                <div className="font-bold text-[var(--text-primary)] font-sans">Layer 2: Confidential MPC Verification (Arcium)</div>
-                <div className="text-[10px] text-[var(--text-tertiary)]">Threshold multi-party mandate verification &amp; state audit</div>
-              </div>
-              <span className="text-[var(--ember)] font-bold">22ms</span>
-            </div>
-            <div className="bg-[var(--card-surface-raised)] border border-[var(--card-border)] rounded-xl p-2.5 flex items-center justify-between font-mono text-[11px] border-l-[3px] border-l-[var(--refused-rust)]">
-              <div>
-                <div className="font-bold text-[var(--text-primary)] font-sans">Layer 3: Solana Cryptographic Gate Enforcer</div>
-                <div className="text-[10px] text-[var(--text-tertiary)]">Cold refusal gate triggered before on-chain commitment</div>
-              </div>
-              <span className="text-[var(--refused-rust)] font-bold">Interrupted</span>
-            </div>
+            ))}
+            <p className="text-[10px] leading-[1.6] text-[var(--text-tertiary)]">
+              Devnet, from a handful of runs on one machine in one place, which
+              is evidence rather than a benchmark. The slow one is the private
+              one, and that is the trade the product is actually offering: a
+              refusal nobody had to be shown your book to reach costs seconds
+              rather than milliseconds.
+            </p>
           </div>
         )}
 
@@ -1065,7 +1128,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             <span className="w-2 h-2 rounded-full bg-[var(--verdigris)] animate-pulse shrink-0" />
             <h3 className="font-sans font-bold text-[13.5px] text-[var(--text-primary)] whitespace-nowrap">
-              {activeTimeframe === '24H' ? '24-Hour' : `${activeTimeframe}`} Enforcement Volume
+              What the agent asked for, and got
             </h3>
             {/* Kept on the title line. The full sized button pushed the
                 window pill onto a second row and read louder than the
@@ -1077,17 +1140,14 @@ export const ChartTab: React.FC<ChartTabProps> = ({
             />
           </div>
           <span className="flex items-center gap-2 ml-auto shrink-0">
+            {/* Not a rolling window any more. The log is a ring of sixteen
+                and every entry in it is recent, so a thirty day pill over
+                these numbers would be a second untruth stacked on the first.
+                It says what it is: the whole record. */}
             <span className="font-mono text-[10px] text-[var(--text-tertiary)] px-2 py-0.5 rounded-full bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] whitespace-nowrap">
-              Rolling {activeTimeframe} Window
+              The whole record
             </span>
-            {/* These figures are illustrative and have to say so. The devnet
-                program has processed a few dozen decisions in its life, not
-                three thousand eight hundred, and this panel was the one place
-                in the app carrying invented numbers under a live pulse with
-                no label on them. Every other sampled surface here is marked;
-                this one was not, which made the submission notes wrong as
-                well as the screen. */}
-            <DataOrigin origin="sample" />
+            <DataOrigin origin="chain" />
           </span>
         </div>
 
@@ -1107,7 +1167,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
           <div className="col-span-2 p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <div className="flex items-baseline gap-2.5 min-w-0">
               <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] whitespace-nowrap">
-                Total Volume
+                Asked for
               </span>
               <span className="text-[17px] font-mono font-extrabold text-[var(--text-primary)]">
                 {currentVolume.totalFormatted}
@@ -1123,18 +1183,18 @@ export const ChartTab: React.FC<ChartTabProps> = ({
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--refused-rust)] font-bold">
-                  Refused
+                  Held back
                 </span>
                 <span className="text-[10px] font-mono font-bold text-[var(--refused-rust)]">
                   {((currentVolume.refused / (currentVolume.refused + currentVolume.cleared)) * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="text-[15px] font-mono font-extrabold text-[var(--refused-rust)] mt-0.5">
-                ${currentVolume.refused.toFixed(2)}M
+                {(currentVolume.refused / 100).toFixed(1)}%
               </div>
             </div>
             <span className="text-[10px] text-[var(--refused-rust)]/80 mt-0.5 truncate">
-              {currentVolume.refusedCount.toLocaleString()} blocked cold
+              {currentVolume.refusedCount.toLocaleString()} refused or trimmed
             </span>
           </div>
 
@@ -1150,17 +1210,18 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                 </span>
               </div>
               <div className="text-[15px] font-mono font-extrabold text-[var(--verdigris)] mt-0.5">
-                ${currentVolume.cleared.toFixed(2)}M
+                {(currentVolume.cleared / 100).toFixed(1)}%
               </div>
             </div>
             <span className="text-[10px] text-[var(--verdigris)]/80 mt-0.5 truncate">
-              {currentVolume.clearedCount.toLocaleString()} compliant
+              {currentVolume.clearedCount.toLocaleString()} cleared
             </span>
           </div>
 
           {/* 7-Day High-Density D3 Sparkline Graph */}
           <div className="col-span-2 p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-center min-w-0 overflow-hidden">
             <D3VolumeSparkline
+              data={trend}
               compact={true}
               action={
                 <ExpandButton
@@ -1330,12 +1391,12 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         <div className="grid grid-cols-2 gap-2.5">
           <div className="p-3 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
             <span className="block text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">Cleared</span>
-            <span className="block font-mono text-[19px] text-[var(--verdigris)] tabular-nums">${currentVolume.cleared.toFixed(2)}M</span>
+            <span className="block font-mono text-[19px] text-[var(--verdigris)] tabular-nums">{(currentVolume.cleared / 100).toFixed(1)}%</span>
             <span className="block text-[11px] text-[var(--text-secondary)]">{currentVolume.clearedCount.toLocaleString()} decisions</span>
           </div>
           <div className="p-3 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
             <span className="block text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">Refused</span>
-            <span className="block font-mono text-[19px] text-[var(--refused-rust)] tabular-nums">${currentVolume.refused.toFixed(2)}M</span>
+            <span className="block font-mono text-[19px] text-[var(--refused-rust)] tabular-nums">{(currentVolume.refused / 100).toFixed(1)}%</span>
             <span className="block text-[11px] text-[var(--text-secondary)]">{currentVolume.refusedCount.toLocaleString()} decisions</span>
           </div>
         </div>
@@ -1354,7 +1415,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         wide
       >
         <div className="p-3 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
-          <D3VolumeSparkline compact={false} />
+          <D3VolumeSparkline data={trend} compact={false} />
         </div>
         <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
           Drag across the chart to read any day. The gap between the two lines is

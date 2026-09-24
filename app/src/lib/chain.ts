@@ -530,6 +530,16 @@ export interface ChainSnapshot {
   /** Sectors that have something in them, against the cap they run to. */
   exposure: SectorExposure[];
   restraint: Restraint;
+  /**
+   * The record in order, as running totals.
+   *
+   * The panel that draws this used to plot a week of invented dollars, and
+   * there is no week to plot: the log is a ring of sixteen and every entry
+   * in it is recent. What there is, and what is worth seeing, is the gap
+   * between what the agent kept asking for and what it kept being allowed,
+   * widening decision by decision.
+   */
+  trend: { n: number; asked: number; allowed: number }[];
   sealed: SealState;
 }
 
@@ -579,6 +589,15 @@ export async function loadChainSnapshot(
       sealed: (vaultInfo && !vaultInfo.owner.equals(PROGRAM_ID)
         ? "cleated"
         : "open") as SealState,
+      trend: (() => {
+        let asked = 0;
+        let allowed = 0;
+        return log.entries.map((v, i) => {
+          asked += v.proposedBps;
+          allowed += v.allowedBps;
+          return { n: i + 1, asked, allowed };
+        });
+      })(),
       restraint: log.entries.reduce(
         (acc, v) => ({
           askedBps: acc.askedBps + v.proposedBps,

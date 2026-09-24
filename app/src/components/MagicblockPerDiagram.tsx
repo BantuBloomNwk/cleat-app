@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ARCIUM, PUBLIC_GATE, ms as fmtMs, provenance } from '../lib/measured';
 import { ShieldAlert, ShieldCheck, Play, RotateCcw, Cpu, Lock, ArrowRight, Zap, CheckCircle2, XCircle } from 'lucide-react';
 import { tactile } from '../utils/haptics';
 
@@ -44,14 +45,24 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
   }, [run]);
 
   /**
-   * What each stage cost, from the run if there is one.
+   * What each stage cost.
    *
-   * Four boxes, three measurements: submitted, confirmed, verdict read. The
-   * third box is the Arcium evaluator, which does not run, so it never gets a
-   * number however many runs happen.
+   * Four boxes, three measurements: submitted, confirmed, verdict read.
+   *
+   * Before anybody pressed anything these all said "send one", which made
+   * the most technical panel in the app an empty table on first sight, and
+   * an empty table reads as unbuilt rather than as untried. So it opens on
+   * the last recorded run instead: real numbers out of measurements/, with
+   * devnet signatures behind them, clearly labelled as recorded rather than
+   * live. Press the button and they are replaced by what that press cost.
    */
   const measured = (i: number): string => {
-    if (!run) return 'send one';
+    if (!run) {
+      if (i === 0) return fmtMs(PUBLIC_GATE.min);
+      if (i === 1) return fmtMs(PUBLIC_GATE.p50);
+      if (i === 2) return fmtMs(ARCIUM.p50);
+      return fmtMs(PUBLIC_GATE.max);
+    }
     if (i === 2) return 'gate not live';
     const ms = i === 0 ? run.submittedMs : i === 1 ? run.confirmedMs : run.readMs;
     return ms === null ? 'no answer' : `${ms}ms`;
@@ -533,9 +544,11 @@ export const MagicblockPerDiagram: React.FC<DiagramProps> = ({ run = null }) => 
             </>
           ) : (
             <>
-              Nothing has been sent yet, so there is nothing to time. Send a
-              proposal in the box above and these fill in with what it
-              actually cost.
+              These are the last runs anybody recorded rather than one you
+              sent: {provenance(PUBLIC_GATE)} for the public path and{' '}
+              {provenance(ARCIUM)} for the confidential one, both with devnet
+              signatures behind them in measurements/. Send a proposal in the
+              box above and they are replaced by what that one actually cost.
             </>
           )}
           {flowMode === 'compliant' ? (

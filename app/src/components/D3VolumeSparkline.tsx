@@ -4,21 +4,22 @@ import { tactile } from '../utils/haptics';
 
 export interface DayTrendPoint {
   day: string;
-  cleared: number; // $M
-  refused: number; // $M
+  /** Basis points, cumulative. */
+  cleared: number;
+  refused: number;
   clearedCount: number;
   refusedCount: number;
 }
 
-const DEFAULT_7D_TREND: DayTrendPoint[] = [
-  { day: 'Sun', cleared: 2.85, refused: 1.62, clearedCount: 710, refusedCount: 390 },
-  { day: 'Mon', cleared: 3.42, refused: 1.34, clearedCount: 840, refusedCount: 310 },
-  { day: 'Tue', cleared: 3.15, refused: 1.88, clearedCount: 790, refusedCount: 430 },
-  { day: 'Wed', cleared: 3.94, refused: 1.25, clearedCount: 960, refusedCount: 280 },
-  { day: 'Thu', cleared: 3.72, refused: 1.10, clearedCount: 910, refusedCount: 250 },
-  { day: 'Fri', cleared: 4.18, refused: 1.55, clearedCount: 1040, refusedCount: 370 },
-  { day: 'Today', cleared: 4.26, refused: 1.48, clearedCount: 1084, refusedCount: 336 },
-];
+/**
+ * Nothing, until the chain says otherwise.
+ *
+ * This held a week of invented dollars: Sunday to Today, cleared against
+ * refused, none of it from anywhere. There is no week to draw. The log is a
+ * ring of sixteen and every entry in it is recent, so the honest series is
+ * the record in order rather than a calendar, and it arrives as a prop.
+ */
+const DEFAULT_7D_TREND: DayTrendPoint[] = [];
 
 interface D3VolumeSparklineProps {
   data?: DayTrendPoint[];
@@ -241,6 +242,17 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
 
   const activePoint = hoverIndex !== null ? data[hoverIndex] : data[data.length - 1];
 
+
+  // Nothing recorded yet is a real state and has to render as one, rather
+  // than reaching into an empty array for a last point that is not there.
+  if (data.length === 0) {
+    return (
+      <p className="text-[10.5px] leading-[1.6] text-[var(--text-tertiary)]">
+        Nothing on the log yet, so there is no line to draw.
+      </p>
+    );
+  }
+
   return (
     <div className="relative flex flex-col w-full min-w-0" id="d3-volume-sparkline-card">
       {/* The reading for whichever day is under the cursor.
@@ -253,11 +265,11 @@ export const D3VolumeSparkline: React.FC<D3VolumeSparklineProps> = ({
             {compact ? activePoint.day : '7D Trend:'}
           </span>
           <span className="text-[var(--verdigris)] font-bold whitespace-nowrap">
-            ${activePoint.cleared.toFixed(2)}M{compact ? '' : ' Cleared'}
+            {(activePoint.cleared / 100).toFixed(1)}%{compact ? '' : ' allowed'}
           </span>
           <span className="text-[var(--text-tertiary)]">•</span>
           <span className="text-[var(--refused-rust)] font-bold whitespace-nowrap">
-            ${activePoint.refused.toFixed(2)}M{compact ? '' : ' Refused'}
+            {(activePoint.refused / 100).toFixed(1)}%{compact ? '' : ' held back'}
           </span>
         </div>
         {action ? (

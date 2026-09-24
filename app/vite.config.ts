@@ -47,7 +47,7 @@ export default defineConfig(() => {
 
   const proxy = (() => {
     const forwarded = Object.fromEntries(
-      ['backpack', 'sunrise', 'issuers', 'prestocks', 'pyth', 'adopt', 'attack', 'gate']
+      ['backpack', 'sunrise', 'issuers', 'prestocks', 'pyth', 'adopt', 'attack', 'gate', 'quote']
         .map((name) => [`/api/${name}`, {
           target: FUNCTIONS,
           changeOrigin: true,

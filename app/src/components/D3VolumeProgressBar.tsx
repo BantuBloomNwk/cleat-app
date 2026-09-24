@@ -3,8 +3,17 @@ import * as d3 from 'd3';
 import { tactile } from '../utils/haptics';
 
 interface D3VolumeProgressBarProps {
-  refusedVolume: number; // in Millions, e.g. 1.64
-  clearedVolume: number; // in Millions, e.g. 3.18
+  /**
+   * Basis points of the book, not dollars.
+   *
+   * This used to be millions of dollars, which the chain this app reads
+   * does not record and deliberately never will: the verdict struct holds a
+   * category and a ratio precisely so a complete log cannot be used to
+   * reconstruct a portfolio. Basis points are what is actually written
+   * down, so they are what this draws.
+   */
+  refusedVolume: number;
+  clearedVolume: number;
   refusedCount?: number;
   clearedCount?: number;
   timeframeLabel?: string;
@@ -215,7 +224,7 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
         setActiveTooltip({
           type: 'refused',
           x: Math.min(Math.max(40, targetX / 2), width - 90),
-          volume: `$${refusedVolume.toFixed(2)}M`,
+          volume: `${(refusedVolume / 100).toFixed(1)}%`,
           percentage: `${refusedRatio.toFixed(1)}%`,
           count: refusedCount,
         });
@@ -235,7 +244,7 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
         setActiveTooltip({
           type: 'cleared',
           x: Math.min(Math.max(60, targetX + (width - targetX) / 2), width - 90),
-          volume: `$${clearedVolume.toFixed(2)}M`,
+          volume: `${(clearedVolume / 100).toFixed(1)}%`,
           percentage: `${clearedRatio.toFixed(1)}%`,
           count: clearedCount,
         });
@@ -258,11 +267,11 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
         <div className="flex items-center gap-1.5 text-[var(--refused-rust)] font-bold min-w-0">
           <span className="w-2 h-2 rounded-full bg-[var(--refused-rust)] shrink-0" />
           <span>Refused</span>
-          <span className="text-[12.5px]">${refusedVolume.toFixed(2)}M</span>
+          <span className="text-[12.5px]">{(refusedVolume / 100).toFixed(1)}%</span>
         </div>
 
         <div className="flex items-center gap-1.5 text-[var(--verdigris)] font-bold min-w-0 ml-auto">
-          <span className="text-[12.5px]">${clearedVolume.toFixed(2)}M</span>
+          <span className="text-[12.5px]">{(clearedVolume / 100).toFixed(1)}%</span>
           <span>Cleared</span>
           <span className="w-2 h-2 rounded-full bg-[var(--verdigris)] shrink-0" />
         </div>

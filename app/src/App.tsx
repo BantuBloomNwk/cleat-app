@@ -56,6 +56,7 @@ export default function App() {
   const [sectorExposure, setSectorExposure] = useState<SectorExposure[]>([]);
   const [chainMandate, setChainMandate] = useState<Mandate | null>(null);
   const [restraint, setRestraint] = useState<Restraint | null>(null);
+  const [chainTrend, setChainTrend] = useState<{ n: number; asked: number; allowed: number }[]>([]);
   // One wallet for the whole app, so every screen sees the same state and a
   // passkey made in onboarding shows up everywhere without a reload.
   const wallet = useWallet();
@@ -97,6 +98,28 @@ export default function App() {
   // of them already public on the chain. Never a position, an instrument or
   // an amount, because confidentiality is the product and a chatty mascot
   // is exactly how that would leak.
+  // What the enforcement panel is allowed to say, summed off the log rather
+  // than typed into a table. Basis points, because basis points are what the
+  // chain records: there are no amounts in a verdict and there never will be.
+  const enforcement = restraint
+    ? {
+        refused: restraint.heldBps,
+        cleared: restraint.allowedBps,
+        totalFormatted: `${(restraint.askedBps / 100).toFixed(1)}%`,
+        txCount: stats.cleared + stats.trimmed + stats.refused,
+        refusedCount: stats.refused + stats.trimmed,
+        clearedCount: stats.cleared,
+      }
+    : null;
+
+  // Cumulative asked against allowed, decision by decision, which is the
+  // only series the log can honestly produce.
+  const trend = chainTrend.map((t) => ({
+    day: String(t.n),
+    cleared: t.allowed,
+    refused: t.asked - t.allowed,
+  }));
+
   const agentStats = {
     decisions: stats.cleared + stats.trimmed + stats.refused,
     refused: stats.refused,
@@ -121,6 +144,7 @@ export default function App() {
         setSectorExposure(snap.exposure);
         setChainMandate(snap.mandate);
         setRestraint(snap.restraint);
+        setChainTrend(snap.trend);
         setSealed(snap.sealed);
         if (snap.mandate?.text) setMandateSentence(snap.mandate.text);
         setOvernightRefusalCount(
@@ -240,6 +264,8 @@ export default function App() {
               markers={chartMarkers}
               onOpenTickDrawer={() => setIsTickDrawerOpen(true)}
               maxSpreadBps={chainMandate?.maxSpreadBps ?? 0}
+              enforcement={enforcement}
+              trend={trend}
             />
           )}
 
