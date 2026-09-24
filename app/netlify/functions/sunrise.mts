@@ -126,7 +126,19 @@ export default async (req: Request) => {
       .sort((a, b) => a.ticker.localeCompare(b.ticker));
     return json({ count: rows.length, rows });
   } catch (err) {
-    return json({ error: String(err).slice(0, 200), count: 0, rows: [] }, 502, 0);
+    // Answer 200 with an empty list and a reason rather than 502.
+    //
+    // The venue started requiring a key on its listing endpoint on 24
+    // September and now returns 401 to anyone without one. That is a real
+    // change and the screens that read this have to say so, but it is not
+    // this function failing: a 502 here puts a red line in every visitor's
+    // console for something nobody can act on, and drowns the errors that
+    // do matter. The body carries the truth and the caller decides what to
+    // show.
+    const reason = /401|unauthorized/i.test(String(err))
+      ? 'the venue now requires a key for its listing'
+      : String(err).slice(0, 160);
+    return json({ unavailable: true, reason, count: 0, rows: [] }, 200, 0);
   }
 };
 

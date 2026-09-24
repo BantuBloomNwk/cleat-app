@@ -51,12 +51,18 @@ const base = typeof window !== "undefined" ? "/api/sunrise" : "";
 
 let universeCache: Promise<SunriseStock[]> | null = null;
 
+/** Why the listing is empty, when it is, so a screen can say rather than blank. */
+export let universeUnavailable: string | null = null;
+
 export function loadSunriseUniverse(): Promise<SunriseStock[]> {
   if (!base) return Promise.resolve([]);
   if (!universeCache) {
     universeCache = fetch(base)
       .then((r) => (r.ok ? r.json() : { rows: [] }))
-      .then((j) => (j.rows ?? []) as SunriseStock[])
+      .then((j) => {
+        if (j?.unavailable) universeUnavailable = String(j.reason ?? 'the venue is not answering');
+        return (j.rows ?? []) as SunriseStock[];
+      })
       .catch(() => []);
   }
   return universeCache;

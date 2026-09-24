@@ -11,6 +11,7 @@ import {
   resolveMint,
   type RouteCost,
   type SunriseStock,
+  universeUnavailable,
 } from '../lib/sunrise';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
@@ -159,10 +160,16 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
         </p>
       )}
 
+      {/* Two different empty states, and saying the wrong one is a lie.
+          "Nobody else tokenized it" is a fact about the market. Not being
+          able to read the listing is a fact about us, and since 24 September
+          it is the likely one: the venue's listing endpoint began asking for
+          a key and answers 401 without one. */}
       {!loading && rows.length === 0 && (
-        <p className="text-[11.5px] text-[var(--text-secondary)]">
-          Only the venue's own book carries {ticker} right now. Nobody else has
-          tokenized it, so there is nothing to weigh it against.
+        <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
+          {universeUnavailable
+            ? `The comparison is not available: ${universeUnavailable}. What is on screen above still comes from the venue.`
+            : `Only the venue's own book carries ${ticker} right now. Nobody else has tokenized it, so there is nothing to weigh it against.`}
         </p>
       )}
 
