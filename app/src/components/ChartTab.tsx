@@ -5,6 +5,7 @@ import { PreIpo } from './PreIpo';
 import { Watching } from './Watching';
 import { DataOrigin } from './DataOrigin';
 import { ARCIUM, PER, PUBLIC_GATE, ms, provenance } from '../lib/measured';
+import type { SectorExposure } from '../lib/chain';
 import { ChartMesh } from './ChartMesh';
 import { symbolTicker, loadTickers, loadDepth, bookQuality, isPerp } from '../lib/backpack';
 import React, { useState, useEffect, useRef } from 'react';
@@ -56,6 +57,10 @@ interface ChartTabProps {
   enforcement: Enforcement | null;
   /** The record in order, as running totals, for the line under it. */
   trend: { day: string; cleared: number; refused: number }[];
+  /** Each sector that has something in it, against the ceiling it runs to. */
+  exposure: SectorExposure[];
+  /** Why proposals were stopped, counted, most common first. */
+  reasons: { code: number; label: string; count: number }[];
 }
 
 
@@ -64,6 +69,8 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   maxSpreadBps,
   enforcement,
   trend,
+  exposure,
+  reasons,
 }) => {
   const [activeTimeframe, setActiveTimeframe] = useState<'1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL'>('30D');
   const [is3DActive, setIs3DActive] = useState(false);
@@ -1217,6 +1224,73 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               {currentVolume.clearedCount.toLocaleString()} cleared
             </span>
           </div>
+
+          {/* Where the book stands, per sector, against its ceiling.
+              One ratio says three quarters was held back. This says which
+              rooms are full, which is what a cap actually enforces and is
+              already on chain: the program keeps a running total per
+              category and refuses when the next ask would not fit. No
+              instrument and no amount, only how much of a ceiling is used,
+              which is the most a confidential log can honestly publish. */}
+          {exposure.length > 0 && (
+            <div className="col-span-2 p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col gap-2">
+              <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                How full each sector is
+              </span>
+              {exposure.map((e) => {
+                const pct = e.capBps > 0 ? Math.min(100, (e.bps / e.capBps) * 100) : 0;
+                const tight = pct >= 85;
+                return (
+                  <div key={e.sector} className="sector-row">
+                    <span className="sector-name">{e.sector}</span>
+                    <span className="sector-track">
+                      <span
+                        className={`sector-fill${tight ? ' is-tight' : ''}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </span>
+                    <span
+                      className="sector-figure"
+                      style={{ color: tight ? 'var(--refused-rust)' : 'var(--text-secondary)' }}
+                    >
+                      {(e.bps / 100).toFixed(1)}/{(e.capBps / 100).toFixed(0)}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* And what did the stopping.
+              The reason code is on every verdict and the program has eleven
+              of them, so this costs a tally and answers the question the
+              headline raises. */}
+          {reasons.length > 0 && (
+            <div className="col-span-2 p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col gap-1.5">
+              <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                What stopped them
+              </span>
+              {reasons.map((r) => (
+                <div key={r.code} className="reason-row">
+                  <span className="reason-count">{r.count}</span>
+                  <span className="reason-label">
+                    {/* The prefix is the same nine times over, so it goes.
+                        What is left has to start with a capital, or half the
+                        list reads as a sentence and half as a fragment. */}
+                    {(() => {
+                      const t = r.label.replace(/^Triggered boundary: /, '');
+                      return t.charAt(0).toUpperCase() + t.slice(1);
+                    })()}
+                  </span>
+                </div>
+              ))}
+              <p className="text-[10px] leading-[1.6] text-[var(--text-tertiary)] mt-0.5">
+                Every one of these is a reason the program can give, read back
+                off the log rather than counted here. The record covers all
+                nine of them on purpose.
+              </p>
+            </div>
+          )}
 
           {/* 7-Day High-Density D3 Sparkline Graph */}
           <div className="col-span-2 p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] flex flex-col justify-center min-w-0 overflow-hidden">

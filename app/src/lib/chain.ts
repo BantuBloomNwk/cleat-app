@@ -540,6 +540,15 @@ export interface ChainSnapshot {
    * widening decision by decision.
    */
   trend: { n: number; asked: number; allowed: number }[];
+  /**
+   * Why things were stopped, counted.
+   *
+   * The headline says three quarters of what the agent asked for was held
+   * back. This says what did the holding, which is the more useful half and
+   * costs nothing to compute: the reason code is already on every verdict,
+   * and the program has eleven of them.
+   */
+  reasons: { code: number; label: string; count: number }[];
   sealed: SealState;
 }
 
@@ -589,6 +598,16 @@ export async function loadChainSnapshot(
       sealed: (vaultInfo && !vaultInfo.owner.equals(PROGRAM_ID)
         ? "cleated"
         : "open") as SealState,
+      reasons: (() => {
+        const tally = new Map<number, number>();
+        for (const v of log.entries) {
+          if (v.reason === 0) continue; // nothing was triggered
+          tally.set(v.reason, (tally.get(v.reason) ?? 0) + 1);
+        }
+        return [...tally.entries()]
+          .map(([code, count]) => ({ code, label: reasonText(code), count }))
+          .sort((a, b) => b.count - a.count);
+      })(),
       trend: (() => {
         let asked = 0;
         let allowed = 0;

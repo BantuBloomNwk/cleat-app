@@ -3358,3 +3358,61 @@ h1, h2, h3, h4, h5, h6,
 .per-leg-where { font-family: var(--font-mono); font-size: 9.5px; }
 .per-note { font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
 .per-quiet { font-size: 10.5px; color: var(--text-tertiary); }
+
+/* How full each sector is, and what did the stopping.
+   Both read off the verdict log. Neither can name an instrument or an
+   amount, because neither is written down: the program keeps a category and
+   a ratio, which is the most a confidential record can publish and still be
+   worth reading. */
+.sector-row {
+  display: grid;
+  grid-template-columns: 74px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+}
+.sector-name {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sector-track {
+  position: relative;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--card-surface);
+  border: 1px solid var(--card-border-subtle);
+  overflow: hidden;
+}
+.sector-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--verdigris);
+  transition: width 700ms cubic-bezier(.22,1,.36,1);
+}
+/* Nearly full is the interesting state, so it stops being green before it
+   stops being possible. */
+.sector-fill.is-tight { background: var(--refused-rust); }
+.sector-figure {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reason-row { display: flex; align-items: baseline; gap: 9px; font-size: 11px; }
+.reason-count {
+  flex: 0 0 auto;
+  min-width: 18px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--refused-rust);
+  text-align: right;
+}
+.reason-label { color: var(--text-secondary); line-height: 1.45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sector-fill { transition: none; }
+}

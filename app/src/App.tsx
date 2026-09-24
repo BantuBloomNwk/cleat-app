@@ -57,6 +57,7 @@ export default function App() {
   const [chainMandate, setChainMandate] = useState<Mandate | null>(null);
   const [restraint, setRestraint] = useState<Restraint | null>(null);
   const [chainTrend, setChainTrend] = useState<{ n: number; asked: number; allowed: number }[]>([]);
+  const [reasons, setReasons] = useState<{ code: number; label: string; count: number }[]>([]);
   // One wallet for the whole app, so every screen sees the same state and a
   // passkey made in onboarding shows up everywhere without a reload.
   const wallet = useWallet();
@@ -145,6 +146,7 @@ export default function App() {
         setChainMandate(snap.mandate);
         setRestraint(snap.restraint);
         setChainTrend(snap.trend);
+        setReasons(snap.reasons);
         setSealed(snap.sealed);
         if (snap.mandate?.text) setMandateSentence(snap.mandate.text);
         setOvernightRefusalCount(
@@ -266,6 +268,8 @@ export default function App() {
               maxSpreadBps={chainMandate?.maxSpreadBps ?? 0}
               enforcement={enforcement}
               trend={trend}
+              exposure={sectorExposure}
+              reasons={reasons}
             />
           )}
 
