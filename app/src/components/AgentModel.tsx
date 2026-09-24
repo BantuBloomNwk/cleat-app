@@ -21,22 +21,37 @@ export const AgentModel: React.FC<{
   variant: number;
   mood?: Mood;
   size: number;
-  /** Turn slowly by itself until somebody grabs it. */
+  /**
+   * Turn slowly by itself until somebody grabs it. On for the line up,
+   * where turning is how you see what you are choosing. Off once it is
+   * yours: on the card it stands in one place and behaves like itself
+   * instead, because a thing revolving on a shelf is merchandise.
+   */
   autoSpin?: boolean;
+  /** About to say something. Drives the buzz above its head. */
+  charging?: boolean;
+  /** Has something on screen. Drives the hands and the mouth. */
+  talking?: boolean;
   /** Let the pointer turn it. Off for the small ones in a list. */
   interactive?: boolean;
   className?: string;
-}> = ({ seed, variant, mood = 'idle', size, autoSpin = false, interactive = true, className = '' }) => {
+}> = ({
+  seed, variant, mood = 'idle', size,
+  autoSpin = false, charging = false, talking = false,
+  interactive = true, className = '',
+}) => {
   const host = useRef<HTMLDivElement>(null);
   // The loop reads these rather than closing over them, so a mood change
   // does not tear down and rebuild the scene.
-  const live = useRef({ mood, autoSpin, moodAt: 0 });
+  const live = useRef({ mood, autoSpin, charging, talking, moodAt: 0 });
 
   useEffect(() => {
     if (live.current.mood !== mood) live.current.moodAt = performance.now() / 1000;
     live.current.mood = mood;
     live.current.autoSpin = autoSpin;
-  }, [mood, autoSpin]);
+    live.current.charging = charging;
+    live.current.talking = talking;
+  }, [mood, autoSpin, charging, talking]);
 
   useEffect(() => {
     let stop = false;
@@ -80,6 +95,7 @@ export const AgentModel: React.FC<{
       const index = mesh.buildIndex(seed, variant);
       const rig = mesh.buildAgent(index);
       const palette = mesh.PALETTES[index];
+      const persona = mesh.personaOf(index);
       scene.add(rig.root);
 
       // A plane that catches the shadow and is otherwise invisible, so the
@@ -142,6 +158,10 @@ export const AgentModel: React.FC<{
 
       const slow = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
+      // Ramped rather than switched, so the buzz comes up and dies away
+      // instead of appearing whole on one frame.
+      const fx = { charge: 0, talk: 0 };
+
       let raf = 0;
       const t0 = performance.now() / 1000;
       live.current.moodAt = t0;
@@ -161,8 +181,17 @@ export const AgentModel: React.FC<{
         yaw += (yawTo - yaw) * 0.12;
         pitch += (pitchTo - pitch) * 0.12;
 
+        const want = { charge: live.current.charging ? 1 : 0, talk: live.current.talking ? 1 : 0 };
+        fx.charge += (want.charge - fx.charge) * (want.charge > fx.charge ? 0.35 : 0.12);
+        fx.talk += (want.talk - fx.talk) * 0.09;
+
         const t = slow ? 0 : now - live.current.moodAt;
-        mesh.poseAgent(rig, live.current.mood, t, slow ? 0 : now, palette);
+        mesh.poseAgent(
+          rig, live.current.mood, t, slow ? 0 : now, palette, persona,
+          slow ? { charge: 0, talk: 0 } : fx,
+        );
+        // The drag lives on the root and a pose lives on the body inside it,
+        // so a move can spin and flip without fighting the hand holding it.
         rig.root.rotation.y = yaw;
         rig.root.rotation.x = pitch;
 

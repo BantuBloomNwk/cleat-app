@@ -109,13 +109,3 @@ export function agentLine(turn: number, s: TalkStats, seed: number): string {
       return pick(JOKES, seed + turn);
   }
 }
-
-/** What it says the moment it has been picked out of the line up. */
-export function greetingFor(name: string, seed: number): string {
-  const lines = [
-    `${name}, reporting in. Show me the sentence.`,
-    `${name}. I will ask, you have already answered.`,
-    `${name} it is. I do not need to see the money to do this job.`,
-  ];
-  return pick(lines, seed);
-}

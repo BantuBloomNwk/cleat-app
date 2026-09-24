@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { AgentAvatar } from './AgentAvatar';
+import { useAgentVariant } from '../lib/agentLook';
 import { DataOrigin } from './DataOrigin';
 import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
 import { CommunityMandate } from '../types';
@@ -50,6 +52,9 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   // Five to read, the rest a tap away. Eleven sentences is eleven screens
   // and nobody reads the eleventh.
   const [shown, setShown] = useState(5);
+  // Only the owner's own agent follows what they picked. Everyone else's
+  // comes from their key and is theirs.
+  const myVariant = useAgentVariant();
   const [taken, setTaken] = useState<Record<string, { url: string; sponsored: boolean } | string>>({});
 
   const takeOnChain = async (m: PublishedMandate) => {
@@ -262,8 +267,19 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
           {published.slice(0, shown).map((m) => (
             <article key={m.address} className="glass-card flex flex-col gap-2">
               <div className="card-topbar">
-                <span className="meta-kicker font-mono text-[10.5px]">
-                  {m.owner.slice(0, 4)}…{m.owner.slice(-4)}
+                <span className="flex items-center gap-2 min-w-0">
+                  {/* Whose sentence this is, drawn from the key that owns
+                      it. The account is derived from that key, so the
+                      picture and the address are the same fact twice, and
+                      an address is not something anybody recognises. */}
+                  <AgentAvatar
+                    seed={m.owner}
+                    variant={m.owner === keypair?.publicKey.toBase58() ? myVariant : 0}
+                    size={26}
+                  />
+                  <span className="meta-kicker font-mono text-[10.5px]">
+                    {m.owner.slice(0, 4)}…{m.owner.slice(-4)}
+                  </span>
                 </span>
                 <span className="flex items-center gap-2 flex-wrap">
                   {m.halted && (
@@ -567,12 +583,21 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
               return (
                 <div
                   key={row.logAddress}
-                  className="flex items-baseline justify-between gap-3 px-2.5 py-2 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]"
+                  className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]"
                 >
-                  <span className="flex items-baseline gap-2 min-w-0">
+                  <span className="flex items-center gap-2 min-w-0">
                     <span className="font-mono text-[11px] text-[var(--text-tertiary)] w-4 shrink-0">
                       {ranked ? i + 1 : '—'}
                     </span>
+                    {/* Eight rows of mono address look like one row eight
+                        times. The agent is the thing the eye can tell
+                        apart, and it is the same agent this key has
+                        everywhere else in the app. */}
+                    <AgentAvatar
+                      seed={row.owner}
+                      variant={row.owner === keypair?.publicKey.toBase58() ? myVariant : 0}
+                      size={22}
+                    />
                     <span className="font-mono text-[11.5px] text-[var(--text-primary)] truncate">
                       {row.owner.slice(0, 4)}…{row.owner.slice(-4)}
                     </span>
@@ -608,20 +633,18 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
 
       <div className="flex flex-col gap-3.5">
         {mandates.map((m) => {
-          const initials = m.author
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase();
           const isAdopted = adoptedId === m.id;
 
           return (
             <article key={m.id} className="glass-card" id={`community-mandate-${m.id}`}>
               <div className="card-topbar">
                 <div className="flex items-center gap-2">
-                  <div className="w-[30px] h-[30px] rounded-full bg-[var(--verdigris-chip-bg)] text-[var(--verdigris)] flex items-center justify-center text-[11px] font-bold font-mono">
-                    {initials}
-                  </div>
+                  {/* Their agent, not their initials. Two letters in a
+                      coloured circle is what a contacts app does, and it
+                      made these read as people with profiles rather than as
+                      keys with sentences. The handle is the seed, so the
+                      same author is the same agent wherever they appear. */}
+                  <AgentAvatar seed={m.handle} size={30} />
                   <div>
                     <div className="font-bold text-[13.5px] text-[var(--text-primary)]">
                       {m.handle}

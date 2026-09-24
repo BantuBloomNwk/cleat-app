@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentModel } from './AgentModel';
 import { AgentAvatar } from './AgentAvatar';
-import { BUILD_COUNT, BUILD_NAMES, buildIndex } from '../lib/agentBuilds';
-import { greetingFor } from '../lib/agentTalk';
+import { BUILD_COUNT, BUILD_NAMES, buildIndex, personaOf } from '../lib/agentBuilds';
 import { tactile } from '../utils/haptics';
 
 /**
@@ -60,9 +59,12 @@ export const AgentPicker: React.FC<{
     return createPortal(
       <div className="agent-sheet-scrim" onClick={onClose}>
         <div className="agent-sheet agent-sheet-reveal" onClick={(e) => e.stopPropagation()}>
-          <AgentModel seed={seed} variant={chosen} mood="greet" size={230} autoSpin />
+          {/* Not spinning here. The line up turns them so you can see what
+              you are choosing; the reveal is the one moment the move itself
+              has to read, and a camera orbit during a kick hides the kick. */}
+          <AgentModel seed={seed} variant={chosen} mood="greet" size={230} />
           <h3 className="agent-reveal-name">{chosenName}</h3>
-          <p className="agent-reveal-line">{greetingFor(chosenName, buildIndex(seed, chosen))}</p>
+          <p className="agent-reveal-line">{personaOf(buildIndex(seed, chosen)).line}</p>
           <button
             type="button"
             className="btn-inject"
@@ -92,9 +94,9 @@ export const AgentPicker: React.FC<{
         </div>
 
         <p className="agent-sheet-note">
-          Eight of them, and your key picked the one you started with. None of
-          this touches the account. It is a face, and it is only stored in
-          this browser.
+          Eight of them, each with its own temper and its own way of showing
+          off. Your key picked the one you started with. None of this touches
+          the account: it is a face, and it is only stored in this browser.
         </p>
 
         {/* The line up. The one in the middle is a live render and the ones
@@ -133,7 +135,12 @@ export const AgentPicker: React.FC<{
           </button>
         </div>
 
-        <p className="agent-lineup-name">{name}</p>
+        <p className="agent-lineup-name">
+          {name}
+          {/* What this one is like, because the eight are no longer the same
+              robot in eight colours and the picker should say so. */}
+          <span className="agent-lineup-mood">{personaOf(buildIndex(seed, at)).mood}</span>
+        </p>
 
         <div className="agent-lineup-dots" aria-hidden="true">
           {Array.from({ length: BUILD_COUNT }, (_, i) => (

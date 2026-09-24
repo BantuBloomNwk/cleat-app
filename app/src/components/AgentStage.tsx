@@ -43,6 +43,10 @@ export const AgentStage: React.FC<{
   const [picking, setPicking] = useState(false);
   const [turn, setTurn] = useState(0);
   const [visible, setVisible] = useState(true);
+  // A second of warning before the line changes. Without it a new sentence
+  // simply appears, which is a text field updating; with it, something
+  // above its head crackles and then it speaks, which is the thing doing it.
+  const [charging, setCharging] = useState(false);
 
   const index = buildIndex(seed, variant);
   const name = BUILD_NAMES[index % BUILD_NAMES.length];
@@ -53,12 +57,15 @@ export const AgentStage: React.FC<{
   const timers = useRef<number[]>([]);
   useEffect(() => {
     const tick = window.setInterval(() => {
-      setVisible(false);
-      const t = window.setTimeout(() => {
-        setTurn((n) => n + 1);
-        setVisible(true);
-      }, 320);
-      timers.current.push(t);
+      setCharging(true);
+      timers.current.push(window.setTimeout(() => setVisible(false), 780));
+      timers.current.push(
+        window.setTimeout(() => {
+          setCharging(false);
+          setTurn((n) => n + 1);
+          setVisible(true);
+        }, 1100),
+      );
     }, 9000);
     return () => {
       window.clearInterval(tick);
@@ -88,7 +95,14 @@ export const AgentStage: React.FC<{
           onPointerUp={() => tactile.selectionTap()}
           title="Drag to turn it"
         >
-          <AgentModel seed={seed} variant={variant} mood={mood} size={104} autoSpin />
+          <AgentModel
+            seed={seed}
+            variant={variant}
+            mood={mood}
+            size={104}
+            charging={charging}
+            talking={visible}
+          />
         </div>
 
         <div className="agent-bay-talk">

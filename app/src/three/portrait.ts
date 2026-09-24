@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildAgent, dressScene, BUILD_COUNT } from './agentMesh';
+import { buildAgent, dressScene, restFace, personaOf, BUILD_COUNT } from './agentMesh';
 
 /**
  * A still of the same robot, small.
@@ -48,6 +48,10 @@ export function portraitOf(index: number): string | null {
   const scene = new THREE.Scene();
   dressScene(scene);
   const rig = buildAgent(i);
+  // The still wears the same resting face the live one does, so the small
+  // avatar in the header is recognisably the same character and not a
+  // blank version of it.
+  restFace(rig, personaOf(i));
   // Head and shoulders, turned a few degrees off square so it reads as an
   // object rather than as a mugshot.
   rig.root.rotation.y = 0.42;
