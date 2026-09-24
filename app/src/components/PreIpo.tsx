@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DataOrigin } from './DataOrigin';
+import { Aside } from './Aside';
 import { TickerMark } from './TickerMark';
 
 /**
@@ -31,6 +32,9 @@ interface Row {
 
 export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => {
   const [rows, setRows] = useState<Row[] | null>(null);
+  // Four is enough to see the shape. The axis above already plots all of
+  // them, so nothing is hidden, only stacked less high.
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -56,15 +60,30 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
     <section className="glass-card flex flex-col gap-2.5" id="pre-ipo">
       <div className="card-topbar">
         <span className="meta-kicker">Before the listing</span>
-        <DataOrigin origin="venue" />
+        <span className="flex items-center gap-2">
+          <Aside title="Before the listing">
+            <p>
+              Private companies, tokenised before any exchange lists them.
+              With no book to be wide or narrow, the honest measure is the gap
+              between what the token costs and what the vehicle behind it says
+              a share is worth. Both numbers are published, so it is read
+              rather than guessed.
+            </p>
+            <p>
+              The bar on each one leaves the centre by however far it sits
+              from its mark, and the axis above the grid puts all of them on
+              one line with the allowed band shaded. A dot outside that band
+              is a name the agent cannot buy.
+            </p>
+            <p>
+              The refusals here are the feature. An agent buying an illiquid
+              private company while its owner is asleep in another timezone is
+              the exact thing a spread cap was written for.
+            </p>
+          </Aside>
+          <DataOrigin origin="venue" />
+        </span>
       </div>
-
-      <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-        Private companies, tokenised before any exchange lists them. With no
-        book to be wide or narrow, the honest measure is the gap between what
-        the token costs and what the vehicle behind it says a share is worth.
-        Both are published, so it is read rather than guessed.
-      </p>
 
       <p className="text-[11.5px] leading-[1.6] text-[var(--text-primary)]">
         <strong>
@@ -110,7 +129,7 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
           against one another and against the cap, and a grid puts four in
           the eye at once where a column put one. */}
       <div className="tile-grid">
-        {rows.map((r) => {
+        {(showAll ? rows : rows.slice(0, 4)).map((r) => {
           const over = Math.abs(r.driftBps) > cap;
           return (
             <div key={r.symbol} className={`tile${over ? ' is-over' : ''}`}>
@@ -164,6 +183,16 @@ export const PreIpo: React.FC<{ maxSpreadBps: number }> = ({ maxSpreadBps }) => 
           );
         })}
       </div>
+
+      {!showAll && rows.length > 4 && (
+        <button
+          type="button"
+          className="mesh-chip self-start"
+          onClick={() => setShowAll(true)}
+        >
+          the other {rows.length - 4}
+        </button>
+      )}
     </section>
   );
 };

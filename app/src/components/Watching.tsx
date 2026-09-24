@@ -3,6 +3,7 @@ import { DataOrigin } from './DataOrigin';
 import { TickerMark } from './TickerMark';
 import { Spark } from './Spark';
 import { PriceChart } from './PriceChart';
+import { Aside } from './Aside';
 import { Shelf } from './Shelf';
 
 /**
@@ -57,15 +58,25 @@ export const Watching: React.FC = () => {
     <section className="glass-card flex flex-col gap-2.5" id="watching">
       <div className="card-topbar">
         <span className="meta-kicker">What the agent is watching</span>
-        <DataOrigin origin={priced ? 'venue' : 'sample'} />
+        <span className="flex items-center gap-2">
+          <Aside title="What the agent is watching">
+            <p>
+              Six asset classes from one oracle, and none of them keeps New
+              York's hours. The interesting row is oil: a crude price moving
+              is a real reason to want energy, and the sentence refuses it
+              regardless, which is the whole argument in one row.
+            </p>
+            <p>
+              Scroll the shelf to see all six, and tap one to read the day it
+              had. Gold, the euro and December crude are price feeds rather
+              than companies, so they carry a drawn symbol instead of a logo:
+              there is no company mark to find and inventing one would be
+              worse than not having it.
+            </p>
+          </Aside>
+          <DataOrigin origin={priced ? 'venue' : 'sample'} />
+        </span>
       </div>
-
-      <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]">
-        Six asset classes, one oracle, none of them keeping New York's
-        hours. The interesting row is oil: a crude price moving is a real
-        reason to want energy, and the sentence refuses it regardless.
-        Scroll across, and tap one to read any day.
-      </p>
 
       {/* A shelf, not a column. Six asset classes side by side is one
           glance; six of them stacked was a third of a screen each and the

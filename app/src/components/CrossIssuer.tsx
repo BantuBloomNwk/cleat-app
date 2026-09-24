@@ -13,6 +13,7 @@ import {
   type SunriseStock,
   universeUnavailable,
 } from '../lib/sunrise';
+import { Aside } from './Aside';
 import { tactile } from '../utils/haptics';
 import { DataOrigin } from './DataOrigin';
 
@@ -133,15 +134,24 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
         </h3>
         <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
           <span className="section-hint text-[11px]">Same ticker, different instrument</span>
+          <Aside title="Same ticker, different instrument">
+            <p>
+              A price chart cannot tell these apart. One is a claim on a share
+              a broker dealer holds, one is a note issued in Jersey, one is
+              minted only against a signed attestation. Which one a trade
+              lands on is a decision.
+            </p>
+            <p>
+              Around a listing the imitations arrive within minutes, so the
+              address is resolved at the moment of the trade from the issuer's
+              own listing layer rather than from a constant in this app. An
+              agent that hardcodes an address is one stale line away from
+              buying nothing.
+            </p>
+          </Aside>
           <DataOrigin origin="venue" />
         </span>
       </div>
-
-      <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
-        A price chart cannot tell these apart. One is a claim on a share a broker
-        dealer holds, one is a note issued in Jersey, one is minted only against a
-        signed attestation. Which one a trade lands on is a decision.
-      </p>
 
       {real !== null && (
         <div className="flex items-baseline justify-between gap-3 px-2.5 py-2 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
@@ -222,14 +232,26 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
             <h4 className="text-[12.5px] font-bold text-[var(--text-primary)]">
               Where this size would actually fill
             </h4>
-            <DataOrigin origin="venue" />
+            <span className="flex items-center gap-2">
+              <Aside title="Where this size would fill">
+                <p>
+                  The mandate caps how wide a book the agent may trade into,
+                  and that number used to arrive from the agent itself, which
+                  is the weakest input in the whole design.
+                </p>
+                <p>
+                  This asks a router instead: price a small probe, price the
+                  real size, and the difference is what the trade costs for
+                  being that large. It is a public endpoint, so anyone can run
+                  the same two calls and get the same number.
+                </p>
+              </Aside>
+              <DataOrigin origin="venue" />
+            </span>
           </div>
           <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-            The mandate caps how wide a book the agent may trade into, and
-            that number used to come from the agent itself. This asks a router
-            instead: price a hundred dollars, price the real size, and the gap
-            is the cost of being that large. Public endpoint, so anyone can
-            run it again.
+            What this size costs for being this size, priced by a router
+            rather than asserted by the agent.
           </p>
 
           <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Trade size">

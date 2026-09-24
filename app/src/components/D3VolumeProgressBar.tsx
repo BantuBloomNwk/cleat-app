@@ -182,16 +182,27 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
       .attr('x2', prevX)
       .attr('y2', barY + barHeight + 2)
       .attr('stroke', '#ffffff')
-      .attr('stroke-width', 2)
+      .attr('stroke-width', 1.5)
+      .attr('opacity', 0.85)
       .attr('filter', 'drop-shadow(0 0 3px rgba(0,0,0,0.6))');
 
+    // A marker, and it has to look like one.
+    //
+    // This used to carry a triangular cap, which together with a white line
+    // on a track is exactly what a draggable handle looks like. It is not
+    // draggable and never was: the group is pointer-events none, and the
+    // number it sits at is a fact about the record rather than a setting.
+    // Somebody tried to drag it and reported it broken, which is the
+    // affordance working correctly and the design being wrong. Two small
+    // ticks instead: they mark the boundary and invite nothing.
     const dividerCap = dividerGroup
       .append('polygon')
       .attr(
         'points',
-        `${prevX - 3.5},${barY - 3} ${prevX + 3.5},${barY - 3} ${prevX},${barY}`
+        `${prevX - 2.5},${barY - 4} ${prevX + 2.5},${barY - 4} ${prevX + 2.5},${barY - 2.5} ${prevX - 2.5},${barY - 2.5}`
       )
-      .attr('fill', '#ffffff');
+      .attr('fill', '#ffffff')
+      .attr('opacity', 0.85);
 
     // Smooth D3 Transition
     const t = d3.transition().duration(850).ease(d3.easeCubicOut);
@@ -218,6 +229,14 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
       .on('click', () => {
         tactile.ledgerTrigger('refused');
       })
+      .on('click', function (this: SVGRectElement, event: MouseEvent) {
+        // A phone has no hover, so the one interaction this chart had was
+        // unavailable on the only width that matters. A tap does what a
+        // pointer entering does.
+        this.dispatchEvent(new MouseEvent('mouseenter', {
+          clientX: event.clientX, clientY: event.clientY, bubbles: false,
+        }));
+      })
       .on('mouseenter', (event: MouseEvent) => {
         tactile.selectionTap();
         const rect = container.getBoundingClientRect();
@@ -238,6 +257,14 @@ export const D3VolumeProgressBar: React.FC<D3VolumeProgressBarProps> = ({
     clearedBar
       .on('click', () => {
         tactile.ledgerTrigger('cleared');
+      })
+      .on('click', function (this: SVGRectElement, event: MouseEvent) {
+        // A phone has no hover, so the one interaction this chart had was
+        // unavailable on the only width that matters. A tap does what a
+        // pointer entering does.
+        this.dispatchEvent(new MouseEvent('mouseenter', {
+          clientX: event.clientX, clientY: event.clientY, bubbles: false,
+        }));
       })
       .on('mouseenter', (event: MouseEvent) => {
         tactile.selectionTap();

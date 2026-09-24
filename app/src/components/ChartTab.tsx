@@ -72,6 +72,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   exposure,
   reasons,
 }) => {
+  const [showAllReasons, setShowAllReasons] = useState(false);
   const [activeTimeframe, setActiveTimeframe] = useState<'1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL'>('30D');
   const [is3DActive, setIs3DActive] = useState(false);
   // Mounted a little longer than it is active, so the canvas can fade out
@@ -1270,7 +1271,10 @@ export const ChartTab: React.FC<ChartTabProps> = ({
               <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
                 What stopped them
               </span>
-              {reasons.map((r) => (
+              {/* Four, then the rest on request. Nine rows of reason is a
+                  complete answer and a long one, and the shape of it is in
+                  the first few: what stopped the most. */}
+              {(showAllReasons ? reasons : reasons.slice(0, 4)).map((r) => (
                 <div key={r.code} className="reason-row">
                   <span className="reason-count">{r.count}</span>
                   <span className="reason-label">
@@ -1284,10 +1288,18 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                   </span>
                 </div>
               ))}
+              {!showAllReasons && reasons.length > 4 && (
+                <button
+                  type="button"
+                  className="mesh-chip self-start mt-1"
+                  onClick={() => { tactile.selectionTap(); setShowAllReasons(true); }}
+                >
+                  the other {reasons.length - 4}
+                </button>
+              )}
               <p className="text-[10px] leading-[1.6] text-[var(--text-tertiary)] mt-0.5">
-                Every one of these is a reason the program can give, read back
-                off the log rather than counted here. The record covers all
-                nine of them on purpose.
+                Read back off the log rather than counted here. The record
+                covers every reason the program can give, on purpose.
               </p>
             </div>
           )}
