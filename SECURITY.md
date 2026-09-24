@@ -341,6 +341,28 @@ and session auth both still work, so what is broken is narrower than the
 whole leg: the rollup cannot read this program as it currently stands on
 base.
 
+The cause is upstream and documented. MagicBlock's own tracker carries it
+twice, as magicblock-labs/magicblock-validator#884 and #1528, the second
+with a full reproduction. The finding there, in their reporter's words,
+is that **the staleness is keyed on the program address**: an upgrade on
+base is not picked up by the ephemeral rollup, it happens on every
+upgrade rather than only the first, and deploying the same bytes to a
+fresh address clones correctly on first touch. Both issues are closed, so
+what we are seeing is either a recurrence or a regression, plausibly from
+the engine port merged on 19 September, four days before our redeploy.
+Our symptom is the harsher one: rather than serving the old binary, the
+clone fails outright.
+
+The documented workaround is a new program address, and that is not a
+cheap move here. Every account this product reads is a PDA derived from
+the program id, including the curated verdict log of sixteen decisions
+that covers all nine refusal reasons and that the README, the
+measurements and the demo all point at. A new address starts that record
+empty. So the position is: the loop is implemented on both sides, it
+closed on 22 September, it does not close today against this address, and
+the reason is a known upstream cache rather than anything in this
+repository.
+
 Anybody running that script before this is fixed should expect it to
 fail there, and any claim that the private rollup loop closes today
 should be read as a claim about 22 September.
