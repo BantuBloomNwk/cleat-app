@@ -3416,3 +3416,29 @@ h1, h2, h3, h4, h5, h6,
 @media (prefers-reduced-motion: reduce) {
   .sector-fill { transition: none; }
 }
+/* The five rules land one after another rather than as a flat block, which
+   is the difference between a list appearing and a list being read. */
+.ows-rule { animation: ows-rule-in 220ms cubic-bezier(.22,1,.36,1) backwards; }
+.ows-rule:nth-child(1) { animation-delay: 0ms; }
+.ows-rule:nth-child(2) { animation-delay: 40ms; }
+.ows-rule:nth-child(3) { animation-delay: 80ms; }
+.ows-rule:nth-child(4) { animation-delay: 120ms; }
+.ows-rule:nth-child(5) { animation-delay: 160ms; }
+@keyframes ows-rule-in {
+  from { opacity: 0; translate: 0 6px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+
+/* Hit areas, not visual sizes. The gear that opens the character picker is
+   21px and the buttons that move money are about 22px tall, both well under
+   the forty four a thumb wants. Growing the shared classes would touch every
+   tab; growing only the invisible target fixes the miss without moving
+   anything on screen. */
+.agent-bay-gear { position: relative; }
+.agent-bay-gear::after { content: ''; position: absolute; inset: -12px; }
+.vault-buttons .mesh-chip { position: relative; }
+.vault-buttons .mesh-chip::after { content: ''; position: absolute; inset: -11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ows-rule { animation: none; }
+}
