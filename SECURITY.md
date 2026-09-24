@@ -234,6 +234,39 @@ mainnet it should be a multisig, because today a single compromised key
 can replace this program with one that does anything at all, and no other
 control in here survives that.
 
+The multisig exists and the handover has been rehearsed, but the program
+has not been given to it yet. On devnet, as of 24 September 2026:
+
+    multisig  C9NWJLM6eg2c41YzCoBfkRhUsj5jFbcKzsiMVHToxKEe
+    vault     DDmxNn5nkPx5eJqNExA34XdBY1NbjVmrtEWz1GDxgVj8
+    threshold 1 of 1, which is not yet a control
+
+Two things are still true and neither is a detail. One of one is a key
+with extra steps, not a multisig, and it only becomes a control when a
+second member is held by a second person in a second place. And the
+handover changes how a deploy works: once the vault holds the authority,
+`solana program deploy` stops working and an upgrade becomes write a
+buffer, propose, approve, execute. That is fine on a calm afternoon and
+unpleasant at two in the morning, so it should not be done the day before
+something is due.
+
+What has been proven, on a throwaway program deployed and closed for the
+purpose: the vault can drive the upgradeable loader. Authority went from
+the single key to the vault, and the vault handed it back by proposal.
+Without that rehearsal the handover would have been a one way door, since
+a vault that cannot act leaves a program running its current binary for
+ever.
+
+`scripts/msig.mjs rehearse` does that round trip. Run it against a
+throwaway before every first handover, including the mainnet one, because
+the thing being tested is the cluster and the deployed Squads build, not
+the script.
+
+A note for whoever picks the hardware. The Solana CLI supports exactly one
+hardware wallet, `usb://ledger`; there is no other scheme in the binary.
+Anything else can only ever sign through a web wallet adapter, which means
+no member on such a device can approve from the command line.
+
 **The issuers keep a permanent delegate.** Every tokenized equity checked
 on mainnet, Backpack's and Backed's alike, carries a permanent delegate, a
 freeze authority and a pause switch. The issuer can move or freeze any
@@ -310,7 +343,9 @@ happened.** Anything written to a chain in pieces needs reading back and
 comparing before it is treated as done, and `scripts/circuit-repair.mjs`
 now does that and refuses to finalise until the bytes match.
 
-Before mainnet: the multisig above, a focused review of the program by
+Before mainnet, in this order: real members on the multisig above and the
+authority actually handed to it, a focused review of the program by
 someone who did not write it, and counsel on whether a US person acquiring
 a tokenized equity through a decentralised exchange creates exposure,
-which the SEC's January 2026 statement does not resolve.
+which the SEC's January 2026 statement does not resolve. The last of those
+is the long pole and it is not an engineering task.
