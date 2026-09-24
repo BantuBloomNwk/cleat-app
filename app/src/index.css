@@ -3325,3 +3325,36 @@ h1, h2, h3, h4, h5, h6,
 .ows-allow .ows-verdict { color: var(--verdigris); }
 .ows-when { color: var(--text-primary); font-weight: 600; }
 .ows-why { color: var(--text-tertiary); min-width: 0; }
+
+/* The private rollup, all three legs.
+   Shown as a sequence because it is one: delegate on base, seal inside the
+   enclave, release back. The middle one is the whole point and was the one
+   the app could not do. */
+.per { display: flex; flex-direction: column; gap: 9px; }
+.per-legs { display: flex; flex-direction: column; gap: 4px; }
+.per-leg {
+  display: grid;
+  grid-template-columns: 20px minmax(0, auto) 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  border-left: 2px solid var(--card-border);
+  background: var(--card-surface-raised);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.per-leg.is-done { border-left-color: var(--verdigris); }
+.per-leg-n {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+.per-leg.is-done .per-leg-n { color: var(--verdigris); }
+.per-leg-name { font-weight: 600; color: var(--text-secondary); }
+.per-leg.is-done .per-leg-name { color: var(--text-primary); }
+.per-leg-where { font-family: var(--font-mono); font-size: 9.5px; }
+.per-note { font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
+.per-quiet { font-size: 10.5px; color: var(--text-tertiary); }

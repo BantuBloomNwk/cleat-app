@@ -323,6 +323,28 @@ the Arcium circuit's information leakage beyond reasoning about what the
 revealed bit can imply. The findings above were all found by reading the
 program rather than by running anything at it.
 
+**The rollup's seal step is failing as of 24 September 2026.** The timings
+quoted for the attested rollup leg, 1,808ms to verify the attestation and
+168ms to seal, were measured on 22 September and are real. They are not
+reproducible today. `scripts/roundtrip.mjs` now gets as far as verifying
+the TDX attestation and opening a session, and then the rollup refuses to
+load a copy of this program:
+
+    Cloner error: Failed to clone program 2B7Efr1Wtx...
+    TransactionError(InstructionError(3, InvalidAccountData))
+
+It began after the program was last redeployed, at slot 502911095, which
+was the circuit change that grew the binary. The same failure arrives
+from the browser client and from the script, at the same point, which
+places it on the rollup's side rather than in either caller. Attestation
+and session auth both still work, so what is broken is narrower than the
+whole leg: the rollup cannot read this program as it currently stands on
+base.
+
+Anybody running that script before this is fixed should expect it to
+fail there, and any claim that the private rollup loop closes today
+should be read as a claim about 22 September.
+
 The confidential gate returns verdicts as of 15 September 2026, so the
 account handling described above has now been exercised by callbacks
 carrying real answers rather than only reasoned about. Two proposals

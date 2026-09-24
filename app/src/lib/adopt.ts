@@ -15,7 +15,7 @@ import {
   Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
 } from '@solana/web3.js';
 
-const PROGRAM_ID = new PublicKey('2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL');
+export const PROGRAM_ID = new PublicKey('2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL');
 
 /**
  * Bytes without Node's Buffer, the same way chain.ts already does it.

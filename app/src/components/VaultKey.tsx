@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { PublicKey, type Keypair } from '@solana/web3.js';
 import { connection } from '../lib/chain';
 import { tactile } from '../utils/haptics';
-import { moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
+import { delegateVault, moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
+import { readPer, sealVault, releaseVault, SEAL_FLOOR_LAMPORTS, type PerState } from '../lib/per';
 import { confirmPresence, walletSyncMode } from '../lib/passkey';
 
 /**
@@ -28,6 +29,7 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
   const [vaultLamports, setVaultLamports] = useState<number | null>(null);
   /** The vault's owner moves away from our program once it is delegated. */
   const [delegated, setDelegated] = useState(false);
+  const [per, setPer] = useState<PerState | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string; url?: string } | null>(null);
@@ -49,6 +51,14 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
           setDelegated(!!a && a.owner.toBase58() !== '2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL');
         }).catch(() => {});
     };
+    // Where the vault is, asked of base and of the rollup rather than
+    // inferred from one of them. After delegation the rollup's balance is
+    // the authoritative one and base transfers stop reaching it, which is
+    // the failure that reads as a mystery if only base is consulted.
+    readPer(connection, address, wallet.sleeve)
+      .then((s) => { if (live) setPer(s); })
+      .catch(() => { if (live) setPer(null); });
+
     read();
     // Slow on purpose. A balance that updates every second is a balance being
     // watched, and the proxy behind it is not a subscription.
@@ -117,6 +127,31 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
   const b58 = address.toBase58();
   const sol = lamports === null ? null : lamports / 1e9;
   const vaultSol = vaultLamports === null ? null : vaultLamports / 1e9;
+
+  /** A rollup action, which returns a bare signature rather than a link. */
+  const runPer = async (label: string, fn: () => Promise<string>) => {
+    if (!keypair) return;
+    tactile.mandateAction();
+    setBusy(label);
+    setNote(null);
+    try {
+      if (!(await confirmPresence())) {
+        setNote({ ok: false, text: 'That was not confirmed, so nothing moved.' });
+        return;
+      }
+      const sig = await fn();
+      setNote({
+        ok: true,
+        text: `${label} done, inside the rollup.`,
+        url: `https://explorer.solana.com/tx/${sig}?cluster=devnet`,
+      });
+      setTimeout(() => setNonce((n) => n + 1), 3500);
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (label: string, fn: () => Promise<{ explorer: string }>) => {
     if (!keypair) return;
@@ -319,24 +354,84 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
           </button>
         </div>
 
-        {/* Delegation, and why the button for it is not here.
-            Handing the vault to MagicBlock's rollup is real, it works, and
-            the app can see it happen because the account's owner changes on
-            base, which it reads rather than is told. The trip back cannot be
-            made from here: seal and release are signed inside the rollup
-            rather than against base, which means the rollup's client in this
-            bundle and its host in the policy, and neither is a change to
-            make the night before something is due.
-            So the button is gone rather than half working. A control that
-            hands your vault somewhere this app cannot reach it from, with no
-            way back on the same screen, is worse than no control. The loop
-            is proven end to end by scripts/roundtrip.mjs, which is where the
-            timings quoted elsewhere on this tab come from. */}
-        <p className="text-[11px] leading-[1.6] text-[var(--text-tertiary)]">
-          {delegated
-            ? 'This vault is running on the attested rollup. Bringing it back is signed inside the rollup, so it is done with scripts/roundtrip.mjs rather than from here.'
-            : 'Delegation to the attested rollup is proven end to end by scripts/roundtrip.mjs, with the timings quoted on the Log tab. It is not wired to a button here, because the trip back has to be signed inside the rollup and this screen cannot reach it yet.'}
-        </p>
+        {/* The private rollup, all three legs, from here.
+            Delegating hands the vault to MagicBlock and is signed against
+            base, which the relay can do. Sealing and releasing are signed
+            inside the rollup, which it cannot, so those go straight from
+            this browser under the owner's own key: they are the two
+            instructions that decide who may see the account, and the owner
+            being the only signer on them is the honest arrangement rather
+            than an inconvenience.
+            Sealing is the part that matters. Delegating alone makes things
+            fast and tells nobody anything; the flags set by sealing are what
+            let the owner see balances and leave the agent with only the log,
+            which is the difference between a rollup and a private one. */}
+        <div className="per">
+          <div className="per-legs">
+            {[
+              { n: 1, name: 'Delegated', done: !!per?.delegated, where: 'on base' },
+              { n: 2, name: 'Sealed', done: !!per?.sealed, where: 'in the enclave' },
+              { n: 3, name: 'Released', done: per !== null && !per.delegated, where: 'back on base' },
+            ].map((leg) => (
+              <div key={leg.n} className={`per-leg${leg.done ? ' is-done' : ''}`}>
+                <span className="per-leg-n">{leg.done ? '✓' : leg.n}</span>
+                <span className="per-leg-name">{leg.name}</span>
+                <span className="per-leg-where">{leg.where}</span>
+              </div>
+            ))}
+          </div>
+
+          {per?.delegated && per.rollupLamports !== null && (
+            <p className="per-note">
+              The rollup says this vault holds{' '}
+              <strong>{(per.rollupLamports / 1e9).toFixed(4)} SOL</strong>, and
+              after delegation that is the number that counts: base transfers
+              stop reaching it.
+              {per.rollupLamports < SEAL_FLOOR_LAMPORTS && !per.sealed && (
+                <> Too little to sponsor its own permission account, so bring
+                it back and top it up before sealing.</>
+              )}
+            </p>
+          )}
+
+          <div className="vault-buttons">
+            <button
+              type="button"
+              className="mesh-chip"
+              disabled={!keypair || !!busy || vaultLamports === null || !!per?.delegated}
+              onClick={() => run('Delegation', () => delegateVault(keypair!, wallet.sleeve))}
+              title="Hand the vault to the attested rollup"
+            >
+              {busy === 'Delegation' ? 'Signing…' : 'Delegate'}
+            </button>
+            <button
+              type="button"
+              className="mesh-chip"
+              disabled={!keypair || !!busy || !per?.delegated || !!per?.sealed}
+              onClick={() => runPer('Sealing', () => sealVault(keypair!, wallet.sleeve))}
+              title="Set who may see what, inside the enclave"
+            >
+              {busy === 'Sealing' ? 'Sealing…' : 'Seal it'}
+            </button>
+            <button
+              type="button"
+              className="mesh-chip"
+              disabled={!keypair || !!busy || !per?.delegated}
+              onClick={() => runPer('Release', () => releaseVault(keypair!, wallet.sleeve))}
+              title="Commit what happened inside and hand it back"
+            >
+              {busy === 'Release' ? 'Releasing…' : 'Bring it back'}
+            </button>
+          </div>
+
+          <p className="per-note per-quiet">
+            This proves the vault goes into the enclave, seals, and comes back.
+            It does not prove the enclave is a real one: verifying the TDX
+            quote wants a WASM verifier this bundle does not carry, so that
+            check lives in scripts/roundtrip.mjs, which measured 1,808ms for
+            it. Saying which half is which here is cheaper than implying both.
+          </p>
+        </div>
       </div>
 
       {note && (

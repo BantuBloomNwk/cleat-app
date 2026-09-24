@@ -20,6 +20,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "@types/three": "^0.180.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "bs58": "^6.0.0",
     "buffer": "^6.0.3",
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",

@@ -64,6 +64,15 @@
 # the first is a small delta on an attack that has already won, and the
 # second is a property we cannot get any other way.
 #
+# The rollup is the fourth, and it is the narrowest of them. Sealing and
+# releasing a vault are signed inside MagicBlock's enclave rather than
+# against base, so they cannot go through the relay that carries every other
+# instruction in this app: the relay talks to base and the rollup has never
+# heard of it. The browser therefore has to reach one host, which serves one
+# RPC and an auth challenge, and what travels there is a transaction the
+# owner has already signed. Not adding it would mean the private half of the
+# product lives only in a terminal.
+#
 # img-src is the third widening and the cheapest to reason about. Every
 # tokenized name the venue lists publishes its own icon, on those two hosts
 # and nowhere else. An image cannot execute, these are not script or style
@@ -97,6 +106,7 @@
         https://backpack.exchange;
       connect-src 'self'
         https://api.sunrise.xyz
+        https://devnet-tee.magicblock.app
         https://api.anthropic.com
         https://api.openai.com
         https://generativelanguage.googleapis.com
