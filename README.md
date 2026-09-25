@@ -77,7 +77,7 @@ between the two is what the trade costs for being that large. Micron at two
 thousand dollars comes back under a basis point. The endpoint is public, so
 anyone can run it again and get the same number.
 
-**The diary.** Every decision lands in a ring buffer on chain: the sector, the
+**The log.** Every decision lands in a ring buffer on chain: the sector, the
 size as a share of the book, the outcome, the reason, the slot. Alongside it,
 one running total per sector, which is what makes a position cap a position cap
 rather than a cap on one trade at a time. No ticker, no amount, no resulting
@@ -125,7 +125,7 @@ refused. Once to halt the mandate outright, after which nothing proposes at all
 until they lift it. Both are one transaction, both need their signature, and
 neither is available to the agent.
 
-The app reads that log directly off devnet. Nothing on the diary screen is
+The app reads that log directly off devnet. Nothing on the log screen is
 seeded.
 
 Market data is real and it is not ours. Backpack Securities publishes the
