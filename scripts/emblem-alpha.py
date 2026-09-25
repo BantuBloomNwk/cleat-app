@@ -19,12 +19,20 @@
 # was chosen by measuring the perimeter ring: at 5 the median sits at 40 and
 # is visible, at 13 it sits at 12 and is not.
 #
-# Usage: python3 scripts/emblem-alpha.py 13 save
+# Usage: python3 scripts/emblem-alpha.py <erode> [save] [source.jpg]
+#
+# The source used to be a hardcoded absolute path into a scratch directory
+# on one machine, which meant the script only ran for the person who wrote
+# it and leaked where they wrote it. It takes an argument now and falls back
+# to a path inside the repo.
 from PIL import Image, ImageFilter
 from collections import deque
 import sys, os
 
-SRC = 'SOURCE_IMAGE'
+SRC = sys.argv[3] if len(sys.argv) > 3 else os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'app', 'public', 'orig-dark.jpg',
+)
 lum = lambda p: (p[0] + p[1] + p[2]) // 3
 ERODE = int(sys.argv[1])
 
