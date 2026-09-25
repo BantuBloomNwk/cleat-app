@@ -555,3 +555,31 @@ function readable(msg: string): string {
 export async function hasMandate(connection: Connection, owner: PublicKey, index = 0) {
   return !!(await connection.getAccountInfo(mandatePda(owner, index)));
 }
+
+/**
+ * The first sleeve with nothing in it.
+ *
+ * Taking somebody else's sentence used to write it into whichever sleeve
+ * happened to be in front, which works exactly once. The second time, and
+ * for anybody who had already written a sentence of their own, the account
+ * already existed and the whole transaction came back as a System program
+ * error zero against an instruction index, which tells a person nothing at
+ * all about what went wrong.
+ *
+ * Adopting should widen the book rather than overwrite it. That is the point
+ * of sleeves: one key, several accounts, each with its own sentence and its
+ * own record, so a person is not made to choose one rule for everything they
+ * own. So this finds the first free one and the caller writes there.
+ *
+ * Sixteen is a limit rather than a belief about how many anybody wants. It
+ * bounds the scan, and a person who has filled sixteen has a different
+ * problem than this function can solve.
+ */
+export async function firstFreeSleeve(
+  connection: Connection, owner: PublicKey, max = 16,
+): Promise<number | null> {
+  for (let i = 0; i < max; i++) {
+    if (!(await hasMandate(connection, owner, i))) return i;
+  }
+  return null;
+}

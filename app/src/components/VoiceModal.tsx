@@ -41,12 +41,21 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
   // Start Speech & Microphone Stream
   const startListening = async () => {
     setMicError(null);
-    setIsListening(true);
 
     // 1. Microphone Audio Visualizer
+    //
+    // The listening flag used to be set here, one line above the request,
+    // which meant the panel said "Acoustic Microphone Active" with a pulsing
+    // dot whether or not a microphone ever opened. Somebody who declines the
+    // browser prompt, or is on a machine with no microphone at all, was told
+    // it was live and then watched a waveform that never moved. In an app
+    // whose whole argument is that the screen does not overstate what is
+    // happening, that is the worst possible place for a status light to lie.
+    // It goes up when the stream does and not before.
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setIsListening(true);
         micStreamRef.current = stream;
 
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -79,7 +88,10 @@ export const VoiceModal: React.FC<VoiceModalProps> = ({
       }
     } catch (err: any) {
       console.warn('Microphone access issue:', err);
-      setMicError('Microphone permission needed to capture voice. You can also tap a suggested mandate below.');
+      setIsListening(false);
+      setMicError(
+        'No microphone here, so nothing is being heard. Tap one of the sentences below, or type it, and it works the same.',
+      );
     }
 
     // 2. Web Speech API Recognition

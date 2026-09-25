@@ -325,3 +325,33 @@ TOOLCHAIN.md         how to not lose a week to Arcium
 Built for Stocklana. Market data from Backpack Securities. Confidential compute
 from Arcium. Attested execution from MagicBlock. Agent key custody follows Open
 Wallet Standard, and the agent pays for its own work over x402.
+
+## Pyth and PreStocks
+
+Two integrations carry an argument rather than a logo, so they are worth
+naming here with what they actually do.
+
+**Pyth** supplies the six asset classes on the chart tab: Tesla, the Nasdaq
+100, December crude, gold, the euro and Solana. None of them keeps New York's
+hours, which is the point of an agent that works overnight. The row that
+carries the argument is the oil. The demo sentence rules out fossil fuels by
+name, so a real crude price moving is a real reason to want energy exposure,
+and a real refusal comes back against a deny list of actual mints. Nothing in
+that chain is staged. `app/netlify/functions/pyth.mts` reads it,
+`app/src/components/Watching.tsx` draws it.
+
+**PreStocks** supplies the private companies, and it is the hardest instrument
+this product has to say anything about. Every other name here has a book,
+however thin. A pre-IPO token has an SPV mark and whatever somebody will pay
+for it, and the distance between those two is the price of there being no
+market at all. Both numbers are published, so the app reads the gap rather
+than guessing it.
+
+Against a sentence carrying a twenty basis point spread cap, all eight names
+refuse. That is a finding about the asset class and not a failed integration:
+a rule about how wide a market may be cannot be satisfied by an instrument
+that does not have one. An agent buying an illiquid private company while its
+owner is asleep in another timezone is the exact thing a spread cap was
+written for, so the refusals are the integration working.
+`app/netlify/functions/prestocks.mts` reads it,
+`app/src/components/PreIpo.tsx` draws it.

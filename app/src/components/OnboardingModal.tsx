@@ -236,22 +236,36 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             {/* The emblem ships cropped to its own artwork now, so the zoom
                 that used to hide a white margin crops into it instead and
                 chips the corners off. */}
-            <div className="cinematic-emblem">
+            {/* The first thing anybody sees, and it used to just sit there.
+                Three static cards is a form, and a form is what a person
+                closes. The emblem drops and settles the way a line is made
+                fast to a cleat, the claim resolves a word at a time under it,
+                and the tagline lands once the sentence has finished.
+                Nothing here gates a tap. Every control is live from the first
+                frame, so somebody who has seen it before goes straight past. */}
+            <div className="cinematic-emblem emblem-arrive">
               <img
                 src={theme === 'light' ? emblemLight : emblemDark}
                 alt="Cleat Emblem"
                 className="w-full h-full object-contain object-center"
               />
             </div>
-            <div className="splash-claim-sentence">
-              “An agent you don’t have to trust.”
+            <div className="splash-claim-sentence claim-arrive">
+              {/* Read as one sentence by a screen reader, animated as seven
+                  words for everybody else. */}
+              <span className="sr-only">“An agent you don’t have to trust.”</span>
+              {['“An', 'agent', 'you', 'don’t', 'have', 'to', 'trust.”'].map((w, i) => (
+                <span key={i} style={{ animationDelay: `${420 + i * 90}ms` }} aria-hidden="true">
+                  {w}
+                </span>
+              ))}
             </div>
             <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed mb-2 max-w-[320px]">
               Autonomous speed governed by what you actually told it to do.
             </p>
             {/* A cleat is the fitting on a dock that a line is made fast to.
                 It does not move the boat. It stops it leaving. */}
-            <p className="splash-tagline mb-6">Markets drift. Cleat holds.</p>
+            <p className="splash-tagline tagline-arrive mb-6">Markets drift. Cleat holds.</p>
             <button
               id="btn-onboarding-continue"
               type="button"

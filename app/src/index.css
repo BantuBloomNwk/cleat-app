@@ -3492,3 +3492,39 @@ h1, h2, h3, h4, h5, h6,
 @media (prefers-reduced-motion: reduce) {
   .aside-body > * { animation: none; }
 }
+
+/* The first four seconds.
+   Three static cards is a form, and a form is what a person closes. The
+   emblem drops and settles the way a line is made fast to a cleat, the claim
+   resolves a word at a time under it, and the tagline arrives once the
+   sentence has finished. Nothing here gates a tap: every control is live from
+   the first frame, so somebody who has seen it before moves straight past. */
+.emblem-arrive { animation: emblem-settle 900ms cubic-bezier(.2,.9,.25,1) both; }
+@keyframes emblem-settle {
+  0%   { opacity: 0; transform: translateY(-16px) scale(.94); }
+  60%  { opacity: 1; transform: translateY(3px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.claim-arrive span:not(.sr-only) {
+  display: inline-block;
+  margin-right: 0.28em;
+  animation: word-in 460ms cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes word-in {
+  from { opacity: 0; transform: translateY(7px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.tagline-arrive { animation: tagline-in 700ms ease-out 1180ms both; }
+@keyframes tagline-in {
+  from { opacity: 0; letter-spacing: 0.26em; }
+  to   { opacity: 0.85; letter-spacing: normal; }
+}
+/* Announced but not drawn, so the sentence reaches a screen reader whole. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emblem-arrive, .claim-arrive span, .tagline-arrive { animation: none; opacity: 1; }
+}

@@ -8,11 +8,12 @@ import type { Mandate, SectorExposure } from '../lib/chain';
 import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise';
 import { PublicKey } from '@solana/web3.js';
 import {
+  connection,
   loadPublishedMandates, loadStandings, MIN_DECISIONS_TO_RANK, PROGRAM_ID,
   type PublishedMandate, type StandingRow,
 } from '../lib/chain';
 import { tactile } from '../utils/haptics';
-import { adoptMandate } from '../lib/adopt';
+import { adoptMandate, firstFreeSleeve } from '../lib/adopt';
 import { confirmPresence } from '../lib/passkey';
 import type { Keypair } from '@solana/web3.js';
 
@@ -55,7 +56,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   // Only the owner's own agent follows what they picked. Everyone else's
   // comes from their key and is theirs.
   const myVariant = useAgentVariant();
-  const [taken, setTaken] = useState<Record<string, { url: string; sponsored: boolean } | string>>({});
+  const [taken, setTaken] = useState<Record<string, { url: string; sponsored: boolean; sleeve: number } | string>>({});
 
   const takeOnChain = async (m: PublishedMandate) => {
     if (!keypair) { onNeedWallet(); return; }
@@ -66,8 +67,22 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
         setTaken((t) => ({ ...t, [m.address]: 'That was not confirmed, so nothing was written.' }));
         return;
       }
-      const r = await adoptMandate(keypair, new PublicKey(m.address), m.text, sleeve);
-      setTaken((t) => ({ ...t, [m.address]: { url: r.explorer, sponsored: r.sponsored } }));
+      // Into a free sleeve, not the one in front. Writing over the sentence
+      // somebody is already running is not what "take this" means, and the
+      // account cannot be created twice anyway.
+      const free = await firstFreeSleeve(connection, keypair.publicKey);
+      if (free === null) {
+        setTaken((t) => ({
+          ...t,
+          [m.address]: 'Every sleeve on this key already holds a sentence. Free one up first.',
+        }));
+        return;
+      }
+      const r = await adoptMandate(keypair, new PublicKey(m.address), m.text, free);
+      setTaken((t) => ({
+        ...t,
+        [m.address]: { url: r.explorer, sponsored: r.sponsored, sleeve: free },
+      }));
       onAdoptMandate(m.text);
       loadPublishedMandates().then(setPublished);
     } catch (e) {
@@ -335,8 +350,10 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                 if (typeof done === 'object') {
                   return (
                     <p className="text-[11px] text-[var(--text-secondary)]">
-                      Taken. It is your sentence now, on a child account under
-                      your own key.{' '}
+                      Taken, into sleeve {done.sleeve}. It is your sentence now,
+                      on its own account under your own key, with its own vault
+                      and its own record, and whatever you were already running
+                      is untouched.{' '}
                       {done.sponsored && 'Devnet rent was covered for the demo. '}
                       <a
                         href={done.url}
