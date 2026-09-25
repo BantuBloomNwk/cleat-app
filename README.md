@@ -57,8 +57,17 @@ to whoever runs the agent, not to us. Your updated exposure comes back sealed to
 your key, so you get your position advanced without anyone having read it.
 
 **Execution.** Approved trades run in MagicBlock's ephemeral rollup inside an
-Intel TDX enclave, which answers an attestation query. Measured on devnet: 1.8
-seconds to verify attestation, 36 millisecond median from submit to confirm.
+Intel TDX enclave, which answers an attestation query. Measured on devnet on
+22 September 2026: 1.8 seconds to verify attestation, 36 millisecond median
+from submit to confirm.
+
+Read that date as a date. The sealing step does not complete today, against
+this program address, and the reason is upstream rather than here: the
+rollup declines to load a copy of the program after an upgrade, which
+MagicBlock's own tracker carries as issues 884 and 1528 with the finding
+that the staleness is keyed on the address and that a fresh one clones
+correctly. Attestation and session auth still work. `SECURITY.md` has the
+error text and the whole account.
 
 Before that, the app asks a router what the trade would actually cost. The
 mandate caps how wide a book the agent may trade into, and that number used to
@@ -120,9 +129,16 @@ The app reads that log directly off devnet. Nothing on the diary screen is
 seeded.
 
 Market data is real and it is not ours. Backpack Securities publishes the
-tradable universe, the session calendar and live quotes without a key, and
-Sunrise, the layer their tokens are listed through, publishes which mint is
-which. So the app shows the instruments the agent actually works against,
+tradable universe, the session calendar, live quotes and the canonical
+Solana mint for each of eleven hundred US listings, all without a key, and
+Jupiter prices what a given size would actually fill for.
+
+Both of those replaced Sunrise on 24 September 2026, when it closed its
+listing and its quote behind an API key within a few hours of each other.
+Neither had needed one that morning. The replacements are better placed
+anyway: the venue that issues and custodies a token is the right authority
+on its address, and the router these fills route through is the right
+authority on what they cost. So the app shows the instruments the agent actually works against,
 priced by the venue they trade on and addressed by whatever the issuer says the
 address is today.
 

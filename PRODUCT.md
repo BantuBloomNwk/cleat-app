@@ -358,12 +358,26 @@ outlets actually bringing equities onto this chain, so building against
 them is the difference between a demo with invented tickers and something a
 person could use.
 
-Sunrise is where those tokens are listed, and it publishes three endpoints
-that need no key: the tradable universe with the canonical mint for each
-name, a quote, and an execute. Forty six tokenized shares, each carrying
-the ISO market identifier for the exchange it belongs to.
+Sunrise was where those tokens were listed, and it published three
+endpoints that needed no key: the tradable universe with the canonical mint
+for each name, a quote, and an execute. On 24 September 2026 all three went
+behind an API key, the listing first and the quote a couple of hours later,
+and everything on that host now answers 401 without one.
 
-Two of those are load bearing and the third is the one to be honest about.
+Both jobs moved rather than being dropped, and to sources that were open
+the whole time and are better placed. The venue's own asset endpoint
+carries eleven hundred US listings with their Solana mints instead of
+sixty, and the exchange that issues and custodies a token is the right
+authority on its address. Jupiter prices the fill, and the router these
+trades route through is the right authority on what they cost.
+
+The one thing lost is the ISO market identifier, which the venue does not
+publish per asset. That field is null rather than a guessed XNAS, because
+an invented four letter code on eleven hundred rows is worse than an
+admitted gap on eleven hundred rows.
+
+What follows is still the argument for why these two questions have to be
+asked at all, which did not change when the answers moved.
 
 The universe is the answer to which address is the real one, and it has to
 be asked rather than remembered. A ticker on Solana is not one thing:
@@ -377,12 +391,17 @@ The quote is how the spread cap stops being the agent's own word. Price a
 hundred dollars of the name, price the real size, and the difference is
 what the trade costs for being that large. Anyone can rerun it.
 
-The execute path is where the geography shows up. Sunrise refuses to price
-a trade from several countries, at the request rather than at the token, so
-the browser asks directly and the answer belongs to whoever is sitting
-there. That is the correct place for it and it is also the shape of the
-problem this product is for: the asset is global and the rails around it
-are not, yet.
+The execute path is where the geography shows up, and it is worth keeping
+even though the router that demonstrated it has closed. A quote endpoint
+that refuses by region refuses at the request rather than at the token, so
+the check belongs wherever the person actually is and not wherever a server
+happens to sit. Ours ran in Virginia for a while and handed everybody
+Virginia's answer, including people in countries that were never blocked.
+It runs at the edge now, at the point of presence nearest the viewer, which
+is where that decision was always supposed to be made.
+
+That is also the shape of the problem this product is for: the asset is
+global and the rails around it are not, yet.
 
 Four of Backpack's own endpoints need no key and no account, and they are
 wired in:
