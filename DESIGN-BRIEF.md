@@ -28,10 +28,10 @@ Three steps, no more. Passkey, no seed phrase, no wallet language.
   a sentence is more natural than typing it. Three example sentences underneath,
   tappable to start from. A live preview showing the caps the sentence implies,
   so the user sees their words becoming rules.
-- **Empty state after onboarding:** the diary with no entries yet, saying what
+- **Empty state after onboarding:** the log with no entries yet, saying what
   will appear here overnight rather than "no data".
 
-### 2. Diary, the home screen
+### 2. Log, the home screen
 The daily surface. Never portfolio value, never a hero number.
 - Mandate card: the sentence in the serif as the largest type on screen, with
   held-for, version, and how many people run it.
@@ -50,7 +50,7 @@ The daily surface. Never portfolio value, never a hero number.
 - Timeframe control. This must serve a day trader as well as an investor, so
   intraday matters as much as months.
 
-### 4. Mandates, the social surface
+### 4. Sentences, the social surface
 The unit is a **standing order**: a sentence currently running, with a pulse, a
 lineage and a record. Not a feed of trades.
 - Browse sentences. Each shows its prose, verified return, adopt count, and how
@@ -103,7 +103,7 @@ The transparency page, and the answer to the privacy question.
 - **App bar:** wordmark, a live "agent watching" pulse, and a **sealed indicator**
   that is status rather than a control. It never turns off, so it is a statement
   of fact, not a setting.
-- **Bottom tabs:** Diary, Chart, Mandates, You. Four, not five.
+- **Bottom tabs:** Log, Chart, Sentences, Vault. Four, not five.
 
 ## Components to specify
 

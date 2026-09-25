@@ -28,7 +28,7 @@ portfolio.**
 Consumer and Infrastructure are built properly rather than gestured at. They are simply
 not what we lead with.
 
-- **Consumer, social trading.** Mandate adoption, rule cards, the diary. Leading here
+- **Consumer, social trading.** Mandate adoption, rule cards, the log. Leading here
   invites the FOMO comparison, which we lose on distribution and on the volatility of the
   underlying. It is the surface, not the pitch.
 - **Infrastructure, compliance.** The verdict log is a public, queryable record of what an
@@ -50,7 +50,7 @@ not care which timeframe it is enforcing.
 This is not breadth for its own sake, it repairs the retention argument. Tokenized equities
 move about a percent a day, so a buy-and-hold mandate produces almost nothing to come back
 for. A day-trading mandate produces dozens of decisions a day, and every one is an entry in
-the diary. **Day trading is what solves the content cadence problem that long-term investing
+the log. **Day trading is what solves the content cadence problem that long-term investing
 cannot.** Never build anything that assumes a single holding period.
 
 Consequence for the discipline streak: it is per mandate and counts decisions, not days.
@@ -70,7 +70,7 @@ MagicBlock's TEE-attested ephemeral rollup under caps the agent cannot widen.
 Success looks like a user who wrote one sentence, has never seen a chart, and can point
 at a trade that was refused.
 
-## The home screen is the agent's diary
+## The home screen is the agent's log
 
 Not portfolio value. Decided deliberately, and it is the single most important layout call
 in the product.
@@ -84,7 +84,7 @@ the one screen with nothing private on it, so it is also the screen that can be 
 
 **Build the chart.** An earlier draft of this file said not to, which was solving the wrong
 problem: the risk was never that a chart exists, it was a *generic* chart competing with the
-diary. A trader reads charts the way other people read sentences, and a trading product
+log. A trader reads charts the way other people read sentences, and a trading product
 without one does not respect its user. The question is what ours shows that nobody else's
 can.
 
@@ -109,7 +109,7 @@ whole difference between our chart and the one worth rejecting.
 
 The loop, at three speeds:
 
-- **Daily.** The diary. What was proposed, cleared, trimmed, refused.
+- **Daily.** The log. What was proposed, cleared, trimmed, refused.
 - **Weekly.** Every refusal is an invitation to edit one sentence. "Three technology trades
   stopped by your fifteen percent cap. Raise it?" That is agency, and it is the opposite of
   a passive product.
@@ -118,7 +118,7 @@ The loop, at three speeds:
 
 ## Published or private, the switch the privacy claim lives on
 
-**A published mandate's diary is public. A private mandate publishes nothing.**
+**A published mandate's log is public. A private mandate publishes nothing.**
 
 If a sentence is published for other people to adopt, its decision record *is* the track
 record, and hiding it would make adoption blind faith, which is the thing this product
