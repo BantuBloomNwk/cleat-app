@@ -16,3 +16,13 @@ app/dist
 .netlify
 app/.netlify
 .env
+
+# The submission write up. Deadlines, which bounty tracks were entered and
+# which were passed on and why, and notes for whoever shoots the video. That
+# is working material for one week and it is nobody else's business, so it
+# stays on this machine.
+SUBMISSION.md
+
+# A compiled program kept so a bad deploy can be undone. Useful locally,
+# a megabyte of binary and nothing else to a reader.
+.rollback/
