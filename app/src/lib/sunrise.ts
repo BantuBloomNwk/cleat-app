@@ -113,9 +113,15 @@ interface RawQuote {
  * header instead of two, and the geo property returns with no other change:
  * the direct path is still here and still tried first.
  *
- * The proxy it falls back to is now an edge function rather than a regular
- * one, and that is the whole difference between a geofence that works and a
- * geofence that lies. Regular functions run in us-east-1, Sunrise blocks the
+ * Since the evening of 24 September there is also nothing to try directly:
+ * the issuer's router closed its quote endpoint behind a key on the same day
+ * as its listing. What answers now is Jupiter, through the same edge
+ * function, which is public and is the venue these fills were already
+ * described as routing through. The direct path stays in the file for the
+ * day an issuer opens one again.
+ *
+ * The proxy is an edge function rather than a regular one, and that is the
+ * whole difference between a geofence that works and a geofence that lies. Regular functions run in us-east-1, Sunrise blocks the
  * United States, and so every person everywhere was handed Virginia's
  * answer. Edge functions run at the point of presence nearest the viewer, so
  * the check lands roughly where the person is, which is what the paragraph

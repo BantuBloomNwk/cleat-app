@@ -23,7 +23,27 @@
 // It stays a refusal when it is one. Nothing here pretends a blocked region
 // is anything else, and the screen already has copy for that answer.
 
-const SUNRISE = "https://api.sunrise.xyz/v1/quotes";
+// Jupiter, because the issuer's router closed.
+//
+// This proxied Sunrise, whose quote endpoint was open on the morning of 24
+// September and answering 401 to everyone by that evening, alongside its
+// listing. A dependency can be withdrawn and the honest response is to name
+// a different one rather than to describe a capability that no longer runs.
+//
+// Jupiter is the better answer anyway and was already named on the chart as
+// the venue these fills route through. It is public, it needs no key, it
+// returns the two things a spread cap wants, and anybody can run the same
+// two calls and get the same numbers, which is the property that made this
+// worth doing instead of asking the agent.
+//
+// The geographic argument for answering from the edge still holds and costs
+// nothing to keep: a router that ever starts refusing by region should
+// refuse based on where the person is rather than where a server happens to
+// sit, and this already runs at the point of presence nearest the viewer.
+const JUPITER = "https://lite-api.jup.ag/swap/v1/quote";
+
+/** USDC on Solana, the side every quote here is priced from. */
+const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 /**
  * Where the runtime placed the viewer.
@@ -62,13 +82,64 @@ export default async (req: Request, context: EdgeContext): Promise<Response> => 
     });
   }
 
+  // The caller still speaks the shape the app has always sent. Translating
+  // here rather than in the browser keeps the swap to a different router a
+  // single file, and keeps the client's fallback to a direct call honest for
+  // the day an issuer opens a quote endpoint again.
+  let toToken: string;
+  let fromAmount: string;
   try {
-    const res = await fetch(SUNRISE, {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body,
+    const asked = JSON.parse(body) as { toToken?: unknown; fromAmount?: unknown };
+    toToken = String(asked.toToken ?? "");
+    fromAmount = String(asked.fromAmount ?? "");
+  } catch {
+    return new Response(JSON.stringify({ error: "not a quote" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
     });
-    const text = await res.text();
+  }
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(toToken) || !/^\d{1,20}$/.test(fromAmount)) {
+    return new Response(JSON.stringify({ error: "not a quote" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  try {
+    const url =
+      `${JUPITER}?inputMint=${USDC}&outputMint=${toToken}` +
+      `&amount=${fromAmount}&slippageBps=50`;
+    const res = await fetch(url, { headers: { accept: "application/json" } });
+    const raw = await res.json();
+    if (!res.ok) {
+      return new Response(JSON.stringify({ error: raw?.error ?? `router ${res.status}` }), {
+        status: res.status,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    // Answered in the shape the app already reads, so nothing downstream had
+    // to learn a second router's vocabulary.
+    const inUsd = Number(raw.swapUsdValue ?? 0);
+    const impact = Number(raw.priceImpactPct ?? 0);
+    const text = JSON.stringify({
+      success: true,
+      data: {
+        quotes: [{
+          routeName: (raw.routePlan ?? [])
+            .map((r: { swapInfo?: { label?: string } }) => r?.swapInfo?.label)
+            .filter(Boolean)
+            .join(" + ") || "unknown",
+          fromAmountUSD: inUsd,
+          // Jupiter reports the impact rather than a dollar figure on the
+          // far side, and the difference between the two is exactly the cost
+          // of being this size, which is the number the cap is checked
+          // against.
+          toAmountUSD: inUsd * (1 - impact),
+          toAmount: String(raw.outAmount ?? "0"),
+        }],
+      },
+    });
     return new Response(text, {
       status: res.status,
       headers: {

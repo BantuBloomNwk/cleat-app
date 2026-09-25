@@ -32,25 +32,70 @@ interface SunriseToken {
   } | null;
 }
 
+/**
+ * Which mints are real, from the venue that issues them.
+ *
+ * This read the issuer's listing layer until 24 September 2026, when that
+ * endpoint began answering 401 to anyone without an API key. It had been
+ * open, and sixty names came back from it that morning.
+ *
+ * The venue's own asset list is the better source anyway and was there the
+ * whole time. It needs no key, it is the exchange that actually issues and
+ * custodies these tokens rather than a layer above them, and it carries
+ * eleven hundred US listings with their Solana mints instead of sixty. The
+ * only thing lost is the market identifier code, which the venue does not
+ * publish per asset; every name here is a US listing, so that field says so
+ * rather than inventing an exchange.
+ *
+ * The quote endpoint is untouched and still open, which is fortunate,
+ * because it is the one that answers the question a spread cap needs.
+ */
+const VENUE_ASSETS = "https://api.backpack.exchange/api/v1/assets";
+
+interface VenueAsset {
+  symbol?: string;
+  displayName?: string;
+  tokens?: {
+    blockchain?: string;
+    contractAddress?: string;
+    nativeDecimals?: number;
+  }[];
+}
+
 async function universe(): Promise<SunriseToken[]> {
-  // Paginated, and it did not used to be read that way. The page limit is
-  // two hundred and the list sat at eighty eight, so the missing cursor
-  // cost nothing and would have cost everything past two hundred silently.
-  // Names are being added by the dozen, so that is weeks away, not years.
+  const res = await fetch(VENUE_ASSETS, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`assets ${res.status}`);
+  const assets = (await res.json()) as VenueAsset[];
+
   const out: SunriseToken[] = [];
-  let cursor: string | undefined;
-  for (let page = 0; page < 10; page++) {
-    const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-    const res = await fetch(`${SUNRISE}/v1/tokens${qs}`, {
-      headers: { accept: "application/json" },
+  for (const a of assets) {
+    const symbol = a.symbol ?? "";
+    // Tokenised equities carry a country suffix. Everything without one is a
+    // coin, which this list is not about.
+    if (!symbol.endsWith(".US")) continue;
+    const onSolana = (a.tokens ?? []).find(
+      (t) => t.blockchain === "Solana" && t.contractAddress,
+    );
+    if (!onSolana?.contractAddress) continue;
+    const ticker = symbol.slice(0, -3);
+    out.push({
+      address: onSolana.contractAddress,
+      symbol: ticker,
+      name: a.displayName ?? ticker,
+      decimals: onSolana.nativeDecimals ?? 9,
+      assetClass: "stock",
+      issuer: "backpack_securities",
+      icon: null,
+      tokenProgram: "",
+      stock: {
+        ticker,
+        currency: "USD",
+        // Left null rather than guessed. The venue does not say which of the
+        // US exchanges a name is listed on, and writing XNAS for all eleven
+        // hundred would be a fact nobody checked.
+        exchange: { marketIdentifierCode: "", name: "" },
+      },
     });
-    if (!res.ok) throw new Error(`tokens ${res.status}`);
-    const body = (await res.json()) as {
-      data?: { tokens?: SunriseToken[]; pagination?: { nextCursor?: string | null } };
-    };
-    out.push(...(body.data?.tokens ?? []));
-    cursor = body.data?.pagination?.nextCursor ?? undefined;
-    if (!cursor) break;
   }
   return out;
 }
@@ -115,11 +160,14 @@ export default async (req: Request) => {
         // than an unknown one.
         issuer: t.issuer,
         tokenProgram: t.tokenProgram,
-        // ISO 10383, so XNAS rather than "Nasdaq". Four venues are
-        // represented and all four are American, which is worth stating
-        // plainly: the supply side has not left New York yet.
-        mic: t.stock?.exchange.marketIdentifierCode ?? null,
-        venue: t.stock?.exchange.name ?? null,
+        // ISO 10383, so XNAS rather than "Nasdaq". The venue does not say
+        // which US exchange each name sits on, so this is null rather than
+        // guessed, and null renders as "not stated" instead of an invented
+        // four letter code. Every name in this list is a US listing, which
+        // is itself worth stating plainly: the supply side has not left New
+        // York yet.
+        mic: t.stock?.exchange.marketIdentifierCode || null,
+        venue: t.stock?.exchange.name || null,
         currency: t.stock?.currency ?? "USD",
         icon: t.icon,
       }))

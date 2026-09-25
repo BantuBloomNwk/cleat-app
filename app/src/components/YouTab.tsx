@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AgentStage } from './AgentStage';
 import type { AgentMood } from './AgentAvatar';
 import type { TalkStats } from '../lib/agentTalk';
@@ -35,6 +35,43 @@ export const YouTab: React.FC<YouTabProps> = ({
   agentMood = 'idle',
   agentStats,
 }) => {
+  /**
+   * The tile that changed, flashed.
+   *
+   * These three counts have always been correct and have always been inert.
+   * A verdict landing while somebody is looking at this tab moved a number
+   * with no more ceremony than a clock ticking, while the same event on the
+   * Log tab got a colour, a pulse and a haptic. The animation already exists
+   * and is already trained into the product; it was simply never wired here.
+   *
+   * Diffed against the previous render rather than driven by a prop, because
+   * what matters is which of the three moved, and only this component sees
+   * both values.
+   */
+  const previous = useRef<EnforcerStats | null>(null);
+  const [landed, setLanded] = useState<keyof EnforcerStats | null>(null);
+  // A mood the person caused outranks the one the polling set, and it lives
+  // here because the stage and the vault key are siblings.
+  const [asked, setAsked] = useState<AgentMood | null>(null);
+  useEffect(() => {
+    if (!asked) return;
+    // Held long enough to be seen and then let go, so the character does not
+    // stay mid gesture until something else happens to it.
+    const t = window.setTimeout(() => setAsked(null), 2600);
+    return () => window.clearTimeout(t);
+  }, [asked]);
+  useEffect(() => {
+    const was = previous.current;
+    previous.current = stats;
+    if (!was) return; // the first read is not an arrival
+    const changed = (['refused', 'trimmed', 'cleared'] as const)
+      .find((k) => stats[k] > was[k]);
+    if (!changed) return;
+    setLanded(changed);
+    const t = window.setTimeout(() => setLanded(null), 600);
+    return () => window.clearTimeout(t);
+  }, [stats]);
+
   const [vibrationEnabled, setVibrationEnabled] = useState<boolean>(() => tactile.isVibrationEnabled());
   const [testPulseNotice, setTestPulseNotice] = useState<string | null>(null);
 
@@ -67,7 +104,7 @@ export const YouTab: React.FC<YouTabProps> = ({
           opens with the thing those belong to, because a person coming back
           to check on something should see it before they read about it. */}
       <article className="glass-card agent-stage-card" id="agent-stage">
-        <AgentStage seed={owner} mood={agentMood} stats={agentStats} />
+        <AgentStage seed={owner} mood={asked ?? agentMood} stats={agentStats} />
       </article>
 
       <div className="section-row-header">
@@ -86,7 +123,12 @@ export const YouTab: React.FC<YouTabProps> = ({
       {/* 3 Metric Summary Boxes */}
       <div className="grid grid-cols-3 gap-2" id="enforcer-stats-grid">
         <div className="bg-[var(--card-surface)] border border-[var(--card-border)] rounded-2xl p-3 text-center shadow-[var(--card-inner-shadow)] backdrop-blur-md">
-          <div id="statClearedCount" className="font-mono text-[22px] font-extrabold text-[var(--verdigris)]">
+          <div
+            id="statClearedCount"
+            className={`font-mono text-[22px] font-extrabold text-[var(--verdigris)]${
+              landed === 'cleared' ? ' just-landed just-landed-cleared' : ''
+            }`}
+          >
             {stats.cleared}
           </div>
           <div className="font-mono text-[9.5px] text-[var(--text-tertiary)] uppercase tracking-wider mt-0.5">
@@ -95,7 +137,12 @@ export const YouTab: React.FC<YouTabProps> = ({
         </div>
 
         <div className="bg-[var(--card-surface)] border border-[var(--card-border)] rounded-2xl p-3 text-center shadow-[var(--card-inner-shadow)] backdrop-blur-md">
-          <div id="statTrimmedCount" className="font-mono text-[22px] font-extrabold text-[var(--trimmed-amber)]">
+          <div
+            id="statTrimmedCount"
+            className={`font-mono text-[22px] font-extrabold text-[var(--trimmed-amber)]${
+              landed === 'trimmed' ? ' just-landed just-landed-trimmed' : ''
+            }`}
+          >
             {stats.trimmed}
           </div>
           <div className="font-mono text-[9.5px] text-[var(--text-tertiary)] uppercase tracking-wider mt-0.5">
@@ -104,7 +151,12 @@ export const YouTab: React.FC<YouTabProps> = ({
         </div>
 
         <div className="bg-[var(--card-surface)] border border-[var(--card-border)] rounded-2xl p-3 text-center shadow-[var(--card-inner-shadow)] backdrop-blur-md">
-          <div id="statRefusedCount" className="font-mono text-[22px] font-extrabold text-[var(--refused-rust)]">
+          <div
+            id="statRefusedCount"
+            className={`font-mono text-[22px] font-extrabold text-[var(--refused-rust)]${
+              landed === 'refused' ? ' just-landed just-landed-refused' : ''
+            }`}
+          >
             {stats.refused}
           </div>
           <div className="font-mono text-[9.5px] text-[var(--text-tertiary)] uppercase tracking-wider mt-0.5">
@@ -114,7 +166,7 @@ export const YouTab: React.FC<YouTabProps> = ({
       </div>
 
       {/* Security & Enclave Card */}
-      <VaultKey wallet={walletApi} />
+      <VaultKey wallet={walletApi} onMood={setAsked} />
 
       <WalletState wallet={wallet} fallbackOwner={DEMO_OWNER} />
 

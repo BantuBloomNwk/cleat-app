@@ -316,6 +316,29 @@ time. So the running total is a bound on the agent and not a picture of the
 portfolio. The confidential gate is the half that checks the actual
 holding, and the two are deliberately independent: the tighter one wins.
 
+**The issuer's API closed on 24 September 2026.** Sunrise served the
+tokenised listing and the route quote, both open and both unauthenticated,
+and by that evening every endpoint on it answered 401 without an API key.
+Nothing here changed; a dependency was withdrawn.
+
+Both jobs moved to sources that are still open and are arguably the better
+ones. The listing comes from the venue's own asset endpoint, which needs no
+key, is the exchange that actually issues and custodies these tokens, and
+carries eleven hundred US names with their Solana mints rather than sixty.
+The one thing lost is the market identifier code, which the venue does not
+publish per asset, so that field is null rather than a guessed XNAS.
+
+The route quote moved to Jupiter, which was already named on the chart as
+where these fills route. It is public, it returns the price impact and the
+dollar value a spread cap is checked against, and anybody can run the same
+two calls and get the same numbers, which is the property that made asking
+a router better than asking the agent in the first place.
+
+Worth recording as a general point rather than as this incident: an
+unauthenticated third party endpoint is a dependency that can be withdrawn
+between two runs of the same test, and the only defence is that the thing
+it feeds degrades to a stated absence rather than to a blank or a lie.
+
 ## What has not been done
 
 No external audit. No fuzzing of the account layouts. No formal review of

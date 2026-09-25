@@ -22,7 +22,16 @@ import { confirmPresence, walletSyncMode } from '../lib/passkey';
  */
 type WalletApi = ReturnType<typeof import('../hooks/useWallet').useWallet>;
 
-export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
+export const VaultKey: React.FC<{
+  wallet: WalletApi;
+  /**
+   * So the agent reacts to the one action that makes this product's central
+   * claim true. Sealing is the moment the flags go on and the holdings stop
+   * being visible to anything but the owner; the character had a mood for it
+   * and nothing ever set it.
+   */
+  onMood?: (m: 'sealed') => void;
+}> = ({ wallet, onMood }) => {
   const keypair = wallet.keypair;
   const address = wallet.state.status === 'ready' ? wallet.state.address : null;
   const [lamports, setLamports] = useState<number | null>(null);
@@ -408,7 +417,13 @@ export const VaultKey: React.FC<{ wallet: WalletApi }> = ({ wallet }) => {
               type="button"
               className="mesh-chip"
               disabled={!keypair || !!busy || !per?.delegated || !!per?.sealed}
-              onClick={() => runPer('Sealing', () => sealVault(keypair!, wallet.sleeve))}
+              onClick={() =>
+                runPer('Sealing', async () => {
+                  const sig = await sealVault(keypair!, wallet.sleeve);
+                  onMood?.('sealed');
+                  return sig;
+                })
+              }
               title="Set who may see what, inside the enclave"
             >
               {busy === 'Sealing' ? 'Sealing…' : 'Seal it'}
