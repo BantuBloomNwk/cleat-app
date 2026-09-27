@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "net.getcleat.app",
+      "sha256_cert_fingerprints": [
+        "BF:79:07:59:99:D6:57:04:F7:75:5C:8B:A3:0B:24:73:53:5E:6F:D4:BF:EB:45:84:51:BF:50:78:35:46:EA:05"
+      ]
+    }
+  }
+]

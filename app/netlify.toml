@@ -164,3 +164,13 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Android checks this file to trust the Seeker app with the whole screen.
+# It has to be served as JSON and must not be cached for long, or a key
+# change takes days to reach phones.
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "public, max-age=300"
+    Access-Control-Allow-Origin = "*"

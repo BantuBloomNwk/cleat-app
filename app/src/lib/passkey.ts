@@ -69,7 +69,21 @@ const store = {
   },
 };
 
-const rpId = () => (typeof location !== 'undefined' ? location.hostname : 'localhost');
+/**
+ * Which domain a passkey belongs to. It cannot be changed afterwards: a
+ * passkey made for one domain never opens on another, so moving the app
+ * would cost every passkey holder their address.
+ *
+ * On getcleat.net it binds to the registrable domain rather than the host,
+ * so app.getcleat.net, the landing page and any subdomain the app moves to
+ * later all open the same key. Anywhere else, the host itself.
+ */
+const HOME = 'getcleat.net';
+const rpId = () => {
+  if (typeof location === 'undefined') return 'localhost';
+  const h = location.hostname;
+  return h === HOME || h.endsWith(`.${HOME}`) ? HOME : h;
+};
 
 const randomBytes = (n: number) => {
   const b = new Uint8Array(n);
