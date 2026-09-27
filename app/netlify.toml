@@ -81,6 +81,13 @@
 # security gain. The component falls back to a monogram when a fetch fails,
 # so a blocked or missing icon degrades to a letter rather than a hole.
 #
+# The wallet is the fifth, and its absence broke wallet sign-in on every
+# Android phone. Mobile Wallet Adapter opens the wallet app, which starts a
+# WebSocket server on a random loopback port, and the page connects to it.
+# Loopback only: nothing reaches the network, and the port is chosen by the
+# wallet per session, so it has to be a wildcard. Without it the wallet
+# opened and the page's connection was refused in silence.
+#
 # The build emits no inline script and no inline style block, so
 # script-src needs no escape hatch. style-src does need unsafe-inline,
 # and that is worth being precise about rather than waving at: React
@@ -111,7 +118,9 @@
         https://api.openai.com
         https://generativelanguage.googleapis.com
         http://localhost:11434
-        http://127.0.0.1:11434;
+        http://127.0.0.1:11434
+        ws://localhost:*
+        ws://127.0.0.1:*;
       manifest-src 'self';
       worker-src 'self' blob:;
       media-src 'self' blob:;
@@ -174,15 +183,3 @@
     Content-Type = "application/json"
     Cache-Control = "public, max-age=300"
     Access-Control-Allow-Origin = "*"
-
-# Over-the-air bundles for the Android app. The manifest must never be cached
-# or an installed app keeps being told about an old build; the zips are named
-# by version and never change once written.
-[[headers]]
-  for = "/ota/latest.json"
-  [headers.values]
-    Cache-Control = "no-store"
-[[headers]]
-  for = "/ota/*.zip"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
