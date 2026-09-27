@@ -16,8 +16,9 @@ use crate::error::CleatError;
 /// start from the signer's own key, so nobody can close anyone else's. Not
 /// deserialising them is deliberate: decision logs from before the current
 /// layout would fail to load as the current type, and an owner has to be able
-/// to delete an old account as surely as a new one. Any of the five may be
-/// missing; a sleeve that never opened a spend account still closes.
+/// to delete an old account as surely as a new one. Any of the six may be
+/// missing; a sleeve that never opened a spend account still closes. The
+/// private marker goes too, or it would outlive the sentence it describes.
 #[derive(Accounts)]
 #[instruction(index: u16)]
 pub struct CloseSleeve<'info> {
@@ -43,6 +44,10 @@ pub struct CloseSleeve<'info> {
     /// CHECK: matched by seeds off the signer, closed by hand below.
     #[account(mut, seeds = [SPEND_SEED, owner.key().as_ref(), &index_seed(index)], bump)]
     pub spend: UncheckedAccount<'info>,
+
+    /// CHECK: matched by seeds off the mandate above, closed by hand below.
+    #[account(mut, seeds = [PRIVATE_SEED, mandate.key().as_ref()], bump)]
+    pub private_marker: UncheckedAccount<'info>,
 }
 
 pub fn exec_close_sleeve(ctx: Context<CloseSleeve>, index: u16) -> Result<()> {
@@ -63,6 +68,7 @@ pub fn exec_close_sleeve(ctx: Context<CloseSleeve>, index: u16) -> Result<()> {
         ctx.accounts.spend.to_account_info(),
         ctx.accounts.log.to_account_info(),
         ctx.accounts.universe.to_account_info(),
+        ctx.accounts.private_marker.to_account_info(),
         ctx.accounts.mandate.to_account_info(),
     ] {
         returned = returned.saturating_add(close_raw(&acc, &owner)?);

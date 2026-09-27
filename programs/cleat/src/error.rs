@@ -68,4 +68,6 @@ pub enum CleatError {
     Halted,
     #[msg("The vault is out on the rollup. Release it back to Solana before closing this sleeve.")]
     VaultDelegated,
+    #[msg("That sentence is private. Its owner has not offered it for adoption.")]
+    PrivateMandate,
 }

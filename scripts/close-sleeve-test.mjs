@@ -30,6 +30,7 @@ const sleeve = (owner, i) => {
     vault: pda([enc('vault'), owner.toBuffer(), idx(i)]),
     log: pda([enc('verdicts'), owner.toBuffer(), idx(i)]),
     spend: pda([enc('spend'), owner.toBuffer(), idx(i)]),
+    privateMarker: pda([enc('private'), mandate.toBuffer()]),
   };
 };
 
@@ -70,9 +71,29 @@ await p.methods.openSpendAccount(I, Keypair.generate().publicKey, new BN(0.1 * L
 await p.methods.fundSpendAccount(I, new BN(0.2 * LAMPORTS_PER_SOL))
   .accountsStrict({ payer: owner.publicKey, spend: a.spend, systemProgram: sys }).rpc();
 
+// Private: nobody can adopt it. Public again: they can.
+const adopt = (who, childIdx) => {
+  const child = sleeve(who.publicKey, childIdx);
+  return programFor(who).methods.adoptMandate(childIdx, 'Borrowed.')
+    .accountsStrict({ adopter: who.publicKey, parent: a.mandate, child: child.mandate, systemProgram: sys, parentPrivate: a.privateMarker })
+    .rpc();
+};
+await p.methods.makePrivate(I)
+  .accountsStrict({ owner: owner.publicKey, mandate: a.mandate, marker: a.privateMarker, systemProgram: sys }).rpc();
+let blocked = '';
+try { await adopt(stranger, 2); } catch (e) { blocked = String(e.message ?? e); }
+check(/PrivateMandate|private/i.test(blocked), 'a private sentence cannot be adopted');
+await p.methods.makePublic(I)
+  .accountsStrict({ owner: owner.publicKey, mandate: a.mandate, marker: a.privateMarker }).rpc();
+check((await conn.getAccountInfo(a.privateMarker)) === null, 'making it public closes the marker');
+await adopt(stranger, 2);
+check((await conn.getAccountInfo(sleeve(stranger.publicKey, 2).mandate)) !== null, 'once public it can be adopted');
+await p.methods.makePrivate(I)
+  .accountsStrict({ owner: owner.publicKey, mandate: a.mandate, marker: a.privateMarker, systemProgram: sys }).rpc();
+
 const held = {};
 for (const [k, v] of Object.entries(a)) held[k] = await conn.getBalance(v);
-check(Object.values(held).every((l) => l > 0), `all five accounts exist: ${JSON.stringify(held)}`);
+check(Object.values(held).every((l) => l > 0), `all six accounts exist: ${JSON.stringify(held)}`);
 const total = Object.values(held).reduce((x, y) => x + y, 0);
 
 // A stranger calling it derives their own addresses from their own key, so
@@ -101,7 +122,7 @@ const after = await conn.getBalance(owner.publicKey);
 check(after - before + tx.meta.fee === total, `owner got back all ${total} lamports (fee ${tx.meta.fee})`);
 let gone = true;
 for (const v of Object.values(a)) gone &&= (await conn.getAccountInfo(v)) === null;
-check(gone, 'all five accounts are closed');
+check(gone, 'all six accounts are closed, the private marker with them');
 
 await p.methods.createMandate(I, 'A second sentence at the same index.', 1000, 300, 0, [])
   .accountsStrict({ owner: owner.publicKey, mandate: a.mandate, systemProgram: sys }).rpc();

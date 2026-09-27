@@ -28,6 +28,8 @@ pub fn index_seed(index: u16) -> Vec<u8> {
 pub const VAULT_SEED: &[u8] = b"vault";
 #[constant]
 pub const UNIVERSE_SEED: &[u8] = b"universe";
+#[constant]
+pub const PRIVATE_SEED: &[u8] = b"private";
 
 /// Basis points of the portfolio. 10_000 is the whole thing.
 pub const BPS_DENOM: u16 = 10_000;

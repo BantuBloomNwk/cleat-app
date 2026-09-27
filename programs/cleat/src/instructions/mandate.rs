@@ -3,7 +3,7 @@ use solana_sha256_hasher::hash;
 
 use crate::constants::*;
 use crate::error::CleatError;
-use crate::state::{AssetEntry, AssetUniverse, Mandate};
+use crate::state::{AssetEntry, AssetUniverse, Mandate, PrivateMarker};
 
 fn validate_caps(max_position_bps: u16, max_trade_bps: u16, max_spread_bps: u16) -> Result<()> {
     // Zero means the owner did not ask for a spread cap. Anything above the
@@ -146,10 +146,15 @@ pub struct AdoptMandate<'info> {
     )]
     pub child: Account<'info, Mandate>,
     pub system_program: Program<'info, System>,
+    /// CHECK: only ever read for whether it exists. Matched by seeds off the
+    /// parent, so a client cannot hand in some other empty address instead.
+    #[account(seeds = [PRIVATE_SEED, parent.key().as_ref()], bump)]
+    pub parent_private: UncheckedAccount<'info>,
 }
 
 pub fn exec_adopt_mandate(ctx: Context<AdoptMandate>, _index: u16, text: String) -> Result<()> {
     require!(text.len() <= MANDATE_TEXT_MAX, CleatError::TextTooLong);
+    require!(ctx.accounts.parent_private.lamports() == 0, CleatError::PrivateMandate);
     require_keys_neq!(
         ctx.accounts.parent.key(),
         ctx.accounts.child.key(),
@@ -291,5 +296,61 @@ pub fn exec_declare_universe(
     u.owner = ctx.accounts.owner.key();
     u.entries = entries;
     u.bump = ctx.bumps.universe;
+    Ok(())
+}
+
+
+/// Keep a sentence out of the room.
+#[derive(Accounts)]
+#[instruction(index: u16)]
+pub struct MakePrivate<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
+        bump = mandate.bump,
+        has_one = owner @ CleatError::NotOwner
+    )]
+    pub mandate: Account<'info, Mandate>,
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + PrivateMarker::INIT_SPACE,
+        seeds = [PRIVATE_SEED, mandate.key().as_ref()],
+        bump
+    )]
+    pub marker: Account<'info, PrivateMarker>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn exec_make_private(ctx: Context<MakePrivate>, _index: u16) -> Result<()> {
+    let m = &mut ctx.accounts.marker;
+    m.mandate = ctx.accounts.mandate.key();
+    m.bump = ctx.bumps.marker;
+    Ok(())
+}
+
+/// Offer it again. The marker closes and its rent goes back to the owner.
+#[derive(Accounts)]
+#[instruction(index: u16)]
+pub struct MakePublic<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(
+        seeds = [MANDATE_SEED, owner.key().as_ref(), &index_seed(index)],
+        bump = mandate.bump,
+        has_one = owner @ CleatError::NotOwner
+    )]
+    pub mandate: Account<'info, Mandate>,
+    #[account(
+        mut,
+        close = owner,
+        seeds = [PRIVATE_SEED, mandate.key().as_ref()],
+        bump = marker.bump
+    )]
+    pub marker: Account<'info, PrivateMarker>,
+}
+
+pub fn exec_make_public(_ctx: Context<MakePublic>, _index: u16) -> Result<()> {
     Ok(())
 }

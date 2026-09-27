@@ -259,6 +259,17 @@ pub mod cleat {
         instructions::spend::exec_pay_agent_cost(ctx, index, lamports, purpose)
     }
 
+    /// Keep this sentence out of the room: nobody can adopt it and the app
+    /// lists it nowhere.
+    pub fn make_private(ctx: Context<MakePrivate>, index: u16) -> Result<()> {
+        instructions::mandate::exec_make_private(ctx, index)
+    }
+
+    /// Offer it again.
+    pub fn make_public(ctx: Context<MakePublic>, index: u16) -> Result<()> {
+        instructions::mandate::exec_make_public(ctx, index)
+    }
+
     /// Delete a sleeve: its sentence, vault, log and spend account, with every
     /// lamport returned to the owner. Owner only, by construction of the seeds.
     pub fn close_sleeve(ctx: Context<CloseSleeve>, index: u16) -> Result<()> {

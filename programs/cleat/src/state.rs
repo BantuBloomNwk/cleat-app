@@ -121,6 +121,24 @@ impl AssetUniverse {
     }
 }
 
+/// A sentence its owner has asked to keep out of the room.
+///
+/// A marker rather than a field on the mandate, because every mandate on chain
+/// was allocated before this existed and a new field would change the size a
+/// reader uses to tell the layouts apart. Existing is the whole message: no
+/// marker, the sentence is public, which is how every mandate has behaved.
+///
+/// What private can honestly mean on a public chain is narrower than it
+/// sounds, and the app says so. Nobody can adopt it, and Cleat lists it
+/// nowhere. The accounts themselves stay readable by anyone who goes looking,
+/// as every Solana account is.
+#[account]
+#[derive(InitSpace)]
+pub struct PrivateMarker {
+    pub mandate: Pubkey,
+    pub bump: u8,
+}
+
 /// The account that holds and acts.
 ///
 /// Custody and authority are deliberately separate fields. `owner` can always
