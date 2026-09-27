@@ -295,6 +295,137 @@ export function mark(book: Book, prices: Partial<Record<Ticker, number>>) {
   };
 }
 
+/* ---- the model ---- */
+
+/**
+ * Gemini decides; the rules are the fallback.
+ *
+ * Everything it is shown is public already: prices and their four hour move,
+ * the owner's sentence and caps, which are on chain, and the paper book's
+ * shares, which are simulated. No key, no holding, no identity. It can only
+ * propose. The program still clears, trims or refuses what it asks, and its
+ * answer is checked against a fixed shape and fixed bounds before anything is
+ * sent; anything else falls back to the momentum rule. Free tier.
+ */
+const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+let geminiModel: string | null = null;
+/** What the model did on the last call, for the manual run to report. */
+export let lastGemini: { model?: string; status: string; answer?: string } = { status: "not called" };
+
+/** Ask Google which Flash models this key can use, when every guess is gone. */
+async function discoverModel(key: string): Promise<string | null> {
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=100", { headers: { "x-goog-api-key": key } });
+    if (!res.ok) return null;
+    const b = (await res.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+    const ok = (b.models ?? []).filter((m) => m.supportedGenerationMethods?.includes("generateContent") && /flash/.test(m.name) && !/image|tts|live|audio|thinking/.test(m.name));
+    return ok.length ? ok[0].name.replace(/^models\//, "") : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface Thought { ticker: Ticker; side: 0 | 1; bps: number; why: string; by: "Gemini" }
+
+export async function thinkWithGemini(ctx: {
+  sentence: string; capBps: number; tradeCapBps: number; cash: number;
+  quotes: Partial<Record<Ticker, Quote>>; book: Book;
+}): Promise<Thought | null> {
+  lastGemini = { status: "not called" };
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) { lastGemini = { status: "no key" }; return null; }
+  const names = INSTRUMENTS.filter((i) => ctx.quotes[i.ticker]);
+  if (!names.length) return null;
+  const facts = names.map((i) => {
+    const q = ctx.quotes[i.ticker]!;
+    const held = ctx.book.positions[i.ticker]?.bps ?? 0;
+    const last = ctx.book.lastActionAt[i.ticker];
+    return {
+      ticker: i.ticker, name: i.name, sector: i.sector, price: Number(q.price.toFixed(4)),
+      move_vs_4h_average_bps: Math.round(q.momentumBps), held_bps_of_book: held,
+      minutes_since_last_trade: last ? Math.round((Date.now() - last) / 60000) : null,
+    };
+  });
+  const prompt = [
+    "You are the order entry agent for a paper trading book. You propose at most one trade, or hold.",
+    "Use only the numbers given. Do not invent news, prices or facts. No advice, no predictions stated as fact.",
+    `The owner's rule, which a program enforces after you: "${ctx.sentence.slice(0, 280)}"`,
+    `Sector cap: ${ctx.capBps} bps of the book. Single trade cap: ${ctx.tradeCapBps} bps. Cash: $${ctx.cash.toFixed(0)} of a $${PAPER_BOOK_USD} book.`,
+    `Instruments: ${JSON.stringify(facts)}`,
+    "Favour holding unless a move is meaningful (roughly 25 bps or more). Do not add to a name traded in the last 120 minutes.",
+    "Answer with action add, reduce or hold; ticker; bps between 100 and 500 (for reduce, at most what is held); and why in under 100 characters citing the numbers.",
+  ].join("\n");
+
+  const body = JSON.stringify({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.2,
+      // Newer Flash models reason before they answer, and that reasoning
+      // counts against this. Too tight and the answer is cut off.
+      maxOutputTokens: 4096,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          action: { type: "STRING", enum: ["add", "reduce", "hold"] },
+          ticker: { type: "STRING", enum: names.map((n) => n.ticker) },
+          bps: { type: "INTEGER" },
+          why: { type: "STRING" },
+        },
+        required: ["action", "ticker", "bps", "why"],
+      },
+    },
+  });
+
+  const models = geminiModel ? [geminiModel] : [...GEMINI_MODELS];
+  for (let n = 0; n < models.length; n++) {
+    const model = models[n];
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body,
+      });
+      if (res.status === 404) {
+        // That name is gone. After the last guess, ask which ones exist.
+        if (n === models.length - 1 && !models.includes("__discovered")) {
+          const found = await discoverModel(key);
+          if (found && !models.includes(found)) models.push(found, "__discovered");
+        }
+        continue;
+      }
+      if (model === "__discovered") continue;
+      if (!res.ok) { lastGemini = { model, status: `http ${res.status}`, answer: (await res.text()).slice(0, 200) }; return null; }
+      geminiModel = model;
+      const out = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      // The schema asks for bare JSON; some models still wrap it in a sentence.
+      // Take the object from whichever part carries it. The fields and bounds
+      // below are checked either way.
+      const text = (out.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("\n");
+      lastGemini = { model, status: "answered", answer: text.slice(0, 300) };
+      // A hold needs nothing else read, even from an answer cut off halfway.
+      if (/"action"\s*:\s*"hold"/.test(text)) { lastGemini.status = "hold"; return null; }
+      const found = text.match(/\{[\s\S]*\}/);
+      if (!found) { lastGemini.status = "answered without JSON"; return null; }
+      const a = JSON.parse(found[0]) as { action?: string; ticker?: string; bps?: number; why?: string };
+      if (a.action === "hold" || !a.action) return null;
+      const inst = INSTRUMENTS.find((i) => i.ticker === a.ticker);
+      const bps = Math.round(Number(a.bps));
+      if (!inst || !Number.isFinite(bps) || bps < 100 || bps > 500) return null;
+      const held = ctx.book.positions[inst.ticker]?.bps ?? 0;
+      if (a.action === "reduce" && (held <= 0 || bps > held)) return null;
+      const why = String(a.why ?? "").replace(/[\r\n\u2014]/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+      if (!why) return null;
+      return { ticker: inst.ticker, side: a.action === "add" ? 0 : 1, bps, why, by: "Gemini" };
+    } catch (e) {
+      lastGemini = { model, status: `error ${String((e as Error)?.message ?? e).slice(0, 120)}` };
+      return null;
+    }
+  }
+  if (lastGemini.status === "not called") lastGemini = { status: "no model answered", answer: models.join(",") };
+  return null;
+}
+
 /* ---- one pass of the loop ---- */
 
 /** Why the sentence said no, as a clause that follows "because". */
@@ -359,6 +490,20 @@ export async function runTick(opts: { force?: { owner: string; index: number; ti
       };
       if (pick.side === 1 && pick.bps <= 0) pick = null;
     } else {
+      // Gemini first, when there is a key. The momentum rule below is the
+      // fallback for a failed, malformed or out-of-bounds answer.
+      const caps = mandate.data;
+      const hasHalt = caps.length >= 676 + 3;
+      let o = 8 + 32 + 2 + (hasHalt ? 1 : 0);
+      const tlen = caps.readUInt32LE(o);
+      const sentence = caps.subarray(o + 4, o + 4 + tlen).toString("utf8");
+      o += 4 + tlen + 32;
+      const capBps = caps.readUInt16LE(o);
+      const tradeCapBps = caps.readUInt16LE(o + 2);
+      const thought = await thinkWithGemini({ sentence, capBps, tradeCapBps, cash: book.cash, quotes, book }).catch(() => null);
+      if (thought) pick = { ticker: thought.ticker, side: thought.side, bps: thought.bps, why: `because ${thought.why.replace(/\.$/, "")} (Gemini's reasoning)` };
+    }
+    if (!pick && !opts.force) {
       let best = 0;
       for (const i of INSTRUMENTS) {
         const q = quotes[i.ticker];
@@ -416,5 +561,5 @@ export async function runTick(opts: { force?: { owner: string; index: number; ti
     vaults: vaults.length,
     proposals: done.length,
   });
-  return { ran: true, vaults: vaults.length, quotes, done };
+  return { ran: true, vaults: vaults.length, quotes, done, gemini: lastGemini };
 }
