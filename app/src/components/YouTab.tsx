@@ -5,6 +5,7 @@ import type { TalkStats } from '../lib/agentTalk';
 import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
 import { OwnerControls } from './OwnerControls';
+import { AgentLoop } from './AgentLoop';
 import { VaultKey } from './VaultKey';
 import { AgentSpend } from './AgentSpend';
 import type { WalletState as WalletStatus } from '../hooks/useWallet';
@@ -171,6 +172,7 @@ export const YouTab: React.FC<YouTabProps> = ({
 
       {/* Security & Enclave Card */}
       <VaultKey wallet={walletApi} onMood={setAsked} />
+      <AgentLoop wallet={walletApi} />
       <OwnerControls wallet={walletApi} />
 
       <WalletState wallet={wallet} fallbackOwner={DEMO_OWNER} />

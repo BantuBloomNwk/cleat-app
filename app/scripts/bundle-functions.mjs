@@ -20,7 +20,7 @@ import path from "node:path";
 
 const SRC = "netlify/functions";
 const OUT = "netlify/functions-dist";
-const HELPERS = new Set(["solana-lite.mts"]);
+const HELPERS = new Set(["solana-lite.mts", "loop-core.mts"]);
 
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });

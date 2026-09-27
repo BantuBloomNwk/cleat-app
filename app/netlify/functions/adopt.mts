@@ -43,6 +43,8 @@ const ALLOWED: Record<string, string> = {
   '24,194,92,182,123,211,83,22': 'make_private',
   '41,76,102,98,184,102,132,29': 'make_public',
   '153,114,136,116,7,134,47,12': 'set_halted',
+  '154,74,121,91,137,19,101,166': 'set_agent',
+  '227,60,209,125,240,117,163,73': 'revoke_agent',
 };
 
 /** Rent for a Mandate plus a little for fees, which is what a top up covers. */

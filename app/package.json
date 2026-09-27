@@ -19,6 +19,7 @@
     "@capacitor/core": "^7.6.9",
     "@capgo/capacitor-updater": "^7.51.23",
     "@google/genai": "^2.4.0",
+    "@netlify/blobs": "^10.7.13",
     "@noble/curves": "^1.8.1",
     "@solana-mobile/wallet-standard-mobile": "^0.6.0",
     "@solana/web3.js": "^1.99.0",

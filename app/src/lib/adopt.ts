@@ -684,3 +684,50 @@ export function setHalted(owner: OwnerSigner, index: number, halted: boolean) {
 export async function isPrivate(connection: Connection, owner: PublicKey, index = 0) {
   return (await connection.getAccountInfo(privatePda(mandatePda(owner, index)))) !== null;
 }
+
+
+/* ---- the agent that runs on its own ---- */
+
+/** The loop's own key. Its whole authority is proposing, until the grant runs out. */
+export const LOOP_AGENT = new PublicKey('H6J8BYK6nRgopKjU5dHjnra7C8MXMCR4PD3zydm9fnrE');
+/** The demo account the loop trades for in public, so it can be watched. */
+export const LOOP_DEMO_OWNER = new PublicKey('8JRDD8GVsJBDeSDHCscvUxTEZ4ZrUtPeLGwNuPUZxpWq');
+const D_SET_AGENT = new Uint8Array([154, 74, 121, 91, 137, 19, 101, 166]);
+const D_REVOKE_AGENT = new Uint8Array([227, 60, 209, 125, 240, 117, 163, 73]);
+
+const i64le = (n: bigint) => {
+  const b = new Uint8Array(8);
+  new DataView(b.buffer).setBigInt64(0, n, true);
+  return b;
+};
+
+/**
+ * Hand the loop authority to propose, for a fixed time. It can never write the
+ * sentence, move money or extend its own grant. Seven days by default; the
+ * program refuses anything past thirty.
+ */
+export function grantLoop(owner: OwnerSigner, index: number, days = 7) {
+  const o = owner.publicKey;
+  return relayOwned(owner, new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: o, isSigner: true, isWritable: false },
+      { pubkey: vaultPda(o, index), isSigner: false, isWritable: true },
+      { pubkey: mandatePda(o, index), isSigner: false, isWritable: false },
+    ],
+    // No hard ceiling in cash (0). The sentence's percentage caps still hold.
+    data: concat(D_SET_AGENT, u16le(index), LOOP_AGENT.toBytes(), i64le(BigInt(days * 86400)), i64le(0n)) as unknown as Buffer,
+  }), index);
+}
+
+export function revokeLoop(owner: OwnerSigner, index: number) {
+  const o = owner.publicKey;
+  return relayOwned(owner, new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: o, isSigner: true, isWritable: false },
+      { pubkey: vaultPda(o, index), isSigner: false, isWritable: true },
+    ],
+    data: concat(D_REVOKE_AGENT, u16le(index)) as unknown as Buffer,
+  }), index);
+}
