@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { norm, stills, whenIdle } from '../lib/portraitStore';
 import { PALETTES, buildIndex } from '../lib/agentBuilds';
 
 /**
@@ -74,16 +75,23 @@ export const AgentAvatar: React.FC<{
   const index = buildIndex(seed, variant);
   const palette = PALETTES[index];
 
-  const [portrait, setPortrait] = useState<string | null>(null);
+  // A still this device already drew shows on the first frame. Otherwise the
+  // renderer is loaded and run when the phone is idle, so an avatar never
+  // holds up a tab opening.
+  const [portrait, setPortrait] = useState<string | null>(() => stills.get(norm(index)) ?? null);
   useEffect(() => {
     let live = true;
+    const known = stills.get(norm(index));
+    if (known) { setPortrait(known); return; }
+    setPortrait(null);
     // Behind the colour, never in front of it. A browser with no WebGL just
     // keeps the colour, which is still this agent and still nobody else's.
-    import('../three/portrait')
-      .then((m) => {
-        if (live) setPortrait(m.portraitOf(index));
-      })
-      .catch(() => {});
+    whenIdle(() => {
+      if (!live) return;
+      import('../three/portrait')
+        .then((m) => { if (live) setPortrait(m.portraitOf(index)); })
+        .catch(() => {});
+    });
     return () => {
       live = false;
     };

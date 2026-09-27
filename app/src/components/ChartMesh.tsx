@@ -1,3 +1,4 @@
+import { isLite } from '../lib/lite';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChartMarker } from '../types';
 import { useTilt3D, type Tilt } from '../utils/useTilt3D';
@@ -645,7 +646,7 @@ export const ChartMesh: React.FC<Props> = ({
     if (!canvas) return;
 
     const gl = canvas.getContext('webgl2', {
-      alpha: true, antialias: true, depth: true,
+      alpha: true, antialias: !isLite(), depth: true,
       premultipliedAlpha: false, powerPreference: 'low-power',
     });
     if (!gl) { setFailed(true); return; }
@@ -901,7 +902,9 @@ export const ChartMesh: React.FC<Props> = ({
       tonemap: gl.getUniformLocation(pointProg, 'uTonemap'),
     };
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // One pixel per pixel on a lite phone. The bloom pass runs at this
+    // resolution too, so it is the cheapest saving in the whole view.
+    const dpr = isLite() ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     const resize = () => {
       const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
       const cw = Math.round(w * dpr), ch = Math.round(h * dpr);

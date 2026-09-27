@@ -1,3 +1,5 @@
+import { isLite } from '../lib/lite';
+import { norm, saveStills, stills } from '../lib/portraitStore';
 import * as THREE from 'three';
 import { buildAgent, dressScene, restFace, personaOf, BUILD_COUNT } from './agentMesh';
 
@@ -16,10 +18,19 @@ import { buildAgent, dressScene, restFace, personaOf, BUILD_COUNT } from './agen
  * at a cost of nothing per frame.
  */
 
-const cache = new Map<number, string>();
 let renderer: THREE.WebGLRenderer | null = null;
 
 const SIZE = 192;
+
+// Kept on the device through lib/portraitStore, so a phone draws each robot
+// once ever rather than once per launch. Profiling a Galaxy A13 class
+// device, opening the Chart tab spent 3.7 of 6.7 seconds compiling shaders
+// and encoding these. Bump the version in portraitStore when the look changes.
+const cache = stills;
+
+export function knownPortrait(index: number): string | null {
+  return cache.get(norm(index)) ?? null;
+}
 
 function getRenderer(): THREE.WebGLRenderer | null {
   if (renderer) return renderer;
@@ -27,7 +38,7 @@ function getRenderer(): THREE.WebGLRenderer | null {
     const canvas = document.createElement('canvas');
     canvas.width = SIZE;
     canvas.height = SIZE;
-    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: !isLite() });
     renderer.setSize(SIZE, SIZE, false);
     renderer.setClearAlpha(0);
     return renderer;
@@ -65,7 +76,10 @@ export function portraitOf(index: number): string | null {
   let url: string | null = null;
   try {
     r.render(scene, cam);
-    url = r.domElement.toDataURL('image/png');
+    // WebP encodes several times faster than PNG and comes out smaller,
+    // with the same transparency.
+    url = r.domElement.toDataURL('image/webp', 0.9);
+    if (!url.startsWith('data:image/webp')) url = r.domElement.toDataURL('image/png');
   } catch {
     url = null;
   }
@@ -73,6 +87,6 @@ export function portraitOf(index: number): string | null {
   scene.remove(rig.root);
   rig.dispose();
 
-  if (url) cache.set(i, url);
+  if (url) { cache.set(i, url); saveStills(); }
   return url;
 }

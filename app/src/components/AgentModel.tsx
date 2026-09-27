@@ -1,3 +1,4 @@
+import { isLite } from '../lib/lite';
 import React, { useEffect, useRef } from 'react';
 import type { Mood } from '../three/agentMesh';
 
@@ -56,6 +57,7 @@ export const AgentModel: React.FC<{
   useEffect(() => {
     let stop = false;
     let teardown: (() => void) | undefined;
+    const lite = isLite();
 
     (async () => {
       const el = host.current;
@@ -75,14 +77,16 @@ export const AgentModel: React.FC<{
 
       let renderer: import('three').WebGLRenderer;
       try {
-        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !lite });
       } catch {
         return;
       }
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      // On a lite phone, one pixel per pixel and no antialiasing: at this
+      // size nobody sees the difference and the GPU feels every bit of it.
+      renderer.setPixelRatio(lite ? 1 : Math.min(window.devicePixelRatio, 2));
       renderer.setSize(size, size, false);
       renderer.setClearAlpha(0);
-      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.enabled = !lite;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.style.width = `${size}px`;
       renderer.domElement.style.height = `${size}px`;
@@ -166,9 +170,28 @@ export const AgentModel: React.FC<{
       const t0 = performance.now() / 1000;
       live.current.moodAt = t0;
 
+      // Drawn only while it can be seen. It used to redraw sixty times a
+      // second for as long as it was mounted, off screen and behind sheets
+      // included, and every one of those frames competed with the scroll.
+      let onScreen = true;
+      let lastDraw = 0;
+      const io = new IntersectionObserver(([e]) => {
+        const was = onScreen;
+        onScreen = e.isIntersecting;
+        if (onScreen && !was && !stop) { cancelAnimationFrame(raf); frame(); }
+      });
+      io.observe(el);
+      const onVis = () => {
+        if (!document.hidden && onScreen && !stop) { cancelAnimationFrame(raf); frame(); }
+      };
+      document.addEventListener('visibilitychange', onVis);
+
       const frame = () => {
-        if (stop) return;
+        if (stop || !onScreen || document.hidden) return;
         raf = requestAnimationFrame(frame);
+        // Thirty frames a second on a lite phone.
+        if (lite && performance.now() - lastDraw < 32) return;
+        lastDraw = performance.now();
         const now = performance.now() / 1000;
 
         // Turn by itself only while nobody is holding it, and only after a
@@ -201,6 +224,8 @@ export const AgentModel: React.FC<{
 
       teardown = () => {
         cancelAnimationFrame(raf);
+        io.disconnect();
+        document.removeEventListener('visibilitychange', onVis);
         if (interactive) {
           renderer.domElement.removeEventListener('pointerdown', onDown);
           renderer.domElement.removeEventListener('pointermove', onMove);

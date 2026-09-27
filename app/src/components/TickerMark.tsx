@@ -43,6 +43,50 @@ const LOCAL: Record<string, string> = {
 /** Names the venue has no mark for. Asked once, never asked again. */
 const MISSING = new Set<string>();
 
+/**
+ * What this device already learned, kept for a day.
+ *
+ * Every launch used to redo up to three round trips per name before a logo
+ * could appear, and on a slow phone that is a second or two of identicon
+ * that then turns into something else, which reads as the wrong logo
+ * followed by the right one. Remembered, a name seen yesterday has its mark
+ * on the first frame. An empty string means "looked, there is none".
+ */
+const MEMO_KEY = 'cleat_marks_v1';
+const MEMO_TTL_MS = 24 * 60 * 60 * 1000;
+const known = new Map<string, string>();
+try {
+  const raw = JSON.parse(localStorage.getItem(MEMO_KEY) ?? 'null') as { at: number; marks: Record<string, string> } | null;
+  if (raw && Date.now() - raw.at < MEMO_TTL_MS) {
+    for (const [k, v] of Object.entries(raw.marks)) {
+      known.set(k, v);
+      if (v === '') MISSING.add(k);
+    }
+  }
+} catch { /* no memory, look everything up */ }
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+function remember(ticker: string, src: string) {
+  if (known.get(ticker) === src) return;
+  known.set(ticker, src);
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    try {
+      localStorage.setItem(MEMO_KEY, JSON.stringify({ at: Date.now(), marks: Object.fromEntries(known) }));
+    } catch { /* remembered for this session only */ }
+  }, 800);
+}
+
+/** What can be shown for a name without asking anybody. */
+function immediate(ticker: string, image?: string | null): string | null | undefined {
+  if (LOCAL[ticker]) return LOCAL[ticker];
+  if (image) return `/api/backpack?path=hosted&url=${encodeURIComponent(image)}`;
+  const k = known.get(ticker) ?? cache?.get(ticker);
+  if (k !== undefined) return k === '' ? null : k;
+  if (MISSING.has(ticker)) return null;
+  return undefined; // not known yet
+}
+
 let cache: Map<string, string> | null = null;
 let inflight: Promise<Map<string, string>> | null = null;
 
@@ -159,68 +203,59 @@ export const TickerMark: React.FC<{
   className?: string;
 }> = ({ symbol, image, equity = true, size = 18, className = '' }) => {
   const ticker = tickerOf(symbol);
-  // When the caller already handed over a mark there is nothing to look up,
-  // so it should be on the first frame. Setting it in the effect instead
-  // meant one paint of identicon before the real thing replaced it, which
-  // is exactly the flicker people notice on the row that scrolls past.
-  const [src, setSrc] = useState<string | null>(
-    () =>
-      LOCAL[tickerOf(symbol)] ??
-      (image ? `/api/backpack?path=hosted&url=${encodeURIComponent(image)}` : null),
+  // The state carries the ticker it belongs to. Switching names used to
+  // leave the previous company's logo up until the new lookup finished,
+  // so for a moment Tesla wore Nvidia's mark. A state for another ticker is
+  // simply not used.
+  const [state, setState] = useState<{ ticker: string; src: string | null | undefined; failed: boolean }>(
+    () => ({ ticker, src: immediate(ticker, image), failed: false }),
   );
-  const [failed, setFailed] = useState(false);
+  const current = state.ticker === ticker ? state : { ticker, src: immediate(ticker, image), failed: false };
+  const src = current.src;
+  const failed = current.failed;
+  const setSrc = (v: string | null) => setState({ ticker, src: v, failed: false });
+  const setFailed = () => setState((s) => ({ ...s, failed: true }));
 
   useEffect(() => {
     let live = true;
+    const now = immediate(ticker, image);
+    setState({ ticker, src: now, failed: false });
+    if (now !== undefined) return () => { live = false; };
     (async () => {
-      const local = LOCAL[ticker];
-      if (local) { setSrc(local); return; }
-      if (image) {
-        setSrc(`/api/backpack?path=hosted&url=${encodeURIComponent(image)}`);
-        return;
-      }
-      // A cached map answers in the same tick, so a mark already known does
-      // not flash an identicon on the way in either.
-      if (cache) {
-        const hit = cache.get(ticker);
-        if (hit) { setSrc(hit); return; }
-      }
       const m = await iconMap();
-      // The issuer's own icon first, because it is the one that matches the
-      // token. Anything with no token falls through to the venue's mark,
-      // which covers names that trade here as perpetuals only and so appear
-      // in no token list at all.
       const own = m.get(ticker);
-      if (own) { if (live) setSrc(own); return; }
+      if (own) { remember(ticker, own); if (live) setSrc(own); return; }
       // Not a listed company, so there is nothing to ask about and asking
       // would return somebody else's logo.
-      if (!equity) return;
-
-      // Ask before drawing. Pointing an img tag at a name with no mark puts
-      // a 404 in the console for every private company on the screen, and a
-      // console full of expected failures is where a real one goes to hide.
-      // A fetch that comes back 404 is a value, not an error.
-      if (MISSING.has(ticker)) return;
+      if (!equity) { if (live) setSrc(null); return; }
+      if (MISSING.has(ticker)) { if (live) setSrc(null); return; }
       try {
         // Asked in JSON, which always answers 200, so a name with no mark
-        // costs a value rather than an error. Pointing an img at it or
-        // reading a status both put a 404 in the console for every private
-        // company on screen.
+        // costs a value rather than an error in the console.
         const res = await fetch(`/api/backpack?path=haslogo&symbol=${ticker}`);
         const { ok } = (await res.json()) as { ok: boolean };
-        if (!live) return;
-        if (ok) setSrc(`/api/backpack?path=logo&symbol=${ticker}`);
-        else MISSING.add(ticker);
+        const url = ok ? `/api/backpack?path=logo&symbol=${ticker}` : '';
+        if (!ok) MISSING.add(ticker);
+        remember(ticker, url);
+        if (live) setSrc(url || null);
       } catch {
         MISSING.add(ticker);
+        if (live) setSrc(null);
       }
     })();
     return () => {
       live = false;
     };
-  }, [ticker, image, equity]);
+  }, [ticker, image, equity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const style: React.CSSProperties = { width: size, height: size };
+
+  // Still finding out. A quiet disc rather than an identicon, because an
+  // identicon that turns into a logo half a second later reads as the wrong
+  // mark being corrected.
+  if (src === undefined && !failed) {
+    return <span className={`ticker-mark ticker-mark-pending ${className}`} style={style} aria-label={ticker} role="img" />;
+  }
 
   if (!src || failed) {
     const seed = hashOf(ticker);
@@ -263,7 +298,7 @@ export const TickerMark: React.FC<{
       // it is dragged into view, which is the flicker rather than a saving.
       className={`ticker-mark ${className}`}
       style={style}
-      onError={() => setFailed(true)}
+      onError={() => setFailed()}
     />
   );
 };

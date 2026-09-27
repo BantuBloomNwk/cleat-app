@@ -66,10 +66,11 @@ export const AgentLoop: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
     let token = '';
     try { token = sessionStorage.getItem(tokenKey(ownerB58, index)) ?? ''; } catch { /* per session only */ }
     const res = await fetch(`/api/agent-book?owner=${ownerB58}&index=${index}&token=${encodeURIComponent(token)}`);
-    if (res.status === 401) { setLocked(true); setBook(null); return; }
     if (!res.ok) return;
+    const body = await res.json();
+    if (body.locked) { setLocked(true); setBook(null); return; }
     setLocked(false);
-    setBook(await res.json());
+    setBook(body);
   }, [ownerB58, index]);
 
   useEffect(() => { void load(); void readGrant(); }, [load, readGrant]);

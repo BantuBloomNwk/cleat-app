@@ -48,7 +48,9 @@ export default async (req: Request) => {
 
   if (!owner || !Number.isInteger(index) || index < 0 || index > 31) return json({ error: "owner and sleeve" }, 400);
   const isDemo = owner === DEMO_OWNER.toBase58();
-  if (!isDemo && !checkToken(owner, index, token)) return json({ error: "sign in to read this book", needsSignature: true }, 401);
+  // Locked is an answer, not a failure: a 401 put a red line in the console
+  // for every signed-in visitor who had not opened their book yet.
+  if (!isDemo && !checkToken(owner, index, token)) return json({ locked: true, needsSignature: true });
 
   // The grant, read off chain rather than remembered.
   let grant: { live: boolean; expiresAt: number } = { live: false, expiresAt: 0 };

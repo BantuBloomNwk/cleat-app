@@ -2543,6 +2543,50 @@ h1, h2, h3, h4, h5, h6,
   -webkit-backdrop-filter: blur(6px) saturate(1.15);
 }
 
+/* Cards inside the page never blur. Their grounds are 94 to 98 percent
+   opaque, so the blur behind them was invisible, and it was not free: every
+   scroll frame re-blurred the wallpaper behind every visible card, sixteen
+   log entries at once. On a Galaxy A13 that is what made a tab tear half
+   way through a swipe. Glass stays where something moves behind it: the
+   header, the dock and the sheets. */
+.glass-card, .hero-refusal-card, .ledger-entry, .period-segmented-control,
+.mode-switch-pill, .theme-icon-btn {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Lite, set on low memory or low core phones before first paint (see
+   index.html). Everything that blurs goes solid, shadows go to one layer,
+   and endless animations stop. It keeps the look and drops the cost. */
+html.lite *,
+html.lite *::before,
+html.lite *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.lite .app-header,
+html.lite .bottom-dock,
+html.lite .modal-panel,
+html.lite .onboarding-card,
+html.lite .chart-drawer-card {
+  background-color: var(--card-surface-raised);
+}
+html.lite .glass-card,
+html.lite .chart-drawer-card,
+html.lite .onboarding-card {
+  box-shadow: 0 6px 18px oklch(0 0 0 / 0.30);
+}
+html.lite .modal-backdrop,
+html.lite .onboarding-overlay,
+html.lite .expand-sheet-backdrop,
+html.lite .agent-sheet-scrim {
+  background-color: rgb(8 7 6 / 0.9);
+}
+html.lite .animate-pulse,
+html.lite [class*="pulse"] {
+  animation: none !important;
+}
+
 /* Blur is expensive on the mid range Android this product is aimed at,
    and it is the first thing to drop when a device cannot keep up. */
 @media (max-width: 380px), (prefers-reduced-transparency: reduce) {
@@ -3527,4 +3571,12 @@ h1, h2, h3, h4, h5, h6,
 
 @media (prefers-reduced-motion: reduce) {
   .emblem-arrive, .claim-arrive span, .tagline-arrive { animation: none; opacity: 1; }
+}
+
+/* A logo still on its way: a quiet disc in the mark's place. */
+.ticker-mark-pending {
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--card-border);
+  opacity: 0.6;
 }
