@@ -19,7 +19,8 @@ import {
   INITIAL_CHART_MARKERS,
 } from './data/initialData';
 import { TabType, LedgerEntry, ChartMarker, EnforcerStats } from './types';
-import { DEMO_OWNER, loadChainSnapshot } from './lib/chain';
+import { DEMO_OWNER, loadChainSnapshot, mandatePda } from './lib/chain';
+import { RULE_NAME } from './lib/agentTalk';
 import { useWallet } from './hooks/useWallet';
 import { hasWallet } from './lib/passkey';
 import type { Mandate, Restraint, SealState, SectorExposure } from './lib/chain';
@@ -37,7 +38,12 @@ export default function App() {
     }
     return 'dark';
   });
-  const [activeTab, setActiveTab] = useState<TabType>('diary');
+  // A shared receipt links to ?s=<sentence>. Arriving that way opens the
+  // sentence it was about rather than the setup sheet.
+  const [linkedSentence] = useState(() => {
+    try { return new URLSearchParams(location.search).get('s'); } catch { return null; }
+  });
+  const [activeTab, setActiveTab] = useState<TabType>(() => (linkedSentence ? 'mandates' : 'diary'));
   const [mandateSentence, setMandateSentence] = useState(INITIAL_MANDATE);
   const [stats, setStats] = useState<EnforcerStats>(INITIAL_STATS);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(INITIAL_LEDGER_ENTRIES);
@@ -65,7 +71,7 @@ export default function App() {
   /* Opens for somebody who has never been here, and stays shut for everybody
      else. It used to open on every load regardless, so a returning person was
      sent back to step one of a setup they had already done, every refresh. */
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => !hasWallet());
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => !hasWallet() && !linkedSentence);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isTickDrawerOpen, setIsTickDrawerOpen] = useState(false);
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false);
@@ -126,6 +132,12 @@ export default function App() {
     heldPct: restraint && restraint.askedBps > 0
       ? (restraint.heldBps / restraint.askedBps) * 100
       : null,
+    // The rule the sentence invoked most, in the words a person would use.
+    topReason: (() => {
+      const r = reasons.find((x) => x.code !== 0 && x.count > 0);
+      return r && RULE_NAME[r.code] ? { what: RULE_NAME[r.code], count: r.count } : null;
+    })(),
+    last: (ledgerEntries[0]?.status as 'cleared' | 'trimmed' | 'refused' | undefined) ?? null,
   };
 
   useEffect(() => {
@@ -245,6 +257,7 @@ export default function App() {
               onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
               hasMandate={!!chainMandate}
               mandate={chainMandate}
+              shareAs={wallet.state.status === 'ready' && chainMandate ? mandatePda(wallet.state.address, wallet.sleeve).toBase58() : null}
               onOpenRewriteModal={() => setIsRewriteModalOpen(true)}
               entries={ledgerEntries}
               onToggleEntry={handleToggleEntry}
@@ -271,6 +284,7 @@ export default function App() {
           {activeTab === 'mandates' && (
             <MandatesTab
               onAdoptMandate={handleAdoptedMandate}
+              linked={linkedSentence}
               signer={wallet.signer}
               sleeve={wallet.sleeve}
               onNeedWallet={() => setIsOnboardingOpen(true)}

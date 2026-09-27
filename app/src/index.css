@@ -3580,3 +3580,9 @@ html.lite [class*="pulse"] {
   background: var(--card-border);
   opacity: 0.6;
 }
+
+/* The sentence a shared receipt pointed at. */
+.deep-linked {
+  outline: 2px solid var(--verdigris);
+  outline-offset: 2px;
+}

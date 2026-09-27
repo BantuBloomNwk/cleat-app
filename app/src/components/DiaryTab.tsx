@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Copy, Check, Share2, ShieldCheck, Cpu } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { tactile } from '../utils/haptics';
+import { shareReceipt } from '../lib/receipt';
 import { DataOrigin } from './DataOrigin';
 import { lastSeen, markSeen, whenWord } from '../lib/lastSeen';
 import { AgentAvatar, type AgentMood } from './AgentAvatar';
@@ -31,6 +32,8 @@ interface DiaryTabProps {
   arrived: Set<string>;
   /** The mandate as read off chain, or null before it loads. */
   mandate?: Mandate | null;
+  /** The owner's own mandate address, when this log is theirs. */
+  shareAs?: string | null;
 }
 
 // Week and month used to be written by hand, with dollar figures and a
@@ -87,6 +90,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   mood,
   arrived,
   mandate,
+  shareAs,
 }) => {
   // The overnight window, from the exchange rather than from a number
   // someone typed. It was written as 22:00 to 06:00 UTC, which is not when
@@ -684,6 +688,24 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                   <div className="mt-2 bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)] p-2 rounded-lg font-mono text-[10.5px] text-[var(--text-secondary)]">
                     {entry.agentTrace}
                   </div>
+                  {/* Your own decisions only: "my sentence said no" is a
+                      claim about the person posting it. */}
+                  {shareAs && entry.raw && entry.raw.outcome !== 0 && (
+                    <button
+                      type="button"
+                      className="mt-2 text-[11px] font-mono text-[var(--verdigris)] underline underline-offset-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        tactile.selectionTap();
+                        void shareReceipt({
+                          ...entry.raw!, sentence: mandateSentence, mandate: shareAs,
+                          when: new Date(Date.now() - (entry.ageSecs ?? 0) * 1000),
+                        });
+                      }}
+                    >
+                      share this {entry.raw.outcome === 2 ? 'refusal' : 'trim'}
+                    </button>
+                  )}
                 </div>
               )}
             </article>

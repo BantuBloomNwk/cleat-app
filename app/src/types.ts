@@ -14,6 +14,8 @@ export interface LedgerEntry {
   period: 'overnight' | 'week' | 'month';
   /** Seconds since the decision, from its slot. Absent on sample rows. */
   ageSecs?: number;
+  /** The raw decision, for a receipt. Absent on sample rows. */
+  raw?: { outcome: number; reason: number; category: number; proposedBps: number; allowedBps: number };
   ticker?: string;
   amount?: string;
   expanded?: boolean;

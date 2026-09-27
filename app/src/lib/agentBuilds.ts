@@ -104,23 +104,23 @@ export const PERSONAS: Persona[] = [
   },
   {
     move: 'moonwalk', brow: -0.05, curve: 0.42, open: 0, mood: 'smooth',
-    line: 'Relax. Nothing gets past your sentence while I am on it.',
+    line: 'I propose, your sentence decides, and I tell you why.',
   },
   {
     move: 'karate', brow: 0.42, curve: -0.34, open: 0.5, mood: 'furious',
-    line: 'Show me what wants through. I will tell you what it broke.',
+    line: 'Show me the lines. I will find every one of them.',
   },
   {
     move: 'laugh', brow: -0.18, curve: 0.62, open: 0.85, mood: 'laughing',
-    line: 'Ha. Wait until you see what I tried to buy at four in the morning.',
+    line: 'Ha. I get told no a lot. It never stops being funny.',
   },
   {
     move: 'warrior', brow: 0.3, curve: -0.06, open: 0, mood: 'immovable',
-    line: 'I do not move. That is the entire job description.',
+    line: 'Asked, answered, bound. That is the job.',
   },
   {
     move: 'flex', brow: 0.08, curve: 0.36, open: 0.15, mood: 'certain',
-    line: 'Nine boundaries. I have walked into all of them. They held.',
+    line: 'Every trim, announced. Every cap, to the point.',
   },
   {
     move: 'flip', brow: -0.22, curve: 0.5, open: 0.5, mood: 'restless',

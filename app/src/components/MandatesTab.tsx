@@ -8,15 +8,19 @@ import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise'
 import { PublicKey } from '@solana/web3.js';
 import {
   connection,
-  loadPublishedMandates, loadStandings, MIN_DECISIONS_TO_RANK, PROGRAM_ID,
+  loadPublishedMandates, loadStandings, MIN_DECISIONS_TO_RANK, PROGRAM_ID, reasonText,
   type PublishedMandate, type StandingRow,
 } from '../lib/chain';
 import { tactile } from '../utils/haptics';
+import { toggleFollow, useFollowing } from '../lib/following';
+import { FollowingFeed } from './FollowingFeed';
 import { adoptMandate, firstFreeSleeve } from '../lib/adopt';
 import type { OwnerSigner } from '../lib/signer';
 
 interface MandatesTabProps {
   onAdoptMandate: (sentence: string) => void;
+  /** A sentence somebody's receipt linked to, to open on. */
+  linked?: string | null;
   /** Sectors with something cleared into them, read off the devnet log. */
   exposure: SectorExposure[];
   /** The mandate that log answers to, or null before the read lands. */
@@ -30,6 +34,7 @@ interface MandatesTabProps {
 
 export const MandatesTab: React.FC<MandatesTabProps> = ({
   onAdoptMandate,
+  linked,
   exposure,
   chainMandate,
   signer,
@@ -48,6 +53,17 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   // Five to read, the rest a tap away. Eleven sentences is eleven screens
   // and nobody reads the eleventh.
   const [shown, setShown] = useState(5);
+
+  // Arrived from a shared receipt: show that sentence even if it sits past
+  // the first five, and bring it into view once it has rendered.
+  useEffect(() => {
+    if (!linked || published.length === 0) return;
+    const at = published.findIndex((m) => m.address === linked);
+    if (at < 0) return;
+    if (at >= shown) setShown(at + 1);
+    const t = setTimeout(() => document.getElementById(`m-${linked}`)?.scrollIntoView({ block: 'center' }), 300);
+    return () => clearTimeout(t);
+  }, [linked, published]); // eslint-disable-line react-hooks/exhaustive-deps
   // Only the owner's own agent follows what they picked. Everyone else's
   // comes from their key and is theirs.
   const myVariant = useAgentVariant();
@@ -92,11 +108,15 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   // percentage next to it, and a column of sentences with no outcome. Put
   // the outcome on the sentence and the table stops being the interesting
   // half.
-  const heldBy = useMemo(() => {
-    const m = new Map<string, { heldPct: number; decisions: number }>();
-    for (const r of standings) m.set(r.owner, { heldPct: r.heldPct, decisions: r.decisions });
+  // Keyed by the sentence, not the owner. A key with two sleeves has two
+  // logs, and keying by owner put whichever came last next to both.
+  const pulseBy = useMemo(() => {
+    const m = new Map<string, StandingRow>();
+    for (const r of standings) if (r.mandate) m.set(r.mandate, r);
     return m;
   }, [standings]);
+  const following = useFollowing();
+
 
   useEffect(() => {
     let live = true;
@@ -245,6 +265,8 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
       </div>
 
 
+      <FollowingFeed published={published} />
+
       {standings.length > 0 && (
         <section className="flex flex-col gap-2.5" id="published-mandates">
           <div className="section-row-header">
@@ -266,7 +288,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
           </p>
 
           {published.slice(0, shown).map((m) => (
-            <article key={m.address} className="glass-card flex flex-col gap-2">
+            <article key={m.address} id={`m-${m.address}`} className={`glass-card flex flex-col gap-2${linked === m.address ? ' deep-linked' : ''}`}>
               <div className="card-topbar">
                 <span className="flex items-center gap-2 min-w-0">
                   {/* Whose sentence this is, drawn from the key that owns
@@ -370,16 +392,32 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                   // sentence with nothing behind it yet says so rather
                   // than showing a zero, because untested and disciplined
                   // are different things.
-                  const h = heldBy.get(m.owner);
-                  return h && h.decisions > 0 ? (
-                    <span className="text-[var(--verdigris)]">
-                      held back {Math.round(h.heldPct)}% of {h.decisions}
-                    </span>
-                  ) : (
-                    <span>nothing asked of it yet</span>
+                  const h = pulseBy.get(m.address);
+                  if (!h || h.decisions === 0) return <span>nothing asked of it yet</span>;
+                  const ago = h.lastAgoSec === null ? null
+                    : h.lastAgoSec < 3600 ? `${Math.max(1, Math.round(h.lastAgoSec / 60))}m`
+                    : h.lastAgoSec < 86400 ? `${Math.round(h.lastAgoSec / 3600)}h`
+                    : `${Math.round(h.lastAgoSec / 86400)}d`;
+                  const why = h.topReason ? reasonText(h.topReason.code).replace(/^Triggered boundary: /, '') : null;
+                  return (
+                    <>
+                      <span className="text-[var(--verdigris)]">
+                        {h.cleared} cleared · {h.clamped} trimmed · {h.refused} refused
+                      </span>
+                      {ago && <span>last decided {ago} ago</span>}
+                      {why && <span>mostly: {why}</span>}
+                    </>
                   );
                 })()}
                 <span>unchanged {m.heldDays}d</span>
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  aria-pressed={following.has(m.address)}
+                  onClick={() => { tactile.selectionTap(); toggleFollow(m.address); }}
+                >
+                  {following.has(m.address) ? 'following' : 'follow'}
+                </button>
                 <span>{m.adoptCount} adopted</span>
                 {m.adoptedFrom && <span>forked</span>}
                 <a

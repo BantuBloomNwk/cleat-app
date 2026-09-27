@@ -266,7 +266,7 @@ export interface Mandate {
   updatedAt: number;
 }
 
-const SECTORS = [
+export const SECTORS = [
   "Unspecified",
   "Technology",
   "Energy",
@@ -465,6 +465,7 @@ export function verdictToLedgerEntry(
     )}. Holdings never left the computation.`,
     period: "overnight",
     ageSecs: Number(latestSlot - v.slot) * 0.4,
+    raw: { outcome: v.outcome, reason: v.reason, category: v.category, proposedBps: v.proposedBps, allowedBps: v.allowedBps },
     expanded: i === 0,
   };
 }
@@ -709,7 +710,7 @@ async function loadPrivateMandates(): Promise<Set<string>> {
 }
 
 /** The mandate a decision log belongs to. Logs do not store their sleeve. */
-function mandateOfLog(owner: string, log: string): string | null {
+export function mandateOfLog(owner: string, log: string): string | null {
   const o = new PublicKey(owner);
   for (let i = 0; i < 32; i++) {
     if (verdictLogPda(o, i).toBase58() === log) return mandatePda(o, i).toBase58();
@@ -834,6 +835,12 @@ export interface StandingRow {
   cleared: number;
   clamped: number;
   refused: number;
+  /** The sentence this log belongs to, so a record sits next to the right one. */
+  mandate: string | null;
+  /** Seconds since its newest decision, from slots. Null if it has none. */
+  lastAgoSec: number | null;
+  /** The reason the sentence gave most often, as a code. */
+  topReason: { code: number; count: number } | null;
 }
 
 /** Below this a log has not done enough for the ratio to mean anything. */
@@ -908,6 +915,7 @@ export async function loadStandings(): Promise<StandingRow[]> {
     ]);
     const rows = res?.result ?? [];
     const hidden = await loadPrivateMandates();
+    const nowSlot = await connection.getSlot().catch(() => 0);
 
     return rows
       .filter((r: any) => {
@@ -932,9 +940,16 @@ export async function loadStandings(): Promise<StandingRow[]> {
           { asked: 0, allowed: 0 },
         );
         const held = totals.asked - totals.allowed;
+        const newest = log.entries.reduce((a, v) => (v.slot > a ? v.slot : a), 0n);
+        const tally = new Map<number, number>();
+        for (const v of log.entries) if (v.outcome !== 0) tally.set(v.reason, (tally.get(v.reason) ?? 0) + 1);
+        const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
         return {
           owner,
           logAddress: r.pubkey,
+          mandate: mandateOfLog(owner, r.pubkey),
+          lastAgoSec: newest > 0n && nowSlot > 0 ? Math.max(0, (nowSlot - Number(newest)) * 0.4) : null,
+          topReason: top ? { code: top[0], count: top[1] } : null,
           decisions: log.entries.length,
           askedBps: totals.asked,
           allowedBps: totals.allowed,
