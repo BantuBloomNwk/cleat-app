@@ -259,5 +259,11 @@ pub mod cleat {
         instructions::spend::exec_pay_agent_cost(ctx, index, lamports, purpose)
     }
 
+    /// Delete a sleeve: its sentence, vault, log and spend account, with every
+    /// lamport returned to the owner. Owner only, by construction of the seeds.
+    pub fn close_sleeve(ctx: Context<CloseSleeve>, index: u16) -> Result<()> {
+        instructions::close::exec_close_sleeve(ctx, index)
+    }
+
 
 }

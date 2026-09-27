@@ -66,4 +66,6 @@ pub enum CleatError {
     LogAlreadyMigrated,
     #[msg("The owner has halted this mandate. Nothing proposes until they lift it.")]
     Halted,
+    #[msg("The vault is out on the rollup. Release it back to Solana before closing this sleeve.")]
+    VaultDelegated,
 }

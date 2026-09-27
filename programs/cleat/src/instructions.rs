@@ -1,3 +1,4 @@
+pub mod close;
 pub mod control;
 pub mod gate;
 pub mod mandate;
@@ -6,6 +7,7 @@ pub mod spend;
 pub mod vault;
 pub mod verdict;
 
+pub use close::*;
 pub use control::*;
 pub use gate::*;
 pub use mandate::*;
