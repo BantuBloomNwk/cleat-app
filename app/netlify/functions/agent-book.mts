@@ -79,9 +79,10 @@ export default async (req: Request) => {
   const published = isDemo || !!(await store().get(`public/${mandatePda(new PublicKey(owner), index).toBase58()}`));
   const prices: Partial<Record<Ticker, number>> = {};
   const moves: Partial<Record<Ticker, number>> = {};
+  const sources: Partial<Record<Ticker, string>> = {};
   for (const i of INSTRUMENTS) {
     const q = await quote(i.symbol);
-    if (q) { prices[i.ticker] = q.price; moves[i.ticker] = q.momentumBps; }
+    if (q) { prices[i.ticker] = q.price; moves[i.ticker] = q.momentumBps; sources[i.ticker] = q.source; }
   }
   const lastTick = (await store().get("last-tick", { type: "json" })) as { at?: number } | null;
   const lastScheduled = (await store().get("last-scheduled", { type: "json" })) as { at?: number } | null;
@@ -95,7 +96,7 @@ export default async (req: Request) => {
     agent: LOOP_AGENT.toBase58(),
     grant,
     marked: mark(book, prices),
-    prices, moves,
+    prices, moves, sources,
     fills: book.fills.slice(-20).reverse(),
     activity: book.activity.slice(-20).reverse(),
     lastTickAt: lastTick?.at ?? null,

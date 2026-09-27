@@ -1,4 +1,6 @@
-// The agent, running on its own every ten minutes.
+// The agent, running on its own every thirty minutes. Every ten was the first
+// setting; thirty keeps the function bill down and is still quicker than a
+// four hour signal can change its mind.
 //
 // Everything it does is in loop-core. This file is only the schedule, which
 // Netlify runs on the published deploy and nowhere else.
@@ -11,4 +13,4 @@ export default async () => {
   return new Response(JSON.stringify(r), { headers: { "content-type": "application/json" } });
 };
 
-export const config = { schedule: "*/10 * * * *" };
+export const config = { schedule: "*/30 * * * *" };

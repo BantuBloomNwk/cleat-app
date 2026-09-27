@@ -14,6 +14,7 @@ interface BookView {
   token?: string;
   marked: { rows: Row[]; cash: number; value: number; unrealized: number; realized: number; total: number; pnl: number; pnlPct: number };
   moves: Record<string, number>;
+  sources?: Record<string, string>;
   prices: Record<string, number>;
   activity: { at: number; line: string; signature?: string }[];
   fills: { at: number; ticker: string; side: 0 | 1; askedBps: number; allowedBps: number; price: number; outcome: number; reason: number; signature: string }[];
@@ -39,7 +40,7 @@ const tokenKey = (owner: string, index: number) => `cleat_book_token_${owner}_${
  *
  * Every proposal it makes is real and decided on chain by the owner's
  * sentence. The fills are not: a cleared proposal is filled on paper at the
- * live Pyth price. The panel says so at the top rather than in a footnote.
+ * live Pyth price, or Backpack's when Pyth is quiet. The panel says so at the top rather than in a footnote.
  */
 export const AgentLoop: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
   const signer = wallet.signer;
@@ -142,7 +143,7 @@ export const AgentLoop: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
         <span className={`ob-state${grant?.live ? ' on' : ''}`}>
           {grant?.live ? `running · until ${new Date(grant.expiresAt * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : 'not running'}
         </span>
-        <span className="ob-chip" title="Every proposal is real and decided on chain by the sentence. Fills are on paper at live Pyth prices against a 10,000 dollar book. Nothing is bought.">
+        <span className="ob-chip" title="Every proposal is real and decided on chain by the sentence. Fills are on paper at live Pyth prices, or Backpack's when Pyth is quiet, against a 10,000 dollar book. Nothing is bought.">
           paper fills
         </span>
       </div>
@@ -229,6 +230,7 @@ export const AgentLoop: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
             <span>Tape</span>
             <span>
               {book!.watching.map((w) => `${w.ticker} ${book!.moves[w.ticker] !== undefined ? `${signed(book!.moves[w.ticker] / 100)}%` : '–'}`).join(' · ')}
+              {(() => { const src = [...new Set(Object.values(book!.sources ?? {}))]; return src.length ? ` · via ${src.join(' + ')}` : ''; })()}
               {book!.lastTickAt ? ` · looked ${ago(book!.lastTickAt)}` : ''}
             </span>
           </div>

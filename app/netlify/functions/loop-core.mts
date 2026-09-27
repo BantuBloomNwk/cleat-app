@@ -6,8 +6,9 @@
 // What is real here and what is not, said once so the rest can be short:
 //   real      the grant (set_agent, with an expiry, revocable), every proposal
 //             (propose_trade, decided on chain against the owner's sentence),
-//             the kill switch, and the prices (Pyth, live)
-//   simulated the fill. A cleared proposal is filled on paper at the live Pyth
+//             the kill switch, and the prices (Pyth first, Backpack when Pyth
+//             has nothing, live either way)
+//   simulated the fill. A cleared proposal is filled on paper at the live
 //             price, against a paper book of 10,000 dollars. Nothing is
 //             bought, and the book says so everywhere it is shown.
 
@@ -25,19 +26,24 @@ const TREASURY = new PublicKey("APXm5boJUumXARvhya72so43gkbmwnEPaHWURyRHbaWT");
 
 export const PAPER_BOOK_USD = 10_000;
 const PYTH = "https://pyth.dourolabs.app";
+const BACKPACK = "https://api.backpack.exchange/api/v1";
 
 /**
- * What the agent can trade: only names it can price. The Pyth trial entitles
- * these two equities, and the mints are Backpack's own Solana tokens for them.
+ * What the agent can trade: only names it can price. Pyth is the price
+ * source. When Pyth has nothing to say, which is outside US market hours for
+ * these feeds and whenever the key is missing, the agent reads Backpack's
+ * markets for the tokenized versions of the same stocks, which need no key
+ * and trade around the clock. Every fill records which one priced it. The
+ * mints are Backpack's own Solana tokens.
  */
 export const INSTRUMENTS = [
   {
     ticker: "TSLA", name: "Tesla", category: 5, sector: "Consumer",
-    symbol: "Equity.US.TSLA/USD", mint: "TSLAqBbv4CNCnzWFeB7LmydAyEiNMJtve7DYKLpdK4S",
+    symbol: "Equity.US.TSLA/USD", venue: "TSLA.US_USDC_PERP", mint: "TSLAqBbv4CNCnzWFeB7LmydAyEiNMJtve7DYKLpdK4S",
   },
   {
     ticker: "QQQ", name: "Nasdaq 100", category: 1, sector: "Technology",
-    symbol: "Equity.US.QQQ/USD", mint: "QQQvDYxG7g11Rr4rnaJqDddmP9ocH74YhE3mDaG37R9",
+    symbol: "Equity.US.QQQ/USD", venue: "QQQ.US_USDC_PERP", mint: "QQQvDYxG7g11Rr4rnaJqDddmP9ocH74YhE3mDaG37R9",
   },
 ] as const;
 export type Ticker = (typeof INSTRUMENTS)[number]["ticker"];
@@ -46,6 +52,8 @@ export interface Position { bps: number; units: number; cost: number }
 export interface Fill {
   at: number; ticker: Ticker; side: 0 | 1; askedBps: number; allowedBps: number;
   price: number; outcome: number; reason: number; signature: string;
+  /** Which feed priced the fill. */
+  source?: 'Pyth' | 'Backpack';
 }
 export interface Activity { at: number; line: string; signature?: string }
 export interface Book {
@@ -109,43 +117,47 @@ export async function writeBook(owner: string, index: number, b: Book) {
 
 /* ---- prices ---- */
 
-export interface Quote { price: number; momentumBps: number; at: number }
+export interface Quote { price: number; momentumBps: number; at: number; source: 'Pyth' | 'Backpack' }
+
+/** Last close against the average of the window, in basis points. */
+const momentum = (c: number[]) => {
+  const mean = c.reduce((acc, x) => acc + x, 0) / c.length;
+  return ((c[c.length - 1] - mean) / mean) * 10_000;
+};
 
 /**
- * Where a name is now against where it has been over the last few hours.
- * Five minute bars; the move is the last close against their average, which
- * is slow enough not to flip every tick and quick enough to act within one.
- * Outside market hours the bars stop moving and so does the signal.
+ * Where a name is now against where it has been over the last four hours,
+ * from five minute bars. Pyth first. Backpack when Pyth has no bars in the
+ * window, which is what US market hours look like from Pyth, or no key.
  */
 export async function quote(symbol: string): Promise<Quote | null> {
-  const key = process.env.PYTH_API_KEY;
-  if (!key) return null;
+  const inst = INSTRUMENTS.find((i) => i.symbol === symbol);
+  const from = Math.floor(Date.now() / 1000) - 4 * 60 * 60;
   const to = Math.floor(Date.now() / 1000);
-  const from = to - 4 * 60 * 60;
-  try {
-    const res = await fetch(
-      `${PYTH}/v1/fixed_rate@1000ms/history?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}&resolution=5`,
-      { headers: { authorization: `Bearer ${key}`, accept: "application/json" } },
-    );
-    const b = res.ok ? ((await res.json()) as { c?: number[]; t?: number[] }) : {};
-    const c = (b.c ?? []).filter((n) => Number.isFinite(n) && n > 0);
-    if (!c.length) {
-      // No bars in the window, which is what a closed market looks like. The
-      // last daily close still prices the book, and the move is zero because
-      // nothing is moving, so nothing gets asked for.
-      const d = await fetch(
-        `${PYTH}/v1/fixed_rate@1000ms/history?symbol=${encodeURIComponent(symbol)}&from=${to - 10 * 86400}&to=${to}&resolution=1D`,
+  const key = process.env.PYTH_API_KEY;
+  if (key) {
+    try {
+      const res = await fetch(
+        `${PYTH}/v1/fixed_rate@1000ms/history?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}&resolution=5`,
         { headers: { authorization: `Bearer ${key}`, accept: "application/json" } },
       );
-      if (!d.ok) return null;
-      const db = (await d.json()) as { c?: number[]; t?: number[] };
-      const dc = (db.c ?? []).filter((n) => Number.isFinite(n) && n > 0);
-      if (!dc.length) return null;
-      return { price: dc[dc.length - 1], momentumBps: 0, at: (db.t ?? [to]).at(-1) ?? to };
-    }
-    const price = c[c.length - 1];
-    const mean = c.reduce((a, x) => a + x, 0) / c.length;
-    return { price, momentumBps: ((price - mean) / mean) * 10_000, at: (b.t ?? [to]).at(-1) ?? to };
+      if (res.ok) {
+        const b = (await res.json()) as { c?: number[] };
+        const c = (b.c ?? []).filter((n) => Number.isFinite(n) && n > 0);
+        if (c.length) return { price: c[c.length - 1], momentumBps: momentum(c), at: to, source: "Pyth" };
+      }
+    } catch { /* fall through to the venue */ }
+  }
+  if (!inst) return null;
+  try {
+    const res = await fetch(`${BACKPACK}/klines?symbol=${encodeURIComponent(inst.venue)}&interval=5m&startTime=${from}`, {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const bars = (await res.json()) as { close: string }[];
+    const c = (Array.isArray(bars) ? bars : []).map((x) => Number(x.close)).filter((n) => Number.isFinite(n) && n > 0);
+    if (!c.length) return null;
+    return { price: c[c.length - 1], momentumBps: momentum(c), at: to, source: "Backpack" };
   } catch {
     return null;
   }
@@ -380,11 +392,12 @@ export async function runTick(opts: { force?: { owner: string; index: number; ti
         book.fills.push({
           at: Date.now(), ticker: pick.ticker, side: pick.side, askedBps: d.proposedBps,
           allowedBps: d.allowedBps, price, outcome: d.outcome, reason: d.reason, signature: d.signature,
+          source: q?.source,
         });
         const ask = `Asked to ${verb} ${pct(d.proposedBps)} of the book in ${inst.name} ${pick.why}.`;
         const said =
-          d.outcome === 0 ? `Cleared, filled on paper at ${money(price)}.`
-          : d.outcome === 1 ? `Trimmed to ${pct(d.allowedBps)} because ${REASON[d.reason] || "your sentence said so"}, filled on paper at ${money(price)}.`
+          d.outcome === 0 ? `Cleared, filled on paper at ${money(price)} (${q?.source ?? "last"} price).`
+          : d.outcome === 1 ? `Trimmed to ${pct(d.allowedBps)} because ${REASON[d.reason] || "your sentence said so"}, filled on paper at ${money(price)} (${q?.source ?? "last"} price).`
           : `Refused because ${REASON[d.reason] || "your sentence said so"}. Nothing filled.`;
         book.activity.push({ at: Date.now(), line: `${ask} ${said}`, signature: d.signature });
       }
