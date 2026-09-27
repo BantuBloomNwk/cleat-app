@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cleat privacy policy</title>
+<meta name="description" content="What Cleat keeps, what it never sees, and how to delete your account.">
+<link rel="icon" href="/favicon.ico">
+<style>
+  :root { --bg:#0c0b0a; --card:#141311; --text:#ece8e1; --soft:#b3ada3; --line:rgba(236,232,225,.12); --accent:#2dd4bf; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f7f4ef; --card:#ffffff; --text:#1d1b18; --soft:#57524a; --line:rgba(29,27,24,.12); --accent:#0f766e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 18px 80px; }
+  h1 { font-size: 28px; line-height:1.2; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 36px 0 8px; }
+  p, li { color: var(--soft); }
+  strong { color: var(--text); }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  a { color: var(--accent); }
+  .meta { font-size: 14px; color: var(--soft); margin-bottom: 28px; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 18px 0; }
+  code { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy policy</h1>
+  <div class="meta">Cleat, last updated 27 September 2026</div>
+
+  <div class="box">
+    <p><strong>The short version.</strong> We never see what you hold. Your key stays on your phone or in your wallet. There is no analytics, no advertising, and no cookie tracking. What you write to Solana is public, because that is how a blockchain works, and we tell you exactly what that is below.</p>
+  </div>
+
+  <h2>Who we are</h2>
+  <p>Cleat is made by BantuBloom. It runs on Solana devnet, a test network. Nothing in the app moves real money today.</p>
+
+  <h2>What goes on Solana, and is public</h2>
+  <p>When you write a sentence, Cleat creates accounts on Solana under your own key. Anyone can read them, and the history of the transactions that made them stays on the network for good. Deleting your account closes the accounts but cannot erase that history. This is true of every Solana app.</p>
+  <ul>
+    <li>Your public address.</li>
+    <li>Your sentence, and the limits it compiles to: the cap per sector, the cap per trade, the widest market allowed, and any names it rules out.</li>
+    <li>Each decision on a proposal: cleared, trimmed or refused, the sector, the share of the book asked for and allowed, the reason, and when.</li>
+    <li>Whose sentence you adopted, if you adopted one.</li>
+  </ul>
+  <p><strong>What never goes on Solana:</strong> the companies you hold, how much of anything you hold, or dollar amounts. The check on how much of a sector you already hold runs on Arcium's network, where your figure is encrypted before it leaves your device and no single machine ever sees it.</p>
+
+  <h2>What stays on your device</h2>
+  <p>These live in your browser's storage and never reach us:</p>
+  <ul>
+    <li>A reference to your passkey. The passkey itself is held by your phone, or by your password manager if you sync passkeys.</li>
+    <li>If you add an API key for Claude, OpenAI or Gemini, it is encrypted with a key only your passkey or wallet can unlock.</li>
+    <li>Settings: theme, which robot you picked, your sleeve names, and where you stopped reading.</li>
+  </ul>
+  <p>If you sign in with a wallet instead, the wallet keeps your key and Cleat only ever asks it to sign.</p>
+
+  <h2>What passes through our servers</h2>
+  <p>Cleat is hosted on Netlify. A few small server functions keep keys and rate limits off your phone. They handle requests but store nothing about you:</p>
+  <ul>
+    <li><strong>Reading Solana.</strong> Requests go through our connection to Helius, a Solana data provider. They see which public accounts are read.</li>
+    <li><strong>Sending transactions.</strong> On devnet we pay the network fee for you. The relay sees the transaction you signed, which is public once sent anyway.</li>
+    <li><strong>Prices.</strong> Market data comes from Pyth, Backpack and Jupiter. A price quote is answered from the server nearest you, and it reports your country so the answer fits your region.</li>
+  </ul>
+  <p>Netlify and Helius keep standard request logs, including IP addresses, under their own policies. We do not combine them with anything.</p>
+
+  <h2>Third parties you choose</h2>
+  <ul>
+    <li><strong>AI models.</strong> If you bring a key for Claude, OpenAI or Gemini, your request goes from your device straight to that company under your account and their privacy policy. It does not pass through us.</li>
+    <li><strong>Voice.</strong> Speaking a sentence uses your browser's speech recognition. In Chrome and most Android browsers, that sends the audio to Google to be turned into text. Typing avoids it.</li>
+    <li><strong>Wallets.</strong> If you connect a wallet, including the Seed Vault Wallet on a Seeker, that wallet's own policy applies to it.</li>
+  </ul>
+
+  <h2>Deleting your account</h2>
+  <p>In the Vault, <strong>Delete my account</strong> does three things. It returns anything in your vault to your key. It closes your sentence, your vault and your decision log on Solana, which returns their storage deposit to you. Then it clears everything Cleat stored on this device. After that there is nothing of yours that Cleat can read.</p>
+  <p>Two things it cannot do. It cannot erase transactions already recorded on Solana, because nobody can. And it cannot delete your passkey or your wallet, which belong to your phone and your wallet app. You can remove the passkey in your phone's password settings.</p>
+
+  <h2>Children</h2>
+  <p>Cleat is not meant for anyone under 18.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the date at the top changes with it, and anything that affects what is public will be said in the app first.</p>
+
+  <h2>Contact</h2>
+  <p><a href="mailto:privacy@getcleat.net">privacy@getcleat.net</a></p>
+</main>
+</body>
+</html>

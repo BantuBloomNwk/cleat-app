@@ -17,9 +17,8 @@ import {
   INITIAL_STATS,
   INITIAL_LEDGER_ENTRIES,
   INITIAL_CHART_MARKERS,
-  COMMUNITY_MANDATES,
 } from './data/initialData';
-import { TabType, LedgerEntry, ChartMarker, CommunityMandate, EnforcerStats } from './types';
+import { TabType, LedgerEntry, ChartMarker, EnforcerStats } from './types';
 import { DEMO_OWNER, loadChainSnapshot } from './lib/chain';
 import { useWallet } from './hooks/useWallet';
 import { hasWallet } from './lib/passkey';
@@ -48,7 +47,6 @@ export default function App() {
   const [chartMarkers, setChartMarkers] = useState<ChartMarker[]>(INITIAL_CHART_MARKERS);
   // null until we know, then true if the screen is showing real devnet decisions
   const [isLive, setIsLive] = useState<boolean | null>(null);
-  const [communityMandates] = useState<CommunityMandate[]>(COMMUNITY_MANDATES);
   // What has actually been cleared into each sector, read off chain. Empty
   // until the snapshot lands, which is the honest resting state: no sector has
   // anything in it until the log says so.
@@ -186,7 +184,7 @@ export default function App() {
     );
   };
 
-  const handleAdoptCommunityMandate = (sentence: string) => {
+  const handleAdoptedMandate = (sentence: string) => {
     setMandateSentence(sentence);
     setActiveTab('diary');
     // The adopted sentence appears in the card at the very top, and switching
@@ -272,8 +270,7 @@ export default function App() {
 
           {activeTab === 'mandates' && (
             <MandatesTab
-              mandates={communityMandates}
-              onAdoptMandate={handleAdoptCommunityMandate}
+              onAdoptMandate={handleAdoptedMandate}
               signer={wallet.signer}
               sleeve={wallet.sleeve}
               onNeedWallet={() => setIsOnboardingOpen(true)}

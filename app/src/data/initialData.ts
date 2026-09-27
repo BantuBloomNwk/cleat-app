@@ -1,4 +1,4 @@
-import { LedgerEntry, ChartMarker, CommunityMandate, TimeframeData, EnforcerStats } from '../types';
+import { LedgerEntry, ChartMarker, TimeframeData, EnforcerStats } from '../types';
 
 export const INITIAL_MANDATE = "Moderate growth, nothing over fifteen percent in one name, no fossil fuels.";
 
@@ -881,77 +881,6 @@ export const TIMEFRAME_CONFIGS: Record<string, TimeframeData> = {
     ],
   },
 };
-
-export const COMMUNITY_MANDATES: CommunityMandate[] = [
-  {
-    id: 'mandate-alix',
-    author: 'Alix Vance',
-    handle: '@alix_v',
-    origin: 'Origin: @hannah_macro • Fork count: 0',
-    forkCount: 0,
-    adoptionCount: 892,
-    activeEnforcers: 4210,
-    sentence: 'Defensive capital preservation, maximum eight percent cash drag, zero defense or weapons.',
-    heldDays: 62,
-    version: '2.1 on-chain',
-    peopleRunning: 892,
-    statusChip: {
-      label: 'Adopted by 892 books',
-      type: 'cleared',
-    },
-  },
-  {
-    id: 'mandate-marcus',
-    author: 'Marcus Vance',
-    handle: '@marcus_risk',
-    origin: 'Lineage: Circuit Breaker • Verified Book',
-    forkCount: 14,
-    adoptionCount: 1890,
-    activeEnforcers: 1890,
-    sentence: 'High conviction tech compounding, hard twenty percent single-stock circuit breaker, rebalance only on five percent drawdown.',
-    heldDays: 44,
-    version: '2.4 on-chain',
-    peopleRunning: 1420,
-    statusChip: {
-      label: '1,890 Adoptions',
-      type: 'trimmed',
-    },
-  },
-  {
-    id: 'mandate-elena',
-    author: 'Elena Rostova',
-    handle: '@elena_quant',
-    origin: 'Origin: Low Beta Quantitative Enforcer',
-    forkCount: 3,
-    adoptionCount: 654,
-    activeEnforcers: 1220,
-    sentence: 'Market neutral delta hedging, maximum five percent drawdown daily circuit breaker, zero synthetic memecoins or leverage.',
-    heldDays: 89,
-    version: '3.0 on-chain',
-    peopleRunning: 980,
-    statusChip: {
-      label: 'Institutional Grade',
-      type: 'cleared',
-    },
-  },
-  {
-    id: 'mandate-kai',
-    author: 'Kai Thorne',
-    handle: '@kai_neutral',
-    origin: 'Fork of @alix_v • Eco-Constrained',
-    forkCount: 8,
-    adoptionCount: 412,
-    activeEnforcers: 940,
-    sentence: 'Pure green transition equities, zero nuclear or coal, rebalance weekly with twenty-five basis points maximum slippage.',
-    heldDays: 31,
-    version: '1.8 on-chain',
-    peopleRunning: 512,
-    statusChip: {
-      label: '100% ESG Audited',
-      type: 'cleared',
-    },
-  },
-];
 
 export const INITIAL_CHART_MARKERS: ChartMarker[] = TIMEFRAME_CONFIGS['30D'].markers;
 

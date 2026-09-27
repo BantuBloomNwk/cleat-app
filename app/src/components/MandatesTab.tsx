@@ -3,7 +3,6 @@ import { AgentAvatar } from './AgentAvatar';
 import { useAgentVariant } from '../lib/agentLook';
 import { DataOrigin } from './DataOrigin';
 import { Download, Check, FileDown, ShieldCheck } from 'lucide-react';
-import { CommunityMandate } from '../types';
 import type { Mandate, SectorExposure } from '../lib/chain';
 import { identifyMints, issuerLabel, type IdentifiedMint } from '../lib/sunrise';
 import { PublicKey } from '@solana/web3.js';
@@ -17,7 +16,6 @@ import { adoptMandate, firstFreeSleeve } from '../lib/adopt';
 import type { OwnerSigner } from '../lib/signer';
 
 interface MandatesTabProps {
-  mandates: CommunityMandate[];
   onAdoptMandate: (sentence: string) => void;
   /** Sectors with something cleared into them, read off the devnet log. */
   exposure: SectorExposure[];
@@ -31,7 +29,6 @@ interface MandatesTabProps {
 }
 
 export const MandatesTab: React.FC<MandatesTabProps> = ({
-  mandates,
   onAdoptMandate,
   exposure,
   chainMandate,
@@ -39,7 +36,6 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   sleeve,
   onNeedWallet,
 }) => {
-  const [adoptedId, setAdoptedId] = useState<string | null>(null);
   const [denied, setDenied] = useState<IdentifiedMint[]>([]);
   // Every mandate anybody has published, read off the program. Empty until
   // the scan lands, and it stays empty rather than inventing anyone.
@@ -132,15 +128,6 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
       live = false;
     };
   }, [deniedKey]);
-
-  const handleAdopt = (mandate: CommunityMandate) => {
-    tactile.mandateAction();
-    setAdoptedId(mandate.id);
-    onAdoptMandate(mandate.sentence);
-    setTimeout(() => {
-      setAdoptedId(null);
-    }, 2000);
-  };
 
   // Everything in this file is read off the program before it is written out.
   // An export that a judge cannot re-derive from devnet is worse than no
@@ -637,79 +624,6 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
         </section>
       )}
 
-      <div className="section-row-header">
-        <h3 className="section-heading text-[16px] font-bold">
-          What this looks like with people on it
-        </h3>
-        <span className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
-          <span className="section-hint text-[11px]">Written, not read</span>
-          <DataOrigin origin="sample" />
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-3.5">
-        {mandates.map((m) => {
-          const isAdopted = adoptedId === m.id;
-
-          return (
-            <article key={m.id} className="glass-card" id={`community-mandate-${m.id}`}>
-              <div className="card-topbar">
-                <div className="flex items-center gap-2">
-                  {/* Their agent, not their initials. Two letters in a
-                      coloured circle is what a contacts app does, and it
-                      made these read as people with profiles rather than as
-                      keys with sentences. The handle is the seed, so the
-                      same author is the same agent wherever they appear. */}
-                  <AgentAvatar seed={m.handle} size={30} />
-                  <div>
-                    <div className="font-bold text-[13.5px] text-[var(--text-primary)]">
-                      {m.handle}
-                    </div>
-                    <div className="text-[10px] text-[var(--text-tertiary)] font-mono">
-                      {m.origin}
-                    </div>
-                  </div>
-                </div>
-                <span className={`pill-status ${m.statusChip.type}`}>
-                  {m.statusChip.label}
-                </span>
-              </div>
-
-              <blockquote className="mandate-quote text-[16.5px] my-2.5">
-                “{m.sentence}”
-              </blockquote>
-
-              <div className="mandate-metadata-row font-sans mb-3 text-[11px] text-[var(--text-secondary)] flex items-center flex-wrap gap-x-2 gap-y-1">
-                <span className="font-sans whitespace-nowrap">
-                  Held for <strong className="font-sans text-[var(--text-primary)] font-bold">{m.heldDays} consecutive days</strong>
-                </span>
-                <span className="font-sans inline-flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="text-[var(--text-tertiary)]">•</span>
-                  <span>Version <strong className="font-sans text-[var(--text-primary)] font-bold">{m.version}</strong></span>
-                </span>
-                <span className="font-sans inline-flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="text-[var(--text-tertiary)]">•</span>
-                  <span><strong className="font-sans text-[var(--text-primary)] font-bold">{m.peopleRunning.toLocaleString()}</strong> running</span>
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] font-mono text-[var(--text-secondary)]">
-                  {m.activeEnforcers.toLocaleString()} active enforcers
-                </span>
-                <button
-                  id={`btn-adopt-${m.id}`}
-                  type="button"
-                  className="btn-ember"
-                  onClick={() => handleAdopt(m)}
-                >
-                  {isAdopted ? 'Sentence Adopted ✓' : 'Adopt Sentence'}
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
     </section>
   );
 };

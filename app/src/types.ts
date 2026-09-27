@@ -60,24 +60,6 @@ export interface PriceLevel {
   y: number;
 }
 
-export interface CommunityMandate {
-  id: string;
-  author: string;
-  handle: string;
-  origin: string;
-  forkCount: number;
-  adoptionCount: number;
-  activeEnforcers: number;
-  sentence: string;
-  heldDays: number;
-  version: string;
-  peopleRunning: number;
-  statusChip: {
-    label: string;
-    type: EntryStatus;
-  };
-}
-
 export interface TimeframeData {
   tf: '1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL';
   netReturnText: string;
