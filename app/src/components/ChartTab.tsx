@@ -901,7 +901,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
                 <div className="bg-[var(--card-surface)] border border-[var(--card-border-subtle)] p-2 rounded-xl flex flex-col gap-0.5">
                   <span className="text-[var(--text-tertiary)] text-[10px]">Intended Sizing:</span>
                   <span className="text-[var(--text-primary)] font-semibold truncate">
-                    {selectedMarker.orderSize || selectedMarker.saved}
+                    {selectedMarker.saved}
                   </span>
                 </div>
                 <div className="bg-[var(--card-surface)] border border-[var(--card-border-subtle)] p-2 rounded-xl flex flex-col gap-0.5">

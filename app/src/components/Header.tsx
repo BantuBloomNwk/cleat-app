@@ -12,6 +12,7 @@ import {
   type Ticker,
 } from '../lib/backpack';
 import { hasWallet } from '../lib/passkey';
+import { rememberedWallet } from '../lib/mwa';
 import emblemDark from '../assets/emblem-dark.png';
 import emblemLight from '../assets/emblem-light.png';
 
@@ -327,7 +328,7 @@ export const Header: React.FC<HeaderProps> = ({
           title="Open 3-step Onboarding Walkthrough"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--ember)] shadow-[0_0_6px_var(--ember)]" />
-          <span>{hasWallet() ? "Vault" : "Set up"}</span>
+          <span>{hasWallet() || rememberedWallet() ? "Vault" : "Set up"}</span>
         </button>
 
         <button

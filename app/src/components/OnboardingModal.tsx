@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tactile } from '../utils/haptics';
 import { compileSentence, createMandate } from '../lib/adopt';
-import { confirmPresence } from '../lib/passkey';
 import { hasWallet } from '../lib/passkey';
+import { isAndroid, rememberedWallet } from '../lib/mwa';
 import emblemDark from '../assets/emblem-dark.png';
 import emblemLight from '../assets/emblem-light.png';
 
@@ -44,6 +44,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   // Whether a wallet already exists is read once, when the sheet opens, so
   // the button does not change its mind under the user's finger mid flow.
   const [existed] = useState(() => hasWallet());
+  // Came in through a wallet last time and has no passkey here, so the
+  // wallet is the door to offer first.
+  const [walletBefore] = useState(() => !hasWallet() && !!rememberedWallet());
 
   /* What the sentence turns into, recomputed as it is typed, so the caps on
      screen are the caps that will be written rather than three fixed chips
@@ -81,6 +84,18 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     }
   };
 
+  const handleWallet = async () => {
+    tactile.mandateAction();
+    const sg = await wallet.connect();
+    if (sg) {
+      tactile.selectionTap();
+      setStep(3);
+    }
+  };
+  // A phone with no passkey support can still sign through its wallet, and
+  // on a Seeker that is the Seed Vault Wallet, so the wallet leads there.
+  const walletLeads = wallet.canWallet && (walletBefore || !wallet.canPasskey);
+
   const passkeyLabel = (() => {
     if (isVerifying) return existed ? 'Waiting for you…' : 'Creating your vault…';
     if (ready) return 'Verified';
@@ -113,7 +128,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     // local state and closing is how "seal it on chain" came to mean nothing,
     // and in a product whose argument is that you should not have to trust it,
     // a UI that pretends is the worst failure available.
-    if (!wallet.keypair) {
+    if (!wallet.signer) {
       setSealError(
         wallet.state.status === 'locked'
           ? 'Your key is locked. Go back a step and unlock it, then this can be signed.'
@@ -125,7 +140,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
     setSealing(true);
     try {
-      if (!(await confirmPresence())) {
+      if (!(await wallet.signer.confirm())) {
         setSealError('That was not confirmed, so nothing was written.');
         return;
       }
@@ -134,10 +149,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       // or, as it did until now, silently closing and looking like it worked.
       let r;
       try {
-        r = await createMandate(wallet.keypair, text, compiled, {}, wallet.sleeve);
+        r = await createMandate(wallet.signer, text, compiled, {}, wallet.sleeve);
       } catch (e) {
         if (!/already speaks/i.test((e as Error).message)) throw e;
-        r = await createMandate(wallet.keypair, text, compiled, { replace: true }, wallet.sleeve);
+        r = await createMandate(wallet.signer, text, compiled, { replace: true }, wallet.sleeve);
       }
       onSealMandate(text);
       onSealed?.(r);
@@ -287,23 +302,39 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         {step === 2 && (
           <div className="onboarding-step-content active flex flex-col items-center text-center">
             <div className="passkey-biometric-icon">
-              <svg viewBox="0 0 24 24" className="w-9 h-9 stroke-current fill-none stroke-[1.8]">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                <circle cx="9" cy="9" r="1" />
-                <circle cx="15" cy="9" r="1" />
-                <path d="M10 15c.5.5 1.5 1 2 1s1.5-.5 2-1" />
-              </svg>
+              {walletLeads ? (
+                <svg viewBox="0 0 24 24" className="w-9 h-9 stroke-current fill-none stroke-[1.8]">
+                  <rect x="3" y="6" width="18" height="13" rx="2" />
+                  <path d="M16 12.5h2M3 10h18" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-9 h-9 stroke-current fill-none stroke-[1.8]">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                  <circle cx="9" cy="9" r="1" />
+                  <circle cx="15" cy="9" r="1" />
+                  <path d="M10 15c.5.5 1.5 1 2 1s1.5-.5 2-1" />
+                </svg>
+              )}
             </div>
             <h3 className="font-wordmark text-[18px] font-bold mb-1.5 text-[var(--text-primary)]">
-              Sign In with Passkey
+              {walletLeads ? 'Sign in with your wallet' : 'Sign In with Passkey'}
             </h3>
             <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-5 max-w-[310px]">
-              {existed
-                ? 'Your vault is already set up on this device. Your face opens it.'
-                : 'Your face makes the key, and the key never leaves your device.'}{' '}
-              <strong className="text-[var(--text-primary)]">
-                No password, no seed phrase, nothing to write down.
-              </strong>
+              {walletLeads ? (
+                <>
+                  Your wallet keeps the key and asks you before anything is signed.{' '}
+                  <strong className="text-[var(--text-primary)]">Cleat never holds it.</strong>
+                </>
+              ) : (
+                <>
+                  {existed
+                    ? 'Your vault is already set up on this device. Your face opens it.'
+                    : 'Your face makes the key, and the key never leaves your device.'}{' '}
+                  <strong className="text-[var(--text-primary)]">
+                    No password, no seed phrase, nothing to write down.
+                  </strong>
+                </>
+              )}
             </p>
 
             {wallet.state.status === 'unsupported' && (
@@ -316,23 +347,40 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 {wallet.state.message}
               </p>
             )}
+            {walletLeads && (
+              <button
+                id="btn-wallet-connect"
+                type="button"
+                disabled={isVerifying}
+                className="btn-passkey-auth w-full mb-3"
+                onClick={handleWallet}
+              >
+                <svg className="w-[18px] h-[18px] stroke-2 fill-none stroke-current" viewBox="0 0 24 24">
+                  <rect x="3" y="6" width="18" height="13" rx="2" />
+                  <path d="M16 12.5h2M3 10h18" />
+                </svg>
+                <span>{isVerifying ? 'Waiting for your wallet…' : walletBefore ? 'Reconnect your wallet' : isAndroid() ? 'Use the wallet on this phone' : 'Use a Solana wallet'}</span>
+              </button>
+            )}
             <button
               id="btn-passkey-verify"
               type="button"
-              disabled={isVerifying || wallet.state.status === 'unsupported'}
-              className="btn-passkey-auth w-full"
+              disabled={isVerifying || wallet.state.status === 'unsupported' || !wallet.canPasskey}
+              className={walletLeads ? 'font-mono text-[11px] text-[var(--verdigris)] hover:underline disabled:opacity-40 disabled:no-underline' : 'btn-passkey-auth w-full'}
               onClick={handlePasskey}
             >
-              <svg className="w-[18px] h-[18px] stroke-2 fill-none stroke-current" viewBox="0 0 24 24">
-                <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z" />
-              </svg>
-              <span>{passkeyLabel}</span>
+              {!walletLeads && (
+                <svg className="w-[18px] h-[18px] stroke-2 fill-none stroke-current" viewBox="0 0 24 24">
+                  <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z" />
+                </svg>
+              )}
+              <span>{walletLeads ? (wallet.canPasskey ? 'Or use a passkey' : 'Passkeys are not available here') : passkeyLabel}</span>
             </button>
 
             {/* The recovery path, for a device that has never seen this app.
                 Nothing local is consulted: the platform offers whatever Cleat
                 passkeys the user has and the same wallet comes back. */}
-            {!existed && (
+            {!existed && wallet.canPasskey && (
               <button
                 type="button"
                 disabled={isVerifying}
@@ -344,6 +392,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 }}
               >
                 I already have a key, use that one
+              </button>
+            )}
+
+            {wallet.canWallet && !walletLeads && (
+              <button
+                type="button"
+                disabled={isVerifying}
+                className="font-mono text-[11px] text-[var(--verdigris)] mt-3 hover:underline"
+                onClick={handleWallet}
+              >
+                Use a Solana wallet instead
               </button>
             )}
 
@@ -434,7 +493,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   ? 'Signing and sending…'
                   : sealed
                     ? 'Done, take me in'
-                    : wallet.keypair
+                    : wallet.signer
                       ? 'Write it on chain'
                       : 'Write it down'}
               </span>
@@ -451,7 +510,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 setStep(2);
               }}
             >
-              ← Back to Passkey
+              ← Back a step
             </button>
           </div>
         )}

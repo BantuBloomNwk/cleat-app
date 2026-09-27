@@ -143,13 +143,15 @@ export const WalletState: React.FC<{
         yes={exists}
         detail={
           wallet.status === 'ready'
-            ? `Unlocked, and the rows below are your own account. ${wallet.address
+            ? `${wallet.via === 'wallet' ? 'Connected through your wallet' : 'Unlocked'}, and the rows below are your own account. ${wallet.address
                 .toBase58()
                 .slice(0, 4)}…${wallet.address.toBase58().slice(-4)}`
             : wallet.status === 'locked'
-              ? 'One exists here. Unlock it with your fingerprint or face and the rows below become yours rather than the demo account.'
+              ? wallet.via === 'wallet'
+                ? 'You came in through a wallet before. Reconnect it and the rows below become yours rather than the demo account.'
+                : 'One exists here. Unlock it with your fingerprint or face and the rows below become yours rather than the demo account.'
               : wallet.status === 'unlocking'
-                ? 'Waiting for your fingerprint or face.'
+                ? 'Waiting for you to approve it.'
                 : 'Not yet. One is made the first time you set up, and it is the only thing that can move money out of a vault.'
         }
       />

@@ -14,8 +14,7 @@ import {
 } from '../lib/chain';
 import { tactile } from '../utils/haptics';
 import { adoptMandate, firstFreeSleeve } from '../lib/adopt';
-import { confirmPresence } from '../lib/passkey';
-import type { Keypair } from '@solana/web3.js';
+import type { OwnerSigner } from '../lib/signer';
 
 interface MandatesTabProps {
   mandates: CommunityMandate[];
@@ -25,7 +24,7 @@ interface MandatesTabProps {
   /** The mandate that log answers to, or null before the read lands. */
   chainMandate: Mandate | null;
   /** The person's own key, once the passkey has been unlocked. */
-  keypair: Keypair | null;
+  signer: OwnerSigner | null;
   /** Which of that key's sleeves the adopted sentence lands in. */
   sleeve: number;
   onNeedWallet: () => void;
@@ -36,7 +35,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   onAdoptMandate,
   exposure,
   chainMandate,
-  keypair,
+  signer,
   sleeve,
   onNeedWallet,
 }) => {
@@ -59,18 +58,18 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
   const [taken, setTaken] = useState<Record<string, { url: string; sponsored: boolean; sleeve: number } | string>>({});
 
   const takeOnChain = async (m: PublishedMandate) => {
-    if (!keypair) { onNeedWallet(); return; }
+    if (!signer) { onNeedWallet(); return; }
     tactile.mandateAction();
     setTakingId(m.address);
     try {
-      if (!(await confirmPresence())) {
+      if (!(await signer.confirm())) {
         setTaken((t) => ({ ...t, [m.address]: 'That was not confirmed, so nothing was written.' }));
         return;
       }
       // Into a free sleeve, not the one in front. Writing over the sentence
       // somebody is already running is not what "take this" means, and the
       // account cannot be created twice anyway.
-      const free = await firstFreeSleeve(connection, keypair.publicKey);
+      const free = await firstFreeSleeve(connection, signer.publicKey);
       if (free === null) {
         setTaken((t) => ({
           ...t,
@@ -78,7 +77,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
         }));
         return;
       }
-      const r = await adoptMandate(keypair, new PublicKey(m.address), m.text, free);
+      const r = await adoptMandate(signer, new PublicKey(m.address), m.text, free);
       setTaken((t) => ({
         ...t,
         [m.address]: { url: r.explorer, sponsored: r.sponsored, sleeve: free },
@@ -289,7 +288,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                       an address is not something anybody recognises. */}
                   <AgentAvatar
                     seed={m.owner}
-                    variant={m.owner === keypair?.publicKey.toBase58() ? myVariant : 0}
+                    variant={m.owner === signer?.publicKey.toBase58() ? myVariant : 0}
                     size={26}
                   />
                   <span className="meta-kicker font-mono text-[10.5px]">
@@ -346,7 +345,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
               {(() => {
                 const done = taken[m.address];
                 const busy = takingId === m.address;
-                const mine = keypair?.publicKey.toBase58() === m.owner;
+                const mine = signer?.publicKey.toBase58() === m.owner;
                 if (typeof done === 'object') {
                   return (
                     <p className="text-[11px] text-[var(--text-secondary)]">
@@ -408,7 +407,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                 {(() => {
                   const done = taken[m.address];
                   const busy = takingId === m.address;
-                  const mine = keypair?.publicKey.toBase58() === m.owner;
+                  const mine = signer?.publicKey.toBase58() === m.owner;
                   if (typeof done === 'object') return null;
                   return (
                     <button
@@ -560,7 +559,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
               day the market does nothing, which is the whole problem with
               a log you read once. */}
           {(() => {
-            const me = keypair?.publicKey.toBase58();
+            const me = signer?.publicKey.toBase58();
             if (!me) return null;
             const at = standings.findIndex((r) => r.owner === me);
             if (at < 0) {
@@ -612,7 +611,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                         everywhere else in the app. */}
                     <AgentAvatar
                       seed={row.owner}
-                      variant={row.owner === keypair?.publicKey.toBase58() ? myVariant : 0}
+                      variant={row.owner === signer?.publicKey.toBase58() ? myVariant : 0}
                       size={22}
                     />
                     <span className="font-mono text-[11.5px] text-[var(--text-primary)] truncate">

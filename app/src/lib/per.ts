@@ -1,8 +1,8 @@
 import {
-  Connection, Keypair, PublicKey, Transaction, TransactionInstruction,
+  Connection, PublicKey, Transaction, TransactionInstruction,
 } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { ed25519 } from '@noble/curves/ed25519';
+import type { OwnerSigner } from './signer';
 import { DELEGATION_PROGRAM, PROGRAM_ID, vaultPda } from './adopt';
 
 /**
@@ -78,7 +78,7 @@ const meta = (pubkey: PublicKey, isSigner: boolean, isWritable: boolean) =>
  * Hand rolled from the SDK's own thirty lines rather than imported, so that
  * the browser does not also have to carry everything else in that package.
  */
-async function authToken(owner: Keypair): Promise<string> {
+async function authToken(owner: OwnerSigner): Promise<string> {
   const res = await fetch(
     `${ER_URL}/auth/challenge?pubkey=${encodeURIComponent(owner.publicKey.toBase58())}`,
   );
@@ -86,7 +86,7 @@ async function authToken(owner: Keypair): Promise<string> {
   if (error) throw new Error(`the rollup refused a challenge: ${error}`);
   if (!challenge) throw new Error('the rollup sent no challenge');
 
-  const sig = ed25519.sign(new TextEncoder().encode(challenge), owner.secretKey.slice(0, 32));
+  const sig = await owner.signMessage(new TextEncoder().encode(challenge));
   const login = await fetch(`${ER_URL}/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -103,16 +103,16 @@ async function authToken(owner: Keypair): Promise<string> {
   return body.token;
 }
 
-const rollup = async (owner: Keypair) =>
+const rollup = async (owner: OwnerSigner) =>
   new Connection(`${ER_URL}?token=${await authToken(owner)}`, 'confirmed');
 
 async function sendToRollup(
-  conn: Connection, owner: Keypair, ix: TransactionInstruction,
+  conn: Connection, owner: OwnerSigner, ix: TransactionInstruction,
 ): Promise<string> {
-  const tx = new Transaction().add(ix);
+  let tx = new Transaction().add(ix);
   tx.feePayer = owner.publicKey;
   tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-  tx.sign(owner);
+  tx = await owner.signTransaction(tx);
   // Preflight is skipped the way the script skips it: the rollup simulates
   // against its own state, and a vault that base still shows as delegated
   // trips simulation while the real send succeeds.
@@ -180,7 +180,7 @@ export async function readPer(base: Connection, owner: PublicKey, index = 0): Pr
  * guessing at a delay, refreshing the session each time because the wait can
  * outlast a short lived token.
  */
-async function waitForPickup(owner: Keypair, vault: PublicKey): Promise<Connection> {
+async function waitForPickup(owner: OwnerSigner, vault: PublicKey): Promise<Connection> {
   let conn = await rollup(owner);
   for (let i = 0; i < 20; i++) {
     const seen = await conn.getAccountInfo(vault).catch(() => null);
@@ -195,7 +195,7 @@ async function waitForPickup(owner: Keypair, vault: PublicKey): Promise<Connecti
  * Set the flags. The owner sees balances, the agent sees the log, nobody
  * else is on the list.
  */
-export async function sealVault(owner: Keypair, index = 0): Promise<string> {
+export async function sealVault(owner: OwnerSigner, index = 0): Promise<string> {
   const vault = vaultPda(owner.publicKey, index);
   const conn = await waitForPickup(owner, vault);
   return sendToRollup(conn, owner, new TransactionInstruction({
@@ -213,7 +213,7 @@ export async function sealVault(owner: Keypair, index = 0): Promise<string> {
 }
 
 /** Commit whatever happened inside and hand the vault back to base. */
-export async function releaseVault(owner: Keypair, index = 0): Promise<string> {
+export async function releaseVault(owner: OwnerSigner, index = 0): Promise<string> {
   const vault = vaultPda(owner.publicKey, index);
   const conn = await rollup(owner);
   return sendToRollup(conn, owner, new TransactionInstruction({

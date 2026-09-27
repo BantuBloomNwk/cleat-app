@@ -12,8 +12,9 @@
 // one gets a visible transfer from the demo faucet in the same transaction, so
 // the help is in the record rather than hidden behind it.
 import {
-  Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction,
+  Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction,
 } from '@solana/web3.js';
+import type { OwnerSigner } from './signer';
 
 export const PROGRAM_ID = new PublicKey('2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL');
 
@@ -69,12 +70,12 @@ const permissionPda = (account: PublicKey) =>
  * the vault's owner away from this program, which is exactly how the app knows
  * it happened: it reads the account owner rather than being told.
  */
-export async function delegateVault(owner: Keypair, index = 0): Promise<AdoptResult> {
+export async function delegateVault(owner: OwnerSigner, index = 0): Promise<AdoptResult> {
   const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), index });
   if (prep.error) throw new Error(prep.error);
   const vault = vaultPda(owner.publicKey, index);
 
-  const tx = new Transaction();
+  let tx = new Transaction();
   if (prep.needsTopUp) {
     tx.add(SystemProgram.transfer({
       fromPubkey: new PublicKey(prep.faucet), toPubkey: owner.publicKey, lamports: prep.topUpLamports,
@@ -97,7 +98,7 @@ export async function delegateVault(owner: Keypair, index = 0): Promise<AdoptRes
 
   tx.feePayer = new PublicKey(prep.feePayer);
   tx.recentBlockhash = prep.blockhash;
-  tx.partialSign(owner);
+  tx = await owner.signTransaction(tx);
   const sent = await post({
     phase: 'send',
     tx: toBase64(new Uint8Array(tx.serialize({ requireAllSignatures: false }))),
@@ -254,7 +255,7 @@ const post = async (payload: unknown) => {
  * readable without another fetch.
  */
 export async function adoptMandate(
-  owner: Keypair,
+  owner: OwnerSigner,
   parent: PublicKey,
   text: string,
   index = 0,
@@ -267,7 +268,7 @@ export async function adoptMandate(
   const child = mandatePda(owner.publicKey, index);
   const feePayer = new PublicKey(prep.feePayer);
 
-  const tx = new Transaction();
+  let tx = new Transaction();
   if (prep.needsTopUp) {
     // Visible in the transaction, not tucked into a separate one beforehand.
     tx.add(SystemProgram.transfer({
@@ -293,7 +294,7 @@ export async function adoptMandate(
 
   tx.feePayer = feePayer;
   tx.recentBlockhash = prep.blockhash;
-  tx.partialSign(owner);
+  tx = await owner.signTransaction(tx);
 
   const sent = await post({
     phase: 'send',
@@ -316,7 +317,7 @@ export async function adoptMandate(
  * server only relays after reading back what it is being asked to send.
  */
 export async function createMandate(
-  owner: Keypair,
+  owner: OwnerSigner,
   text: string,
   compiled: Compiled,
   _opts: { replace?: boolean } = {},
@@ -330,7 +331,7 @@ export async function createMandate(
   const log = verdictLogPda(owner.publicKey, index);
   const has = prep.has ?? { mandate: false, vault: false, log: false };
 
-  const tx = new Transaction();
+  let tx = new Transaction();
   if (prep.needsTopUp) {
     tx.add(SystemProgram.transfer({
       fromPubkey: new PublicKey(prep.faucet),
@@ -404,7 +405,7 @@ export async function createMandate(
 
   tx.feePayer = new PublicKey(prep.feePayer);
   tx.recentBlockhash = prep.blockhash;
-  tx.partialSign(owner);
+  tx = await owner.signTransaction(tx);
 
   const sent = await post({
     phase: 'send',
@@ -435,7 +436,7 @@ export async function createMandate(
 export type VaultAction = 'deposit' | 'withdraw';
 
 export async function moveVault(
-  owner: Keypair,
+  owner: OwnerSigner,
   action: VaultAction,
   lamports: bigint,
   opts: { needsOpen: boolean },
@@ -446,7 +447,7 @@ export async function moveVault(
 
   const vault = vaultPda(owner.publicKey, index);
   const mandate = mandatePda(owner.publicKey, index);
-  const tx = new Transaction();
+  let tx = new Transaction();
   if (prep.needsTopUp) {
     tx.add(SystemProgram.transfer({
       fromPubkey: new PublicKey(prep.faucet),
@@ -489,7 +490,7 @@ export async function moveVault(
 
   tx.feePayer = new PublicKey(prep.feePayer);
   tx.recentBlockhash = prep.blockhash;
-  tx.partialSign(owner);
+  tx = await owner.signTransaction(tx);
 
   const sent = await post({
     phase: 'send',
@@ -507,20 +508,20 @@ export async function moveVault(
  * not party to it.
  */
 export async function sendFromKey(
-  owner: Keypair,
+  owner: OwnerSigner,
   to: PublicKey,
   lamports: bigint,
 ): Promise<AdoptResult> {
   const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58() });
   if (prep.error) throw new Error(prep.error);
 
-  const tx = new Transaction();
+  let tx = new Transaction();
   tx.add(SystemProgram.transfer({
     fromPubkey: owner.publicKey, toPubkey: to, lamports: Number(lamports),
   }));
   tx.feePayer = owner.publicKey;
   tx.recentBlockhash = prep.blockhash;
-  tx.partialSign(owner);
+  tx = await owner.signTransaction(tx);
 
   const sent = await post({
     phase: 'send',

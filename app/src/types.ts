@@ -12,6 +12,8 @@ export interface LedgerEntry {
   causeDetail: string;
   agentTrace: string;
   period: 'overnight' | 'week' | 'month';
+  /** Seconds since the decision, from its slot. Absent on sample rows. */
+  ageSecs?: number;
   ticker?: string;
   amount?: string;
   expanded?: boolean;

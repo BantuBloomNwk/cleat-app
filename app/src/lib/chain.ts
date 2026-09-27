@@ -262,6 +262,8 @@ export interface Mandate {
   /** Mints the sentence rules out, resolved off chain and enforced on it. */
   denied: string[];
   adoptCount: number;
+  /** Unix seconds of the owner's last write. Zero if the account predates it. */
+  updatedAt: number;
 }
 
 const SECTORS = [
@@ -404,6 +406,8 @@ export function decodeMandate(data: Uint8Array): Mandate {
   const hasParent = c.u8();
   if (hasParent) c.skip(32);
   const adoptCount = c.u32();
+  c.u64(); // created at
+  const updatedAt = Number(c.u64());
 
   return {
     version,
@@ -414,6 +418,7 @@ export function decodeMandate(data: Uint8Array): Mandate {
     maxSpreadBps,
     denied,
     adoptCount,
+    updatedAt,
   };
 }
 
@@ -459,6 +464,7 @@ export function verdictToLedgerEntry(
       v.allowedBps,
     )}. Holdings never left the computation.`,
     period: "overnight",
+    ageSecs: Number(latestSlot - v.slot) * 0.4,
     expanded: i === 0,
   };
 }

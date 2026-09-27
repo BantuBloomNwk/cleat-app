@@ -6,7 +6,7 @@ import {
   connection, decodeVerdictLog, newestVerdict, reasonText, verdictCount,
 } from '../lib/chain';
 import {
-  PROVIDERS, chooseProvider, chosenProvider, keyStore, providerReady, type Provider,
+  availableProviders, chooseProvider, chosenProvider, keyStore, providerReady, type Provider,
 } from '../lib/models';
 import { SECTORS, draftProposal, type Draft } from '../lib/propose';
 import type { AgentMood } from './AgentAvatar';
@@ -185,7 +185,7 @@ export const AgentBrief: React.FC<{
           </p>
 
           <div className="brief-providers">
-            {PROVIDERS.map((p) => (
+            {availableProviders().map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -217,7 +217,7 @@ export const AgentBrief: React.FC<{
           )}
           {provider.needsKey && ready && (
             <p className="brief-privacy">
-              Key held, sealed in this browser under your passkey.{' '}
+              Key held, sealed in this browser so only you can open it.{' '}
               <button
                 type="button"
                 className="brief-link"

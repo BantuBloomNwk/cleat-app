@@ -7,8 +7,6 @@ export interface DayTrendPoint {
   /** Basis points, cumulative. */
   cleared: number;
   refused: number;
-  clearedCount: number;
-  refusedCount: number;
 }
 
 /**

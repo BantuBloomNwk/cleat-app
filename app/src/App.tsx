@@ -41,7 +41,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('diary');
   const [mandateSentence, setMandateSentence] = useState(INITIAL_MANDATE);
   const [stats, setStats] = useState<EnforcerStats>(INITIAL_STATS);
-  const [overnightRefusalCount, setOvernightRefusalCount] = useState(4);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(INITIAL_LEDGER_ENTRIES);
   // One agent, so one reaction, held above the tabs that draw it.
   const pulse = useAgentPulse(ledgerEntries);
@@ -149,9 +148,6 @@ export default function App() {
         setReasons(snap.reasons);
         setSealed(snap.sealed);
         if (snap.mandate?.text) setMandateSentence(snap.mandate.text);
-        setOvernightRefusalCount(
-          snap.entries.filter((e) => e.status === 'refused').length,
-        );
         setIsLive(true);
       })
       .catch(() => {
@@ -250,10 +246,10 @@ export default function App() {
               mandateSentence={mandateSentence}
               onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
               hasMandate={!!chainMandate}
+              mandate={chainMandate}
               onOpenRewriteModal={() => setIsRewriteModalOpen(true)}
               entries={ledgerEntries}
               onToggleEntry={handleToggleEntry}
-              overnightRefusalCount={overnightRefusalCount}
               restraint={restraint}
               owner={identity}
               mood={pulse.mood}
@@ -277,7 +273,7 @@ export default function App() {
             <MandatesTab
               mandates={communityMandates}
               onAdoptMandate={handleAdoptCommunityMandate}
-              keypair={wallet.keypair}
+              signer={wallet.signer}
               sleeve={wallet.sleeve}
               onNeedWallet={() => setIsOnboardingOpen(true)}
               exposure={sectorExposure}
@@ -294,6 +290,7 @@ export default function App() {
               walletApi={wallet}
               agentMood={pulse.mood}
               agentStats={agentStats}
+              activeMandateVersion={chainMandate?.version ?? null}
             />
           )}
         </main>
@@ -337,7 +334,7 @@ export default function App() {
         isOpen={isRewriteModalOpen}
         onClose={() => setIsRewriteModalOpen(false)}
         currentSentence={mandateSentence}
-        keypair={wallet.keypair}
+        signer={wallet.signer}
         sleeve={wallet.sleeve}
         hasMandate={!!chainMandate}
         onSaveSentence={(s) => setMandateSentence(s)}

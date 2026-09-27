@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Keypair, PublicKey } from '@solana/web3.js';
+import type { PublicKey } from '@solana/web3.js';
 import {
   createWallet,
   unlockWallet,
@@ -8,6 +8,7 @@ import {
   forgetLocal,
   passkeySupported,
   platformAuthenticatorAvailable,
+  passkeyHelp,
 } from '../lib/passkey';
 import {
   listSleeves,
@@ -18,13 +19,17 @@ import {
   forgetSleeve as forgetSleeveStored,
   type Sleeve,
 } from '../lib/sleeves';
+import { keypairSigner, type OwnerSigner } from '../lib/signer';
+import { connectWallet, forgetWallet, rememberedWallet, walletsAvailable } from '../lib/mwa';
+import { setLocalSecretSource } from '../lib/models';
 
 export type WalletState =
   | { status: 'unsupported'; reason: string }
   | { status: 'none' }
-  | { status: 'locked' }
+  /** A key was used here before. `via` says which door opens it again. */
+  | { status: 'locked'; via: 'passkey' | 'wallet' }
   | { status: 'unlocking' }
-  | { status: 'ready'; address: PublicKey }
+  | { status: 'ready'; address: PublicKey; via: 'passkey' | 'wallet' }
   | { status: 'error'; message: string };
 
 /**
@@ -34,9 +39,18 @@ export type WalletState =
  * what the interface wants; the key itself comes back from the passkey at
  * the moment something has to be signed.
  */
+/** Where the app rests with no key unlocked: which door, if any, was used before. */
+function resting(): WalletState {
+  if (hasWallet()) return { status: 'locked', via: 'passkey' };
+  if (rememberedWallet()) return { status: 'locked', via: 'wallet' };
+  return { status: 'none' };
+}
+
 export function useWallet() {
   const [state, setState] = useState<WalletState>({ status: 'none' });
-  const [keypair, setKeypair] = useState<Keypair | null>(null);
+  const [signer, setSigner] = useState<OwnerSigner | null>(null);
+  const [canPasskey, setCanPasskey] = useState(false);
+  const canWallet = walletsAvailable();
   /**
    * Which sleeve is in front.
    *
@@ -50,30 +64,34 @@ export function useWallet() {
   useEffect(() => {
     let live = true;
     (async () => {
-      if (!passkeySupported() || !(await platformAuthenticatorAvailable())) {
+      const passkeys = passkeySupported() && (await platformAuthenticatorAvailable());
+      if (live) setCanPasskey(passkeys);
+      // A phone that cannot make a passkey can still have a wallet, and on a
+      // Seeker the wallet is the better door anyway.
+      if (!passkeys && !canWallet) {
         if (live) {
           setState({
             status: 'unsupported',
-            reason:
-              'This browser cannot do passkeys. On an iPhone, open Cleat in Safari and add it to your Home Screen.',
+            reason: passkeyHelp('browser'),
           });
         }
         return;
       }
-      if (live) setState(hasWallet() ? { status: 'locked' } : { status: 'none' });
+      if (live) setState(resting());
     })();
     return () => {
       live = false;
     };
   }, []);
 
-  const run = useCallback(async (fn: () => Promise<Keypair>) => {
+  const run = useCallback(async (fn: () => Promise<OwnerSigner>) => {
     setState({ status: 'unlocking' });
     try {
-      const kp = await fn();
-      setKeypair(kp);
-      setState({ status: 'ready', address: kp.publicKey });
-      return kp;
+      const sg = await fn();
+      setSigner(sg);
+      setLocalSecretSource(sg.via === 'wallet' ? sg.localSecret : null);
+      setState({ status: 'ready', address: sg.publicKey, via: sg.via });
+      return sg;
     } catch (e) {
       setState({ status: 'error', message: (e as Error).message });
       return null;
@@ -82,7 +100,9 @@ export function useWallet() {
 
   return {
     state,
-    keypair,
+    signer,
+    canPasskey,
+    canWallet,
     sleeve,
     sleeves,
     select: useCallback((index: number) => {
@@ -105,17 +125,29 @@ export function useWallet() {
       setSleeves(listSleeves());
       setSleeve(activeSleeve());
     }, []),
-    create: useCallback(() => run(createWallet), [run]),
-    unlock: useCallback(() => run(unlockWallet), [run]),
-    restore: useCallback(() => run(restoreWallet), [run]),
+    create: useCallback(() => run(async () => keypairSigner(await createWallet())), [run]),
+    unlock: useCallback(
+      () =>
+        run(async () =>
+          state.status === 'locked' && state.via === 'wallet'
+            ? connectWallet()
+            : keypairSigner(await unlockWallet()),
+        ),
+      [run, state],
+    ),
+    restore: useCallback(() => run(async () => keypairSigner(await restoreWallet())), [run]),
+    connect: useCallback(() => run(connectWallet), [run]),
     signOut: useCallback(() => {
-      setKeypair(null);
-      setState(hasWallet() ? { status: 'locked' } : { status: 'none' });
+      setSigner(null);
+      setLocalSecretSource(null);
+      setState(resting());
     }, []),
     forget: useCallback(() => {
-      forgetLocal();
-      setKeypair(null);
-      setState({ status: 'none' });
-    }, []),
+      if (signer?.via === 'wallet') forgetWallet();
+      else forgetLocal();
+      setSigner(null);
+      setLocalSecretSource(null);
+      setState(resting());
+    }, [signer]),
   };
 }

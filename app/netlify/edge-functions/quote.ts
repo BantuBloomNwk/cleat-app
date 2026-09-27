@@ -111,6 +111,15 @@ export default async (req: Request, context: EdgeContext): Promise<Response> => 
       `&amount=${fromAmount}&slippageBps=50`;
     const res = await fetch(url, { headers: { accept: "application/json" } });
     const raw = await res.json();
+    // No route is an answer about the token, not a mistake in the request.
+    // Passing Jupiter's 400 through made every untradable name a red line
+    // in the console. An empty list already reads as unroutable.
+    if (raw?.errorCode === "TOKEN_NOT_TRADABLE" || raw?.errorCode === "COULD_NOT_FIND_ANY_ROUTE") {
+      return new Response(
+        JSON.stringify({ success: true, data: { quotes: [] }, noRoute: raw.errorCode }),
+        { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store" } },
+      );
+    }
     if (!res.ok) {
       return new Response(JSON.stringify({ error: raw?.error ?? `router ${res.status}` }), {
         status: res.status,

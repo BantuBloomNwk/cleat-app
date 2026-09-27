@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { PublicKey, type Keypair } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { connection } from '../lib/chain';
 import { tactile } from '../utils/haptics';
 import { delegateVault, moveVault, sendFromKey, vaultPda, type VaultAction } from '../lib/adopt';
 import { readPer, sealVault, releaseVault, SEAL_FLOOR_LAMPORTS, type PerState } from '../lib/per';
-import { confirmPresence, walletSyncMode } from '../lib/passkey';
+import { walletSyncMode } from '../lib/passkey';
 
 /**
  * The key, its balance, and how to put something in it.
@@ -32,7 +32,7 @@ export const VaultKey: React.FC<{
    */
   onMood?: (m: 'sealed') => void;
 }> = ({ wallet, onMood }) => {
-  const keypair = wallet.keypair;
+  const signer = wallet.signer;
   const address = wallet.state.status === 'ready' ? wallet.state.address : null;
   const [lamports, setLamports] = useState<number | null>(null);
   const [vaultLamports, setVaultLamports] = useState<number | null>(null);
@@ -82,6 +82,7 @@ export const VaultKey: React.FC<{
   if (!address) {
     const st = wallet.state.status;
     const locked = st === 'locked';
+    const viaWallet = wallet.state.status === 'locked' && wallet.state.via === 'wallet';
     const busy = st === 'unlocking';
     return (
       <div className="vault-key">
@@ -94,13 +95,17 @@ export const VaultKey: React.FC<{
         <p className="text-[12px] leading-[1.6] text-[var(--text-secondary)]">
           {st === 'unsupported'
             ? wallet.state.reason
-            : locked
+            : viaWallet
+              ? 'Last time you came in through a wallet. Reconnecting asks the wallet, and the key never leaves it.'
+              : locked
               ? 'There is a key on this device and it is locked. Unlocking asks the hardware, not us, and nothing leaves the device.'
               : st === 'error'
                 ? wallet.state.message
-                : 'No key here yet. One is made by the hardware, never written down as a phrase and never sent anywhere.'}
+                : wallet.canPasskey
+                  ? 'No key here yet. One is made by the hardware, never written down as a phrase and never sent anywhere.'
+                  : 'This browser cannot make a passkey, so connect the wallet on this phone instead. It keeps the key and asks before anything is signed.'}
         </p>
-        {st !== 'unsupported' && !locked && (
+        {st !== 'unsupported' && !locked && wallet.canPasskey && (
           <p className="text-[11px] leading-[1.6] text-[var(--trimmed-amber)]">
             If you have used Cleat before on any device, choose the second
             option. Making a new key makes a different wallet with a different
@@ -109,20 +114,29 @@ export const VaultKey: React.FC<{
         )}
         {st !== 'unsupported' && (
           <div className="vault-buttons">
-            <button
-              type="button"
-              className="mesh-chip"
-              disabled={busy}
-              onClick={() => (locked ? wallet.unlock() : wallet.create())}
-            >
-              {busy ? 'Asking the hardware…' : locked ? 'Unlock this key' : 'Make a new key'}
-            </button>
-            {!locked && (
+            {(locked || wallet.canPasskey) && (
+              <button
+                type="button"
+                className="mesh-chip"
+                disabled={busy}
+                onClick={() => (locked ? wallet.unlock() : wallet.create())}
+              >
+                {busy
+                  ? viaWallet ? 'Waiting for the wallet…' : 'Asking the hardware…'
+                  : viaWallet ? 'Reconnect the wallet' : locked ? 'Unlock this key' : 'Make a new key'}
+              </button>
+            )}
+            {!locked && wallet.canWallet && (
+              <button type="button" className="mesh-chip" disabled={busy} onClick={() => wallet.connect()}>
+                Use a Solana wallet
+              </button>
+            )}
+            {!locked && wallet.canPasskey && (
               <button type="button" className="mesh-chip" onClick={() => wallet.restore()}>
                 Use a key I already have
               </button>
             )}
-            {locked && (
+            {locked && !viaWallet && (
               <button type="button" className="mesh-chip" onClick={() => wallet.restore()}>
                 Use a different device
               </button>
@@ -139,12 +153,12 @@ export const VaultKey: React.FC<{
 
   /** A rollup action, which returns a bare signature rather than a link. */
   const runPer = async (label: string, fn: () => Promise<string>) => {
-    if (!keypair) return;
+    if (!signer) return;
     tactile.mandateAction();
     setBusy(label);
     setNote(null);
     try {
-      if (!(await confirmPresence())) {
+      if (!(await signer!.confirm())) {
         setNote({ ok: false, text: 'That was not confirmed, so nothing moved.' });
         return;
       }
@@ -163,12 +177,12 @@ export const VaultKey: React.FC<{
   };
 
   const run = async (label: string, fn: () => Promise<{ explorer: string }>) => {
-    if (!keypair) return;
+    if (!signer) return;
     tactile.mandateAction();
     setBusy(label);
     setNote(null);
     try {
-      if (!(await confirmPresence())) {
+      if (!(await signer!.confirm())) {
         setNote({ ok: false, text: 'That was not confirmed, so nothing moved.' });
         return;
       }
@@ -190,7 +204,7 @@ export const VaultKey: React.FC<{
 
   const move = (action: VaultAction) =>
     run(action === 'deposit' ? 'Deposit' : 'Withdrawal', async () =>
-      moveVault(keypair!, action, lamportsFromInput(),
+      moveVault(signer!, action, lamportsFromInput(),
         { needsOpen: vaultLamports === null }, wallet.sleeve));
 
   const send = () =>
@@ -198,7 +212,7 @@ export const VaultKey: React.FC<{
       let dest: PublicKey;
       try { dest = new PublicKey(to.trim()); }
       catch { throw new Error('That is not a Solana address.'); }
-      return sendFromKey(keypair!, dest, lamportsFromInput());
+      return sendFromKey(signer!, dest, lamportsFromInput());
     });
 
   const copy = async () => {
@@ -260,7 +274,7 @@ export const VaultKey: React.FC<{
       </p>
 
       <div className="vault-key-row">
-        <span className="vault-key-label">Your key</span>
+        <span className="vault-key-label">{wallet.signer?.via === 'wallet' ? 'Your wallet' : 'Your key'}</span>
         <span className="vault-key-balance">
           {sol === null ? 'reading…' : `${sol.toFixed(9).replace(/0+$/, '').replace(/\.$/, '')} SOL`}
           {' '}
@@ -275,7 +289,7 @@ export const VaultKey: React.FC<{
         </span>
       </div>
 
-      {walletSyncMode() === 'stored' && (
+      {wallet.signer?.via === 'passkey' && walletSyncMode() === 'stored' && (
         <p className="text-[11px] leading-[1.6] text-[var(--trimmed-amber)]">
           This authenticator would not derive the key from the passkey, so
           the seed is kept in this browser. It will not follow you to another
@@ -338,11 +352,11 @@ export const VaultKey: React.FC<{
           <span className="unit">SOL</span>
         </label>
         <div className="vault-buttons">
-          <button type="button" className="mesh-chip" disabled={!keypair || !!busy}
+          <button type="button" className="mesh-chip" disabled={!signer || !!busy}
             onClick={() => move('deposit')}>
             {busy === 'Deposit' ? 'Signing…' : vaultLamports === null ? 'Open and deposit' : 'Deposit'}
           </button>
-          <button type="button" className="mesh-chip" disabled={!keypair || !!busy || vaultLamports === null}
+          <button type="button" className="mesh-chip" disabled={!signer || !!busy || vaultLamports === null}
             onClick={() => move('withdraw')}>
             {busy === 'Withdrawal' ? 'Signing…' : 'Withdraw'}
           </button>
@@ -357,7 +371,7 @@ export const VaultKey: React.FC<{
           />
         </label>
         <div className="vault-buttons">
-          <button type="button" className="mesh-chip" disabled={!keypair || !!busy || !to.trim()}
+          <button type="button" className="mesh-chip" disabled={!signer || !!busy || !to.trim()}
             onClick={send}>
             {busy === 'Send' ? 'Signing…' : 'Send from your key'}
           </button>
@@ -407,8 +421,8 @@ export const VaultKey: React.FC<{
             <button
               type="button"
               className="mesh-chip"
-              disabled={!keypair || !!busy || vaultLamports === null || !!per?.delegated}
-              onClick={() => run('Delegation', () => delegateVault(keypair!, wallet.sleeve))}
+              disabled={!signer || !!busy || vaultLamports === null || !!per?.delegated}
+              onClick={() => run('Delegation', () => delegateVault(signer!, wallet.sleeve))}
               title="Hand the vault to the attested rollup"
             >
               {busy === 'Delegation' ? 'Signing…' : 'Delegate'}
@@ -416,10 +430,10 @@ export const VaultKey: React.FC<{
             <button
               type="button"
               className="mesh-chip"
-              disabled={!keypair || !!busy || !per?.delegated || !!per?.sealed}
+              disabled={!signer || !!busy || !per?.delegated || !!per?.sealed}
               onClick={() =>
                 runPer('Sealing', async () => {
-                  const sig = await sealVault(keypair!, wallet.sleeve);
+                  const sig = await sealVault(signer!, wallet.sleeve);
                   onMood?.('sealed');
                   return sig;
                 })
@@ -431,8 +445,8 @@ export const VaultKey: React.FC<{
             <button
               type="button"
               className="mesh-chip"
-              disabled={!keypair || !!busy || !per?.delegated}
-              onClick={() => runPer('Release', () => releaseVault(keypair!, wallet.sleeve))}
+              disabled={!signer || !!busy || !per?.delegated}
+              onClick={() => runPer('Release', () => releaseVault(signer!, wallet.sleeve))}
               title="Commit what happened inside and hand it back"
             >
               {busy === 'Release' ? 'Releasing…' : 'Bring it back'}

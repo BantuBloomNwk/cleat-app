@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Keypair } from '@solana/web3.js';
+import type { OwnerSigner } from '../lib/signer';
 import { compileSentence, createMandate } from '../lib/adopt';
-import { confirmPresence } from '../lib/passkey';
 
 interface RewriteModalProps {
   isOpen: boolean;
@@ -10,7 +9,7 @@ interface RewriteModalProps {
   currentSentence: string;
   onSaveSentence: (newSentence: string) => void;
   /** Needed to sign. Without one this can only change what is on screen. */
-  keypair: Keypair | null;
+  signer: OwnerSigner | null;
   /** Which of that key's sleeves is being rewritten. */
   sleeve: number;
   /** True when a mandate already exists on chain for this sleeve. */
@@ -22,7 +21,7 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
   onClose,
   currentSentence,
   onSaveSentence,
-  keypair,
+  signer,
   sleeve,
   hasMandate,
 }) => {
@@ -48,7 +47,7 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
 
     // No key means this can only change what is on screen, and it says so
     // rather than looking like it did more.
-    if (!keypair) {
+    if (!signer) {
       setErr('There is no key unlocked, so this can only change what you see here. Unlock in the vault to write it.');
       onSaveSentence(next);
       return;
@@ -57,14 +56,14 @@ export const RewriteModal: React.FC<RewriteModalProps> = ({
     setBusy(true);
     setErr(null);
     try {
-      if (!(await confirmPresence())) {
+      if (!(await signer.confirm())) {
         setErr('That was not confirmed, so nothing was written.');
         return;
       }
       /* The same call that sets up. It rewrites the sentence when one is
          already there and builds anything still missing, so a rewrite also
          repairs a half finished setup instead of failing on it. */
-      const r = await createMandate(keypair, next, compileSentence(next), {}, sleeve);
+      const r = await createMandate(signer, next, compileSentence(next), {}, sleeve);
       onSaveSentence(next);
       setDone({ explorer: r.explorer });
     } catch (e) {

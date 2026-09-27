@@ -104,6 +104,26 @@ async function seedFromPrf(first: ArrayBuffer): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', first));
 }
 
+/**
+ * What to tell someone whose browser cannot make a passkey. It used to send
+ * everyone to Safari on an iPhone, which is advice an Android phone cannot
+ * take. On a Seeker the answer is Chrome and a screen lock.
+ */
+export function passkeyHelp(kind: 'browser' | 'biometric' = 'browser'): string {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const lead =
+    kind === 'browser'
+      ? 'This browser cannot do passkeys.'
+      : 'Face ID or a fingerprint is not available here.';
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    return `${lead} On an iPhone, open Cleat in Safari and add it to your Home Screen.`;
+  }
+  if (/Android/.test(ua)) {
+    return `${lead} Open Cleat in Chrome, and check this phone has a screen lock set.`;
+  }
+  return `${lead} A current Chrome, Edge or Safari can, and so can your phone.`;
+}
+
 export function passkeySupported(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -203,14 +223,10 @@ async function deriveViaAssertion(
 /** Register a passkey and provision the wallet behind it. */
 export async function createWallet(): Promise<Keypair> {
   if (!passkeySupported()) {
-    throw new Error(
-      'This browser cannot do passkeys. On an iPhone, open Cleat in Safari and add it to your Home Screen.',
-    );
+    throw new Error(passkeyHelp('browser'));
   }
   if (!(await platformAuthenticatorAvailable())) {
-    throw new Error(
-      'Face ID or a fingerprint is not available here. On an iPhone, use Safari and add Cleat to your Home Screen, then try again.',
-    );
+    throw new Error(passkeyHelp('biometric'));
   }
 
   const cred = (await navigator.credentials.create({

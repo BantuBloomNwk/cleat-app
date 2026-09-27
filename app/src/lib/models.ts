@@ -119,17 +119,27 @@ const CHOICE_KEY = 'cleat_model_choice';
  */
 const live = new Map<string, string>();
 
+/**
+ * Where the sealing key comes from. A passkey by default. When the owner
+ * came in through a wallet there may be no passkey at all, so the wallet
+ * hook points this at a key derived from a wallet signature instead.
+ */
+let localSecret: () => Promise<CryptoKey> = deriveLocalSecretKey;
+export function setLocalSecretSource(source: (() => Promise<CryptoKey>) | null) {
+  localSecret = source ?? deriveLocalSecretKey;
+}
+
 export const keyStore = {
   /** The decrypted key, if this session has already unsealed it. */
   get(providerId: string): string | null {
     return live.get(providerId) ?? null;
   },
 
-  /** Ask the passkey once, then unseal whatever this browser has stored. */
+  /** Ask the passkey or wallet once, then unseal what this browser has stored. */
   async unlock(): Promise<number> {
     let secret: CryptoKey;
     try {
-      secret = await deriveLocalSecretKey();
+      secret = await localSecret();
     } catch {
       return 0;
     }
@@ -155,7 +165,7 @@ export const keyStore = {
   async set(providerId: string, key: string) {
     live.set(providerId, key);
     try {
-      const secret = await deriveLocalSecretKey();
+      const secret = await localSecret();
       localStorage.setItem(KEY_PREFIX + providerId, await seal(secret, key));
     } catch {
       // Sealing failed, so this key lives for the session and is not
@@ -187,6 +197,19 @@ export const keyStore = {
   },
 };
 
+/**
+ * A phone has no Ollama on it, and a page served over https cannot reach
+ * http://localhost there anyway, so on a phone the local choice is a
+ * button that can only fail. It stays on desktops, where it is the most
+ * private option there is.
+ */
+const onPhone = () =>
+  typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/.test(navigator.userAgent);
+
+export function availableProviders(): Provider[] {
+  return onPhone() ? PROVIDERS.filter((p) => p.tier !== 'local') : PROVIDERS;
+}
+
 export function chosenProvider(): Provider {
   let id: string | null = null;
   try {
@@ -197,7 +220,10 @@ export function chosenProvider(): Provider {
   // Falls back to the local model rather than to the first in the list: the
   // default should be the one that needs no key and sends nothing anywhere,
   // even though it is also the one that needs the most setup.
-  return PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[PROVIDERS.length - 1];
+  // On a phone the local model is not offered, so the fallback is the first
+  // provider that is.
+  const list = availableProviders();
+  return list.find((p) => p.id === id) ?? (onPhone() ? list[0] : list[list.length - 1]);
 }
 
 export function chooseProvider(id: string) {

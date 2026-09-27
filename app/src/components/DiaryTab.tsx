@@ -9,7 +9,7 @@ import { useAgentVariant } from '../lib/agentLook';
 import { AttackBox } from './AttackBox';
 import { PlainEnglish } from './PlainEnglish';
 import { GateStatus } from './GateStatus';
-import type { Restraint } from '../lib/chain';
+import type { Mandate, Restraint } from '../lib/chain';
 import { loadSessions, type MarketSession } from '../lib/backpack';
 import { ToastNotification } from './ToastNotification';
 import { MagicblockPerDiagram, type TracedRun } from './MagicblockPerDiagram';
@@ -23,68 +23,57 @@ interface DiaryTabProps {
   onOpenRewriteModal: () => void;
   entries: LedgerEntry[];
   onToggleEntry: (id: string) => void;
-  overnightRefusalCount: number;
   /** What the agent asked for against what the sentence allowed. */
   restraint: Restraint | null;
   /** The agent's reaction, held above this screen so the vault shares it. */
   mood: AgentMood;
   /** Rows that landed since the last poll. */
   arrived: Set<string>;
+  /** The mandate as read off chain, or null before it loads. */
+  mandate?: Mandate | null;
 }
 
+// Week and month used to be written by hand, with dollar figures and a
+// performance edge over an unconstrained agent. The program records no
+// amounts and nobody ran the counterfactual, so none of it could be true.
+// Everything below is counted off the log instead: how many, which way,
+// what hour, and the reason cited most. Nothing the log does not hold.
 const PERIOD_CONFIGS = {
-  overnight: {
-    label: 'Overnight',
-    badge: null as string | null, // see overnightBadge below
-    headingSuffix: 'overnight trade refusals',
-    description:
-      'While you slept the agent kept proposing. Your sentence refused every one, and nothing moved.',
-    stats: [
-      { label: 'Blocked', value: '$1,330 USDC', type: 'refused' },
-      { label: 'Decided in', value: '14ms', type: 'cleared' },
-      { label: 'Got through', value: 'Nothing', type: 'cleared' },
-    ],
-    intelligence: {
-      tag: 'Busiest hour',
-      title: 'Most of it came at 03:42 UTC',
-      detail: 'Asia opened and the agent went after Chevron. Your sentence rules out fossil fuels, so it was refused before anything was sent.',
-    },
-  },
-  week: {
-    label: 'Weekly',
-    badge: '7-Day Rolling Audit',
-    headingSuffix: 'weekly trade interventions (9 Refusals, 5 Trims)',
-    description:
-      'Fourteen proposals stopped across a week of oil and chip swings. $4,850 never left, because one name was already as large as your sentence allows.',
-    stats: [
-      { label: '9 Refusals', value: '$3,820 USDC', type: 'refused' },
-      { label: '5 Trims', value: '$1,030 Buffered', type: 'trimmed' },
-      { label: 'Boundary Score', value: '99.4% Adherence', type: 'cleared' },
-    ],
-    intelligence: {
-      tag: 'Sector Risk Envelope',
-      title: 'Fossil Fuels: 0.0% • Tech Cap: 14.8%',
-      detail: 'Single-name tech ceiling clamped Microsoft and Nvidia additions to prevent concentration breach. All hydrocarbon derivatives barred.',
-    },
-  },
-  month: {
-    label: 'Monthly',
-    badge: '30-Day Cumulative Audit',
-    headingSuffix: 'monthly trade refusals (29 Position Trims)',
-    description:
-      '30-day mandate enforcement: 184 compliant trades cleared, 41 catastrophic liquidations prevented across DeFi yield farms and fossil fuel swings.',
-    stats: [
-      { label: '41 Refusals', value: '$14,200 USDC', type: 'refused' },
-      { label: '29 Trims', value: '$4,220 Buffered', type: 'trimmed' },
-      { label: 'Alpha Protected', value: '+10.58% vs Raw AI', type: 'cleared' },
-    ],
-    intelligence: {
-      tag: 'Counterfactual Performance Edge',
-      title: 'Cleat Protected: +4.18% vs Unconstrained: -6.40%',
-      detail: 'An unconstrained agent without human boundaries suffered heavy drawdown on high-yield DeFi liquidity pools and energy spikes. Cleat kept portfolio safe.',
-    },
-  },
+  overnight: { label: 'Overnight', badge: null as string | null, windowSecs: 0 },
+  week: { label: 'Weekly', badge: 'Last 7 days' as string | null, windowSecs: 7 * 86400 },
+  month: { label: 'Monthly', badge: 'Last 30 days' as string | null, windowSecs: 30 * 86400 },
 };
+
+type Summary = {
+  total: number;
+  refused: number;
+  trimmed: number;
+  cleared: number;
+  busiestHour: string | null;
+  topCause: string | null;
+};
+
+function summarise(list: LedgerEntry[]): Summary {
+  const by = (st: string) => list.filter((e) => e.status === st).length;
+  const tally = (keys: string[]) => {
+    const m = new Map<string, number>();
+    keys.forEach((k) => m.set(k, (m.get(k) ?? 0) + 1));
+    let best: string | null = null;
+    let n = 0;
+    m.forEach((v, k) => { if (v > n) { best = k; n = v; } });
+    return best;
+  };
+  return {
+    total: list.length,
+    refused: by('refused'),
+    trimmed: by('trimmed'),
+    cleared: by('cleared'),
+    busiestHour: tally(
+      list.map((e) => e.timestamp.match(/^(\d{2}):\d{2} UTC$/)?.[1]).filter((h): h is string => !!h),
+    ),
+    topCause: tally(list.filter((e) => e.status !== 'cleared').map((e) => e.cause)),
+  };
+}
 
 export const DiaryTab: React.FC<DiaryTabProps> = ({
   mandateSentence,
@@ -93,11 +82,11 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
   onOpenRewriteModal,
   entries,
   onToggleEntry,
-  overnightRefusalCount,
   restraint,
   owner,
   mood,
   arrived,
+  mandate,
 }) => {
   // The overnight window, from the exchange rather than from a number
   // someone typed. It was written as 22:00 to 06:00 UTC, which is not when
@@ -152,8 +141,18 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
 
   const currentPeriodConfig = PERIOD_CONFIGS[selectedPeriod];
 
-  // Base entries for the active period
-  const periodEntries = entries.filter((e) => e.period === selectedPeriod);
+  // Rows read off chain carry their age, so a window is a filter on it.
+  // Overnight stays the whole log, as it always was. Sample rows have no
+  // age and keep the period they were written with.
+  const fromChain = entries.some((e) => e.ageSecs !== undefined);
+  const periodEntries = fromChain
+    ? entries.filter(
+        (e) =>
+          currentPeriodConfig.windowSecs === 0 ||
+          (e.ageSecs ?? Infinity) <= currentPeriodConfig.windowSecs,
+      )
+    : entries.filter((e) => e.period === selectedPeriod);
+  const summary = summarise(periodEntries);
 
   // Filter entries based on active status pill
   const filteredEntries = periodEntries.filter((e) => {
@@ -320,7 +319,7 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
               <span>Share</span>
             </button>
 
-            <span className="immutable-chip">On-Chain v2.4</span>
+            {mandate && <span className="immutable-chip">On chain, v{mandate.version}</span>}
           </div>
         </div>
 
@@ -336,20 +335,30 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
           “{mandateSentence}”
         </blockquote>
         
-        {/* Mandate Metadata Row - Bullet dots securely attached inline */}
-        <div className="mandate-metadata-row font-sans flex items-center flex-wrap gap-x-2 gap-y-1 text-[11.5px] text-[var(--text-secondary)]">
-          <span className="font-sans whitespace-nowrap">
-            Held for <strong className="font-sans text-[var(--text-primary)] font-bold">44 consecutive days</strong>
-          </span>
-          <span className="font-sans inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span className="text-[var(--text-tertiary)]">•</span>
-            <span>Version <strong className="font-sans text-[var(--text-primary)] font-bold">2.4 on-chain</strong></span>
-          </span>
-          <span className="font-sans inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span className="text-[var(--text-tertiary)]">•</span>
-            <span><strong className="font-sans text-[var(--text-primary)] font-bold">1,420</strong> people running it</span>
-          </span>
-        </div>
+        {/* Read off the mandate account, or not shown. This row used to say
+            44 days, version 2.4 and 1,420 people, and none of it was read. */}
+        {mandate && (() => {
+          const heldDays = mandate && mandate.updatedAt > 0 ? Math.max(0, Math.floor((Date.now() / 1000 - mandate.updatedAt) / 86400)) : null;
+          const bits = [
+            heldDays !== null && (
+              <span className="font-sans whitespace-nowrap">
+                Unchanged for <strong className="font-sans text-[var(--text-primary)] font-bold">{heldDays === 0 ? 'under a day' : `${heldDays} day${heldDays === 1 ? '' : 's'}`}</strong>
+              </span>
+            ),
+            <span>Version <strong className="font-sans text-[var(--text-primary)] font-bold">{mandate.version}</strong> on chain</span>,
+            <span><strong className="font-sans text-[var(--text-primary)] font-bold">{mandate.adoptCount}</strong> {mandate.adoptCount === 1 ? 'person has' : 'people have'} adopted it</span>,
+          ].filter(Boolean);
+          return (
+            <div className="mandate-metadata-row font-sans flex items-center flex-wrap gap-x-2 gap-y-1 text-[11.5px] text-[var(--text-secondary)]">
+              {bits.map((b, i) => (
+                <span key={i} className="font-sans inline-flex items-center gap-1.5 whitespace-nowrap">
+                  {i > 0 && <span className="text-[var(--text-tertiary)]">•</span>}
+                  {b}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
 
         <div className="mandate-footer flex flex-row items-center justify-between gap-2.5 flex-wrap w-full pt-3 border-t border-[var(--card-border-subtle)]/70 mt-1">
           <GateStatus />
@@ -442,17 +451,25 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                   card that mixes the two without saying so is the thing this
                   badge exists to prevent. */}
               <DataOrigin
-                origin={selectedPeriod === 'overnight' && restraint ? 'chain' : 'sample'}
+                origin={fromChain ? 'chain' : 'sample'}
               />
             </span>
           </div>
 
           <h2 id="heroRefusalHeading" className="text-[15px] font-bold text-[var(--text-primary)]">
-            {selectedPeriod === 'overnight' ? `${overnightRefusalCount} ${currentPeriodConfig.headingSuffix}` : currentPeriodConfig.headingSuffix}
+            {summary.total === 0
+              ? 'Nothing decided in this window'
+              : selectedPeriod === 'overnight'
+                ? `${summary.refused} trade refusal${summary.refused === 1 ? '' : 's'}`
+                : `${summary.refused} refused, ${summary.trimmed} trimmed`}
           </h2>
           
           <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
-            {currentPeriodConfig.description}
+            {summary.total === 0
+              ? 'The agent proposed nothing here, so there was nothing to stop.'
+              : summary.cleared === 0
+                ? `${summary.total} proposal${summary.total === 1 ? '' : 's'} and your sentence let none through untouched.`
+                : `${summary.total} proposals. ${summary.cleared} went through inside every limit, the rest were cut down or stopped.`}
           </p>
 
           {/* Period Specific Stat Pills.
@@ -481,7 +498,11 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
                     type: 'cleared',
                   },
                 ]
-              : currentPeriodConfig.stats
+              : [
+                  { label: 'Refused', value: String(summary.refused), type: 'refused' },
+                  { label: 'Trimmed', value: String(summary.trimmed), type: 'trimmed' },
+                  { label: 'Cleared', value: String(summary.cleared), type: 'cleared' },
+                ]
             ).map((st, i) => (
               <div
                 key={i}
@@ -497,25 +518,28 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({
         </div>
       </aside>
 
-      {/* Period Dedicated Intelligence Card */}
-      <div className="bg-[var(--card-surface-raised)] border border-[var(--card-border)] rounded-2xl p-3.5 flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--verdigris)] font-bold">
-            {currentPeriodConfig.intelligence.tag}
-          </span>
-          {/* This card is written, not read. It said "Verified On-Chain"
-              over content nobody verified, which is the single worst thing
-              a product arguing you should not have to trust it can put on
-              a screen. */}
-          <DataOrigin origin="sample" />
+      {/* Counted off the same rows as the card above. It used to name an
+          hour, a company and a sector split that nobody had read. */}
+      {summary.total > 0 && (summary.busiestHour || summary.topCause) && (
+        <div className="bg-[var(--card-surface-raised)] border border-[var(--card-border)] rounded-2xl p-3.5 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--verdigris)] font-bold">
+              Busiest hour
+            </span>
+            <DataOrigin origin={fromChain ? 'chain' : 'sample'} />
+          </div>
+          {summary.busiestHour && (
+            <div className="text-[13px] font-bold text-[var(--text-primary)]">
+              Most of it came around {summary.busiestHour}:00 UTC
+            </div>
+          )}
+          {summary.topCause && (
+            <div className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
+              The reason cited most: {summary.topCause.replace(/^Triggered boundary: /, '')}.
+            </div>
+          )}
         </div>
-        <div className="text-[13px] font-bold text-[var(--text-primary)]">
-          {currentPeriodConfig.intelligence.title}
-        </div>
-        <div className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-          {currentPeriodConfig.intelligence.detail}
-        </div>
-      </div>
+      )}
 
       {/* Interactive SVG Diagram: Magicblock PER Trade Filtering Flow */}
       <AttackBox onRun={setTracedRun} />

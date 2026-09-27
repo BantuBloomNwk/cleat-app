@@ -24,6 +24,8 @@ interface YouTabProps {
   agentMood?: AgentMood;
   /** What has actually happened, so the agent has something true to say. */
   agentStats: TalkStats;
+  /** The version the chain holds, or null until it has been read. */
+  activeMandateVersion?: number | null;
 }
 
 export const YouTab: React.FC<YouTabProps> = ({
@@ -34,6 +36,7 @@ export const YouTab: React.FC<YouTabProps> = ({
   walletApi,
   agentMood = 'idle',
   agentStats,
+  activeMandateVersion = null,
 }) => {
   /**
    * The tile that changed, flashed.
@@ -244,12 +247,24 @@ export const YouTab: React.FC<YouTabProps> = ({
             </span>
           </div>
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
-            <span className="text-[var(--text-secondary)]">Passkey Credential:</span>
-            <span className="text-[var(--text-primary)] font-bold">WebAuthn Bound</span>
+            <span className="text-[var(--text-secondary)]">Your key:</span>
+            {/* Said "WebAuthn Bound" to everyone, including browsers that
+                cannot make a passkey at all. */}
+            <span className={`font-bold ${wallet.status === 'ready' ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>
+              {wallet.status === 'ready'
+                ? wallet.via === 'wallet' ? 'Held by your wallet' : 'Unlocked on this device'
+                : wallet.status === 'locked' || wallet.status === 'unlocking'
+                  ? 'On this device, locked'
+                  : wallet.status === 'unsupported'
+                    ? 'Not available here'
+                    : 'None yet'}
+            </span>
           </div>
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--card-surface-raised)] border border-[var(--card-border-subtle)]">
             <span className="text-[var(--text-secondary)]">On-Chain State:</span>
-            <span className="text-[var(--verdigris)] font-bold">Synchronized (v2.4)</span>
+            <span className={`font-bold ${activeMandateVersion ? 'text-[var(--verdigris)]' : 'text-[var(--text-tertiary)]'}`}>
+              {activeMandateVersion ? `Mandate version ${activeMandateVersion}` : 'Not read yet'}
+            </span>
           </div>
         </div>
 
