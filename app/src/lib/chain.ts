@@ -690,7 +690,10 @@ const VERDICT_LOG_DISCRIMINATOR_B58 = "J6HutyaA5qQ";
  * permits that exact scan, because an unfenced one is a way to make somebody
  * else pay for an indexer.
  */
-export async function loadPublishedMandates(): Promise<PublishedMandate[]> {
+export async function loadPublishedMandates(
+  opts: { distinct?: boolean } = {},
+): Promise<PublishedMandate[]> {
+  const distinct = opts.distinct ?? true;
   try {
     const res = await (connection as any)._rpcRequest("getProgramAccounts", [
       PROGRAM_ID.toBase58(),
@@ -733,8 +736,10 @@ export async function loadPublishedMandates(): Promise<PublishedMandate[]> {
       // One row per distinct sentence. Test runs left nine copies of the same
       // one, and an exchange showing the same rule nine times reads as a bug
       // rather than as a market. The newest author of a sentence keeps it.
+      // The adoption feed passes distinct: false, because an adopted copy
+      // carries its parent's text and is exactly the row it wants.
       .filter((m: PublishedMandate, _i: number, all: PublishedMandate[]) =>
-        all.findIndex((o) => o.text === m.text) === _i,
+        !distinct || all.findIndex((o) => o.text === m.text) === _i,
       );
   } catch {
     return [];

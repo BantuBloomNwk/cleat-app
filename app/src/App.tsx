@@ -266,6 +266,7 @@ export default function App() {
               trend={trend}
               exposure={sectorExposure}
               reasons={reasons}
+              onOpenSentences={() => setActiveTab('mandates')}
             />
           )}
 

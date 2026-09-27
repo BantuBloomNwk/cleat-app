@@ -1,4 +1,4 @@
-import { LedgerEntry, ChartMarker, CommunityMandate, TimeframeData, EnforcerStats, SocialTradeMessage } from '../types';
+import { LedgerEntry, ChartMarker, CommunityMandate, TimeframeData, EnforcerStats } from '../types';
 
 export const INITIAL_MANDATE = "Moderate growth, nothing over fifteen percent in one name, no fossil fuels.";
 
@@ -954,51 +954,4 @@ export const COMMUNITY_MANDATES: CommunityMandate[] = [
 ];
 
 export const INITIAL_CHART_MARKERS: ChartMarker[] = TIMEFRAME_CONFIGS['30D'].markers;
-
-export const INITIAL_SOCIAL_TRADE_MESSAGES: SocialTradeMessage[] = [
-  {
-    id: 'msg-1',
-    sender: 'alex_trader.sol',
-    avatar: 'AT',
-    badge: 'Top Copier #4',
-    time: '2m ago',
-    text: 'Mandate v2.4 caught the CVX impulse spike at 03:42 UTC! Saved my portfolio from a $1,200 top-tick buy.',
-    isEnforcer: true,
-    protectedAmount: '$1,200',
-    likes: 24,
-  },
-  {
-    id: 'msg-2',
-    sender: 'marcus_macro',
-    avatar: 'MM',
-    badge: '15% Cap Enforcer',
-    time: '8m ago',
-    text: 'The 15% single-stock ceiling clamped NVDA automatically before earnings volatility. Textbook risk containment.',
-    isEnforcer: false,
-    protectedAmount: '$840',
-    likes: 17,
-  },
-  {
-    id: 'msg-3',
-    sender: 'elena_defi',
-    avatar: 'ED',
-    badge: 'ESG Verifier',
-    time: '21m ago',
-    text: 'Zero fossil fuels rule blocked 2 speculative crude oil contracts overnight. Copied by 89 of my liquidity pools.',
-    isEnforcer: true,
-    protectedAmount: '$950',
-    likes: 31,
-  },
-  {
-    id: 'msg-4',
-    sender: 'crypto_kai',
-    avatar: 'CK',
-    badge: 'Alpha Runner',
-    time: '45m ago',
-    text: 'Running this on 3 autonomous agent keys. 44 consecutive days without a single breach of plain English constraints.',
-    isEnforcer: false,
-    protectedAmount: '$3,100',
-    likes: 42,
-  },
-];
 

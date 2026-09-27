@@ -91,18 +91,6 @@ export interface TimeframeData {
   markers: ChartMarker[];
 }
 
-export interface SocialTradeMessage {
-  id: string;
-  sender: string;
-  avatar: string;
-  badge?: string;
-  time: string;
-  text: string;
-  isEnforcer?: boolean;
-  protectedAmount?: string;
-  likes?: number;
-}
-
 export interface EnforcerStats {
   cleared: number;
   trimmed: number;

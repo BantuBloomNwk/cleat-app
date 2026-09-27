@@ -9,8 +9,9 @@ import type { SectorExposure } from '../lib/chain';
 import { ChartMesh } from './ChartMesh';
 import { symbolTicker, loadTickers, loadDepth, bookQuality, isPerp } from '../lib/backpack';
 import React, { useState, useEffect, useRef } from 'react';
-import { ChartMarker, SocialTradeMessage } from '../types';
-import { TIMEFRAME_CONFIGS, INITIAL_SOCIAL_TRADE_MESSAGES } from '../data/initialData';
+import { ChartMarker } from '../types';
+import { AdoptionRoom } from './AdoptionRoom';
+import { TIMEFRAME_CONFIGS } from '../data/initialData';
 import { tactile } from '../utils/haptics';
 import { AgentAvatar } from './AgentAvatar';
 import { D3VolumeProgressBar } from './D3VolumeProgressBar';
@@ -61,6 +62,8 @@ interface ChartTabProps {
   exposure: SectorExposure[];
   /** Why proposals were stopped, counted, most common first. */
   reasons: { code: number; label: string; count: number }[];
+  /** Where taking a sentence actually happens. */
+  onOpenSentences: () => void;
 }
 
 
@@ -71,6 +74,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   trend,
   exposure,
   reasons,
+  onOpenSentences,
 }) => {
   const [showAllReasons, setShowAllReasons] = useState(false);
   const [activeTimeframe, setActiveTimeframe] = useState<'1H' | '24H' | '7D' | '30D' | '1Y' | 'ALL'>('30D');
@@ -84,7 +88,6 @@ export const ChartTab: React.FC<ChartTabProps> = ({
     return () => clearTimeout(t);
   }, [is3DActive]);
   const [showKernelLayers, setShowKernelLayers] = useState(false);
-  const [isCopiedAlert, setIsCopiedAlert] = useState(false);
   // which card has been opened for a closer look, if any
   const [expanded, setExpanded] = useState<null | 'volume' | 'trend' | 'chart'>(null);
   // Defaults to a spot tokenized share rather than a perpetual, and the
@@ -196,9 +199,6 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   const [isDraggingSvg, setIsDraggingSvg] = useState(false);
 
   // Social Trading Feed State
-  const [messages, setMessages] = useState<SocialTradeMessage[]>(INITIAL_SOCIAL_TRADE_MESSAGES);
-  const [newMsgText, setNewMsgText] = useState('');
-  const [isCopierSynced, setIsCopierSynced] = useState(false);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -287,43 +287,6 @@ export const ChartTab: React.FC<ChartTabProps> = ({
   const handleJumpLiveHead = () => {
     setScrubberVal(340);
     tactile.selectionTap();
-  };
-
-  // Social message submit
-  const handleSendSocialMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMsgText.trim()) return;
-
-    const newMsg: SocialTradeMessage = {
-      id: `msg-${Date.now()}`,
-      sender: 'you.sol',
-      avatar: 'ME',
-      badge: 'Active Copier',
-      time: 'Just now',
-      text: newMsgText.trim(),
-      isEnforcer: true,
-      likes: 1,
-    };
-
-    setMessages([newMsg, ...messages]);
-    setNewMsgText('');
-    tactile.mandateAction();
-  };
-
-  const handleLikeMessage = (id: string) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === id ? { ...msg, likes: msg.likes + 1 } : msg
-      )
-    );
-    tactile.selectionTap();
-  };
-
-  const handleToggleSync = () => {
-    setIsCopierSynced(!isCopierSynced);
-    setIsCopiedAlert(true);
-    tactile.mandateAction();
-    setTimeout(() => setIsCopiedAlert(false), 2400);
   };
 
   return (
@@ -1341,115 +1304,7 @@ export const ChartTab: React.FC<ChartTabProps> = ({
         />
       </section>
 
-      {/* Social Trading Room & Copier Feed for Social Trading dApp */}
-      <div className="social-stream-card" id="social-trading-dapp-room">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-1 border-b border-[var(--card-border-subtle)]">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--verdigris)] animate-pulse shrink-0" />
-            <h3 className="font-sans font-bold text-[14px] text-[var(--text-primary)] whitespace-nowrap">
-              Copier Trading Room
-            </h3>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <DataOrigin origin="sample" />
-            <span className="text-[11px] font-mono text-[var(--text-tertiary)] whitespace-nowrap">
-              1,420 Active Copiers
-            </span>
-            <button
-              type="button"
-              className={`px-2.5 py-1 text-[11px] font-sans font-bold rounded-lg transition-all ${
-                isCopierSynced
-                  ? 'bg-[var(--verdigris)] text-[#0c0b0a]'
-                  : 'bg-[var(--card-surface-raised)] border border-[var(--card-border)] text-[var(--verdigris)] hover:border-[var(--verdigris)]'
-              }`}
-              onClick={handleToggleSync}
-            >
-              <span className="whitespace-nowrap">{isCopierSynced ? '✓ Synced' : 'Sync Mandate'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Copy sync toast */}
-        {isCopiedAlert && (
-          <div className="bg-[var(--verdigris-chip-bg)] border border-[var(--verdigris-chip-border)] text-[var(--verdigris)] px-3 py-2 rounded-xl text-[11.5px] font-sans flex items-center justify-between">
-            <span>
-              {isCopierSynced
-                ? 'Portfolio hooked to Mandate v2.4 enforcer circuit.'
-                : 'Unsynced mandate. Autonomous agent returned to local manual mode.'}
-            </span>
-            <span className="font-mono text-[10px] font-bold">7xKP...4nP9</span>
-          </div>
-        )}
-
-        {/* Live Copier Messages Stream */}
-        <div className="flex flex-col gap-2.5 max-h-[280px] overflow-y-auto pr-0.5">
-          {messages.map((msg) => (
-            <div key={msg.id} className="social-msg-item">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {/* Two letters in a circle was the placeholder that
-                      survived into the build. Seeded on the handle, so the
-                      same person is the same face every time without an
-                      account, an upload or anything stored. */}
-                  <AgentAvatar seed={msg.sender} size={26} />
-                  <span className="font-mono font-bold text-[12px] text-[var(--text-primary)]">
-                    @{msg.sender}
-                  </span>
-                  <span className="text-[9.5px] font-sans font-semibold px-2 py-0.5 rounded-full bg-[var(--card-surface)] text-[var(--text-tertiary)] border border-[var(--card-border-subtle)]">
-                    {msg.badge}
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
-                  {msg.time}
-                </span>
-              </div>
-
-              <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed font-sans pl-8">
-                {msg.text}
-              </p>
-
-              <div className="flex items-center justify-between pl-8 pt-1 text-[11px] font-mono">
-                {msg.protectedAmount ? (
-                  <span className="text-[var(--verdigris)] font-semibold">
-                    Held back {msg.protectedAmount}
-                  </span>
-                ) : (
-                  <span className="text-[var(--text-tertiary)]">Signal Verified</span>
-                )}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-[var(--text-tertiary)] hover:text-[var(--ember)] transition-colors"
-                    onClick={() => handleLikeMessage(msg.id)}
-                  >
-                    <span>♥</span> {msg.likes}
-                  </button>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">
-                    {msg.isEnforcer ? '⚡ Enforced' : 'Copied'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Social Room Message Composer */}
-        <form onSubmit={handleSendSocialMessage} className="flex gap-2 pt-1">
-          <input
-            type="text"
-            className="flex-1 bg-[var(--card-surface-raised)] border border-[var(--card-border)] rounded-xl px-3 py-2 text-[12px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] outline-none focus:border-[var(--verdigris)] transition-colors font-sans"
-            placeholder="Broadcast trade signal or mandate observation..."
-            value={newMsgText}
-            onChange={(e) => setNewMsgText(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="px-3.5 py-2 rounded-xl bg-[var(--verdigris)] text-[#0c0b0a] font-sans font-bold text-[12px] hover:brightness-110 transition-all shrink-0"
-          >
-            Broadcast
-          </button>
-        </form>
-      </div>
+      <AdoptionRoom onOpenSentences={onOpenSentences} />
 
       {/* Custom Data Insights Modal Triggered on Chart Marker Tap */}
       <DataInsightsModal
