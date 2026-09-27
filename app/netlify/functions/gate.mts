@@ -69,6 +69,36 @@ const MXE_X25519 = Uint8Array.from(Buffer.from("tMBQW8k6o5T91XG6U3N8eeFBKXUkZsMe
 /** Discriminators off the deployed IDL, not guessed. */
 const D_SET_HANDLE = Buffer.from([135, 120, 109, 196, 53, 184, 160, 18]);
 const D_GATE_TRADE = Buffer.from([160, 213, 58, 232, 203, 28, 133, 155]);
+const D_PROPOSE = Buffer.from([90, 218, 7, 166, 111, 48, 29, 15]);
+
+/** Where a cleared trade's fee goes. Only needed for the sell-down below. */
+const TREASURY = new PublicKey("APXm5boJUumXARvhya72so43gkbmwnEPaHWURyRHbaWT");
+
+/**
+ * The sandbox's public running total for one sector, read off its log.
+ *
+ * This is the trap the demo walked into. Every clearance adds to the public
+ * total, nothing ever took it back out, and after a handful of runs the cheap
+ * public check refused both halves of the pair before either reached the
+ * network, so the one thing the page exists to show stopped happening. It
+ * failed silently for two days because the send skips preflight.
+ *
+ * Entries are 17 bytes, and the totals sit straight after them.
+ */
+function publicExposure(log: Buffer, category: number): number {
+  const count = log.readUInt32LE(8 + 32 + 32 + 1 + 12);
+  const at = 8 + 32 + 32 + 1 + 12 + 4 + count * 17 + category * 2;
+  return at + 2 <= log.length ? log.readUInt16LE(at) : 0;
+}
+
+/** The sector cap off the mandate, walking the layout the same way the app does. */
+function positionCap(mandate: Buffer): number {
+  const hasHalt = mandate.length >= 676 + 3;
+  let o = 8 + 32 + 2 + (hasHalt ? 1 : 0);
+  const len = mandate.readUInt32LE(o);
+  o += 4 + len + 32;
+  return mandate.readUInt16LE(o);
+}
 
 const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
@@ -203,10 +233,37 @@ export default async (req: Request) => {
     const meta = (pubkey: PublicKey, isSigner: boolean, isWritable: boolean) =>
       ({ pubkey, isSigner, isWritable });
 
+    // Make room first when the sandbox has none. The owner sells the sector
+    // down with a real reduce proposal, recorded in the log like any other
+    // decision, so the pair is decided by the sealed holding again and not by
+    // a public total the demo itself kept filling.
+    const [logInfo, mandateInfo] = await connection.getMultipleAccountsInfo([LOG, MANDATE]);
+    const exposure = logInfo ? publicExposure(logInfo.data as Buffer, s.category) : 0;
+    const cap = mandateInfo ? positionCap(mandateInfo.data as Buffer) : 0;
+    const soldDown = s.side === 0 && exposure > 0 && cap - exposure < s.bps ? exposure : 0;
+
     // One transaction, both instructions. If the gate call fails the handle
     // does not move either, which keeps the vault from being left describing a
     // book that was never asked about.
-    const tx = new Transaction().add(
+    const tx = new Transaction();
+    if (soldDown > 0) {
+      tx.add(new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          meta(owner.publicKey, true, false),
+          meta(VAULT, false, true),
+          meta(MANDATE, false, false),
+          meta(LOG, false, true),
+          meta(UNIVERSE, false, false),
+          meta(TREASURY, false, true),
+        ],
+        data: Buffer.concat([
+          D_PROPOSE, u16(0), Buffer.from([s.category]), u16(soldDown), Buffer.from([0]),
+          Buffer.from([1]), u16(0), new PublicKey(s.mint).toBuffer(),
+        ]),
+      }));
+    }
+    tx.add(
       new TransactionInstruction({
         programId: PROGRAM_ID,
         keys: [meta(owner.publicKey, true, false), meta(VAULT, false, true)],
@@ -265,6 +322,8 @@ export default async (req: Request) => {
       scenario: key,
       asked: s.bps,
       path: "gate_trade",
+      // Non-zero when the sandbox had to sell a sector down to make room.
+      soldDownBps: soldDown,
     });
   } catch (err) {
     const msg = String((err as Error)?.message ?? err);

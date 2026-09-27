@@ -19,6 +19,9 @@
 // read that is slow.
 const ALLOWED = new Set([
   "getAccountInfo",
+  // Up to a hundred accounts in one read, capped by the RPC itself. The owner
+  // panel uses it to find every sleeve a key opened before deleting them.
+  "getMultipleAccounts",
   "getBalance",
   "getSlot",
   "getProgramAccounts",
@@ -36,7 +39,10 @@ const ALLOWED = new Set([
 const PROGRAM_ID = "2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL";
 const MANDATE_DISCRIMINATOR = "L3ScUhMvnTK"; // base58 of [113,216,98,159,185,63,55,18]
 const VERDICT_LOG_DISCRIMINATOR = "J6HutyaA5qQ"; // base58 of [102,46,139,79,112,179,171,191]
-const SCANNABLE = new Set([MANDATE_DISCRIMINATOR, VERDICT_LOG_DISCRIMINATOR]);
+// Tiny accounts, one per sentence kept out of the room. The app reads them so
+// it can leave those sentences out, which makes this scan the price of privacy.
+const PRIVATE_MARKER_DISCRIMINATOR = "YXvdbmatzeh"; // base58 of [188,134,75,125,249,9,221,150]
+const SCANNABLE = new Set([MANDATE_DISCRIMINATOR, VERDICT_LOG_DISCRIMINATOR, PRIVATE_MARKER_DISCRIMINATOR]);
 
 function scanIsFenced(call: any): boolean {
   const [program, opts] = call.params ?? [];

@@ -39,6 +39,10 @@ const ALLOWED: Record<string, string> = {
   '166,89,17,247,90,45,115,224': 'delegate_vault',
   '209,155,178,53,205,199,134,28': 'seal_vault',
   '162,80,81,254,102,228,132,87': 'release_vault',
+  '211,223,241,155,247,14,26,104': 'close_sleeve',
+  '24,194,92,182,123,211,83,22': 'make_private',
+  '41,76,102,98,184,102,132,29': 'make_public',
+  '153,114,136,116,7,134,47,12': 'set_halted',
 };
 
 /** Rent for a Mandate plus a little for fees, which is what a top up covers. */

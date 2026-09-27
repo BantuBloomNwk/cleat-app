@@ -288,6 +288,9 @@ export async function adoptMandate(
       { pubkey: parent, isSigner: false, isWritable: true },
       { pubkey: child, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      // Whether the parent is private. The program refuses a private parent;
+      // an older program ignores the extra account, so this ships first.
+      { pubkey: privatePda(parent), isSigner: false, isWritable: false },
     ],
     data: concat(D_ADOPT, u16le(index), u32le(body.length), body) as unknown as Buffer,
   }));
@@ -583,4 +586,101 @@ export async function firstFreeSleeve(
     if (!(await hasMandate(connection, owner, i))) return i;
   }
   return null;
+}
+
+
+/* ---- deleting, keeping private, and stopping everything ----
+ *
+ * Three owner-only instructions, sent the same way as everything else here:
+ * built on this side, signed by the owner, relayed only after the server has
+ * read each instruction back.
+ */
+const D_CLOSE_SLEEVE = new Uint8Array([211, 223, 241, 155, 247, 14, 26, 104]);
+const D_MAKE_PRIVATE = new Uint8Array([24, 194, 92, 182, 123, 211, 83, 22]);
+const D_MAKE_PUBLIC = new Uint8Array([41, 76, 102, 98, 184, 102, 132, 29]);
+const D_SET_HALTED = new Uint8Array([153, 114, 136, 116, 7, 134, 47, 12]);
+
+export const privatePda = (mandate: PublicKey) =>
+  PublicKey.findProgramAddressSync([enc('private'), mandate.toBuffer()], PROGRAM_ID)[0];
+const universePda = (mandate: PublicKey) =>
+  PublicKey.findProgramAddressSync([enc('universe'), mandate.toBuffer()], PROGRAM_ID)[0];
+const spendPda = (owner: PublicKey, index = 0) =>
+  PublicKey.findProgramAddressSync([enc('spend'), owner.toBuffer(), indexSeed(index)], PROGRAM_ID)[0];
+
+async function relayOwned(owner: OwnerSigner, ix: TransactionInstruction, index = 0): Promise<AdoptResult> {
+  const prep = await post({ phase: 'prepare', owner: owner.publicKey.toBase58(), index });
+  if (prep.error) throw new Error(prep.error);
+  let tx = new Transaction();
+  if (prep.needsTopUp) {
+    tx.add(SystemProgram.transfer({
+      fromPubkey: new PublicKey(prep.faucet), toPubkey: owner.publicKey, lamports: prep.topUpLamports,
+    }));
+  }
+  tx.add(ix);
+  tx.feePayer = new PublicKey(prep.feePayer);
+  tx.recentBlockhash = prep.blockhash;
+  tx = await owner.signTransaction(tx);
+  const sent = await post({
+    phase: 'send',
+    tx: toBase64(new Uint8Array(tx.serialize({ requireAllSignatures: false }))),
+  });
+  if (sent.error) throw new Error(readable(sent.error));
+  return { signature: sent.signature, explorer: sent.explorer, sponsored: !!sent.sponsored, child: '' };
+}
+
+/**
+ * Delete one sleeve: sentence, vault, log, universe, spend account and the
+ * private marker, with every lamport back to the owner's key. The program
+ * refuses while the vault is out on the rollup, and says so.
+ */
+export function closeSleeve(owner: OwnerSigner, index = 0) {
+  const o = owner.publicKey;
+  const mandate = mandatePda(o, index);
+  const w = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: true });
+  return relayOwned(owner, new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: o, isSigner: true, isWritable: true },
+      w(mandate), w(universePda(mandate)), w(vaultPda(o, index)),
+      w(verdictLogPda(o, index)), w(spendPda(o, index)), w(privatePda(mandate)),
+    ],
+    data: concat(D_CLOSE_SLEEVE, u16le(index)) as unknown as Buffer,
+  }), index);
+}
+
+/** Keep a sentence out of the room, or offer it again. */
+export function setPrivate(owner: OwnerSigner, index: number, isPrivate: boolean) {
+  const o = owner.publicKey;
+  const mandate = mandatePda(o, index);
+  const keys = [
+    { pubkey: o, isSigner: true, isWritable: true },
+    { pubkey: mandate, isSigner: false, isWritable: false },
+    { pubkey: privatePda(mandate), isSigner: false, isWritable: true },
+  ];
+  if (isPrivate) keys.push({ pubkey: SystemProgram.programId, isSigner: false, isWritable: false });
+  return relayOwned(owner, new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys,
+    data: concat(isPrivate ? D_MAKE_PRIVATE : D_MAKE_PUBLIC, u16le(index)) as unknown as Buffer,
+  }), index);
+}
+
+/**
+ * The kill switch. Every path that proposes reads this flag, including a
+ * confidential check already in flight, which comes back refused.
+ */
+export function setHalted(owner: OwnerSigner, index: number, halted: boolean) {
+  const o = owner.publicKey;
+  return relayOwned(owner, new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: o, isSigner: true, isWritable: false },
+      { pubkey: mandatePda(o, index), isSigner: false, isWritable: true },
+    ],
+    data: concat(D_SET_HALTED, u16le(index), new Uint8Array([halted ? 1 : 0])) as unknown as Buffer,
+  }), index);
+}
+
+export async function isPrivate(connection: Connection, owner: PublicKey, index = 0) {
+  return (await connection.getAccountInfo(privatePda(mandatePda(owner, index)))) !== null;
 }

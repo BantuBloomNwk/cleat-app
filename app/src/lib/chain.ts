@@ -682,6 +682,40 @@ export interface PublishedMandate {
 
 const MANDATE_DISCRIMINATOR_B58 = "L3ScUhMvnTK";
 const VERDICT_LOG_DISCRIMINATOR_B58 = "J6HutyaA5qQ";
+const PRIVATE_MARKER_DISCRIMINATOR_B58 = "YXvdbmatzeh";
+
+/**
+ * Every sentence its owner asked to keep out of the room.
+ *
+ * Read before any list is drawn, and a failed read is not an empty set: it
+ * throws, so the callers show nothing rather than risk listing somebody who
+ * asked not to be listed.
+ */
+async function loadPrivateMandates(): Promise<Set<string>> {
+  const res = await (connection as any)._rpcRequest("getProgramAccounts", [
+    PROGRAM_ID.toBase58(),
+    {
+      encoding: "base64",
+      filters: [{ memcmp: { offset: 0, bytes: PRIVATE_MARKER_DISCRIMINATOR_B58 } }],
+    },
+  ]);
+  if (!res || res.error || !Array.isArray(res.result)) throw new Error("private markers unread");
+  return new Set(
+    res.result.map((r: any) => {
+      const raw = Uint8Array.from(atob(r.account.data[0]), (ch) => ch.charCodeAt(0));
+      return new PublicKey(raw.slice(8, 40)).toBase58();
+    }),
+  );
+}
+
+/** The mandate a decision log belongs to. Logs do not store their sleeve. */
+function mandateOfLog(owner: string, log: string): string | null {
+  const o = new PublicKey(owner);
+  for (let i = 0; i < 32; i++) {
+    if (verdictLogPda(o, i).toBase58() === log) return mandatePda(o, i).toBase58();
+  }
+  return null;
+}
 
 /**
  * Every mandate anyone has created, newest activity first.
@@ -703,6 +737,7 @@ export async function loadPublishedMandates(
       },
     ]);
     const rows = res?.result ?? [];
+    const hidden = await loadPrivateMandates();
     const now = Date.now() / 1000;
 
     return rows
@@ -731,7 +766,7 @@ export async function loadPublishedMandates(
           heldDays: Math.max(0, Math.floor((now - tail.updatedAt) / 86400)),
         };
       })
-      .filter((m: PublishedMandate) => m.text.length > 0)
+      .filter((m: PublishedMandate) => m.text.length > 0 && !hidden.has(m.address))
       .sort((a: PublishedMandate, b: PublishedMandate) => b.updatedAt - a.updatedAt)
       // One row per distinct sentence. Test runs left nine copies of the same
       // one, and an exchange showing the same rule nine times reads as a bug
@@ -841,11 +876,14 @@ export async function loadAllVerdicts(): Promise<PlacedVerdict[]> {
     ]);
     const rows = res?.result ?? [];
     const out: PlacedVerdict[] = [];
+    const hidden = await loadPrivateMandates();
     for (const r of rows) {
       const raw = Uint8Array.from(atob(r.account.data[0]), (ch) => ch.charCodeAt(0));
       const c = new Cursor(raw);
       c.skip(8);
       const owner = new PublicKey(c.slice(32)).toBase58();
+      const m = mandateOfLog(owner, r.pubkey);
+      if (m && hidden.has(m)) continue;
       for (const v of decodeVerdictLog(raw).entries) {
         out.push({ ...v, owner, logAddress: r.pubkey });
       }
@@ -869,8 +907,15 @@ export async function loadStandings(): Promise<StandingRow[]> {
       },
     ]);
     const rows = res?.result ?? [];
+    const hidden = await loadPrivateMandates();
 
     return rows
+      .filter((r: any) => {
+        const raw = Uint8Array.from(atob(r.account.data[0]), (ch) => ch.charCodeAt(0));
+        const owner = new PublicKey(raw.slice(8, 40)).toBase58();
+        const m = mandateOfLog(owner, r.pubkey);
+        return !(m && hidden.has(m));
+      })
       .map((r: any) => {
         const raw = Uint8Array.from(atob(r.account.data[0]), (ch) =>
           ch.charCodeAt(0),
