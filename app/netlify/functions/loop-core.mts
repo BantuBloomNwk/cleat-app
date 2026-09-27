@@ -307,7 +307,9 @@ export function mark(book: Book, prices: Partial<Record<Ticker, number>>) {
  * answer is checked against a fixed shape and fixed bounds before anything is
  * sent; anything else falls back to the momentum rule. Free tier.
  */
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+// Newest first. gemini-2.5-flash is retired (404). The lite model is the
+// fallback when the main one is busy, which on the free tier is often.
+const GEMINI_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
 let geminiModel: string | null = null;
 /** What the model did on the last call, for the manual run to report. */
 export let lastGemini: { model?: string; status: string; answer?: string } = { status: "not called" };
@@ -377,7 +379,9 @@ export async function thinkWithGemini(ctx: {
     },
   });
 
-  const models = geminiModel ? [geminiModel] : [...GEMINI_MODELS];
+  // The one that answered last time goes first, the rest stay behind it so a
+  // busy model can hand over to the next.
+  const models = geminiModel ? [geminiModel, ...GEMINI_MODELS.filter((m) => m !== geminiModel)] : [...GEMINI_MODELS];
   for (let n = 0; n < models.length; n++) {
     const model = models[n];
     try {
@@ -395,8 +399,14 @@ export async function thinkWithGemini(ctx: {
         continue;
       }
       if (model === "__discovered") continue;
+      if (res.status === 503 || res.status === 429) {
+        // Busy or rate limited. Try the next model before giving the pass
+        // back to the rules.
+        lastGemini = { model, status: `http ${res.status}, trying next` };
+        continue;
+      }
       if (!res.ok) { lastGemini = { model, status: `http ${res.status}`, answer: (await res.text()).slice(0, 200) }; return null; }
-      geminiModel = model;
+      if (!geminiModel) geminiModel = model;
       const out = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       // The schema asks for bare JSON; some models still wrap it in a sentence.
       // Take the object from whichever part carries it. The fields and bounds
