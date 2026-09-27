@@ -5,15 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "tsc --noEmit && vite build && npm run build:functions",
+    "build": "tsc --noEmit && vite build && npm run build:functions && node scripts/ota-bundle.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "build:functions": "node scripts/bundle-functions.mjs"
+    "build:functions": "node scripts/bundle-functions.mjs",
+    "android:sync": "npm run build && rm -rf dist/ota && npx cap sync android && node scripts/ota-bundle.mjs"
   },
   "dependencies": {
     "@arcium-hq/client": "^0.13.2",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capgo/capacitor-updater": "^7.51.23",
     "@google/genai": "^2.4.0",
     "@noble/curves": "^1.8.1",
     "@solana-mobile/wallet-standard-mobile": "^0.6.0",
@@ -35,6 +39,7 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@types/d3": "^7.4.3",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",

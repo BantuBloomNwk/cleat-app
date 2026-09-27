@@ -19,3 +19,13 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+// Inside the Android app, tell the updater this build started. A bundle that
+// never says so is rolled back to the last one that did, which is the net
+// under every over-the-air update. On the web this does nothing.
+import { Capacitor } from '@capacitor/core';
+if (Capacitor.isNativePlatform()) {
+  import('@capgo/capacitor-updater')
+    .then(({ CapacitorUpdater }) => CapacitorUpdater.notifyAppReady())
+    .catch(() => { /* a missing plugin must never stop the app */ });
+}
