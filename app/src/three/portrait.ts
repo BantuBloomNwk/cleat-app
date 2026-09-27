@@ -1,4 +1,3 @@
-import { isLite } from '../lib/lite';
 import { norm, saveStills, stills } from '../lib/portraitStore';
 import * as THREE from 'three';
 import { buildAgent, dressScene, restFace, personaOf, BUILD_COUNT } from './agentMesh';
@@ -38,7 +37,7 @@ function getRenderer(): THREE.WebGLRenderer | null {
     const canvas = document.createElement('canvas');
     canvas.width = SIZE;
     canvas.height = SIZE;
-    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: !isLite() });
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     renderer.setSize(SIZE, SIZE, false);
     renderer.setClearAlpha(0);
     return renderer;
@@ -76,10 +75,10 @@ export function portraitOf(index: number): string | null {
   let url: string | null = null;
   try {
     r.render(scene, cam);
-    // WebP encodes several times faster than PNG and comes out smaller,
-    // with the same transparency.
-    url = r.domElement.toDataURL('image/webp', 0.9);
-    if (!url.startsWith('data:image/webp')) url = r.domElement.toDataURL('image/png');
+    // PNG, lossless. WebP at 0.9 softened the edges enough to see in the
+    // header, and since each still is drawn once per device and kept, the
+    // slower encode is paid once ever.
+    url = r.domElement.toDataURL('image/png');
   } catch {
     url = null;
   }

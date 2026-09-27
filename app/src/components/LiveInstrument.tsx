@@ -13,7 +13,7 @@ import {
   type Ticker,
   type MarketSession, loadTokenized, marketsFor, type TokenizedAsset } from '../lib/backpack';
 import { tactile } from '../utils/haptics';
-import { TickerMark } from './TickerMark';
+import { TickerMark, preloadMarks } from './TickerMark';
 import { FlipDigits } from './FlipDigits';
 
 /**
@@ -97,6 +97,12 @@ export const LiveInstrument: React.FC<LiveInstrumentProps> = ({ symbol, onSelect
         .sort((a, b) => Number(b.quoteVolume || 0) - Number(a.quoteVolume || 0)),
     [tickers],
   );
+
+  // Every name the board is about to show, fetched ahead, so a switch never
+  // waits on its logo.
+  useEffect(() => {
+    if (ranked.length) void preloadMarks(ranked.slice(0, 12).map((t) => t.symbol));
+  }, [ranked]);
 
   // Advance through the board while nobody has taken it over. Only the
   // busiest dozen, because the tail is names nobody is trading and a board

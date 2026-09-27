@@ -6,6 +6,7 @@ import { DataOrigin } from './DataOrigin';
 import { WalletState } from './WalletState';
 import { OwnerControls } from './OwnerControls';
 import { AgentLoop } from './AgentLoop';
+import { PrivacySheet } from './PrivacySheet';
 import { VaultKey } from './VaultKey';
 import { AgentSpend } from './AgentSpend';
 import type { WalletState as WalletStatus } from '../hooks/useWallet';
@@ -54,6 +55,7 @@ export const YouTab: React.FC<YouTabProps> = ({
    * both values.
    */
   const previous = useRef<EnforcerStats | null>(null);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [landed, setLanded] = useState<keyof EnforcerStats | null>(null);
   // A mood the person caused outranks the one the polling set, and it lives
   // here because the stage and the vault key are siblings.
@@ -290,6 +292,16 @@ export const YouTab: React.FC<YouTabProps> = ({
           Replay 3-Step Onboarding Walkthrough
         </button>
       </article>
+      {/* For everyone, signed in or not. The store asks that the policy be
+          reachable inside the app. */}
+      <button
+        type="button"
+        className="self-center text-[11px] font-mono text-[var(--text-tertiary)] underline underline-offset-2 py-2"
+        onClick={() => setPrivacyOpen(true)}
+      >
+        privacy policy
+      </button>
+      <PrivacySheet isOpen={privacyOpen} onClose={() => setPrivacyOpen(false)} />
     </section>
   );
 };

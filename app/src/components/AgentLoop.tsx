@@ -10,11 +10,13 @@ type Wallet = ReturnType<typeof useWallet>;
 interface Row { ticker: string; name: string; sector: string; bookBps: number; avgPrice: number; price: number | null; pnl: number; pnlPct: number }
 interface BookView {
   demo: boolean;
+  published?: boolean;
   token?: string;
   marked: { rows: Row[]; cash: number; value: number; unrealized: number; realized: number; total: number; pnl: number; pnlPct: number };
   moves: Record<string, number>;
   prices: Record<string, number>;
   activity: { at: number; line: string; signature?: string }[];
+  fills: { at: number; ticker: string; side: 0 | 1; askedBps: number; allowedBps: number; price: number; outcome: number; reason: number; signature: string }[];
   lastTickAt: number | null;
   watching: { ticker: string; name: string; sector: string }[];
 }
@@ -123,32 +125,37 @@ export const AgentLoop: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
   };
 
   const m = book?.marked;
+  const [openRow, setOpenRow] = useState<number | null>(null);
+  const [allTape, setAllTape] = useState(false);
+  const lineFor = (sig: string) => book?.activity.find((a) => a.signature === sig)?.line;
+  const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const STATUS = ['FILLED', 'PARTIAL', 'REJECTED'];
+  const TONE = ['var(--verdigris)', 'var(--trimmed-amber)', 'var(--refused-rust)'];
+  const maxBps = Math.max(1, ...(m?.rows.map((r) => r.bookBps) ?? [1]));
+  const tape = (book?.fills ?? []).slice(0, allTape ? 20 : 6);
 
   return (
-    <div className="vault-key" id="agent-loop">
-      <div className="vault-key-row">
-        <span className="vault-key-label">{signer ? 'Your agent, on its own' : 'The demo agent, on its own'}</span>
-        <span className="vault-key-balance">
-          {grant?.live ? `running, until ${new Date(grant.expiresAt * 1000).toLocaleDateString()}` : signer ? 'not running' : ''}
+    <div className="vault-key ob" id="agent-loop">
+      {/* One line of who and whether, and the honesty chip. */}
+      <div className="ob-head">
+        <span className="ob-title">{signer ? 'Your agent' : 'Demo agent'}</span>
+        <span className={`ob-state${grant?.live ? ' on' : ''}`}>
+          {grant?.live ? `running · until ${new Date(grant.expiresAt * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : 'not running'}
+        </span>
+        <span className="ob-chip" title="Every proposal is real and decided on chain by the sentence. Fills are on paper at live Pyth prices against a 10,000 dollar book. Nothing is bought.">
+          paper fills
         </span>
       </div>
 
-      <p className="text-[11.5px] leading-[1.6] text-[var(--trimmed-amber)]">
-        Simulated. Every proposal is real and decided on chain by the sentence. The fills are on paper,
-        at live Pyth prices, against a 10,000 dollar book. Nothing is bought.
-      </p>
-
-      {signer && grant && (
-        grant.vault ? (
-          <div className="vault-buttons">
-            <button type="button" className="mesh-chip" disabled={!!busy} aria-pressed={grant.live} onClick={toggle}>
-              {busy === 'grant' ? 'Sending…' : grant.live ? 'Stop it running' : 'Let it run for 7 days'}
-            </button>
-          </div>
-        ) : (
-          <p className="text-[11.5px] text-[var(--text-tertiary)]">Write a sentence first. The agent needs a vault to answer to.</p>
-        )
-      )}
+      {signer && grant && (grant.vault ? (
+        <div className="vault-buttons">
+          <button type="button" className="mesh-chip" disabled={!!busy} aria-pressed={grant.live} onClick={toggle}>
+            {busy === 'grant' ? 'Sending…' : grant.live ? 'Stop it running' : 'Let it run for 7 days'}
+          </button>
+        </div>
+      ) : (
+        <p className="text-[11px] text-[var(--text-tertiary)]">Write a sentence first. The agent needs a vault to answer to.</p>
+      ))}
 
       {locked && signer && (
         <div className="vault-buttons">
@@ -160,51 +167,98 @@ export const AgentLoop: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
 
       {m && (
         <>
-          <div className="vault-key-row">
-            <span className="vault-key-label">Book</span>
-            <span className="vault-key-balance">
-              {money(m.total)}{' '}
-              <span style={{ color: cents(m.pnl) >= 0 ? 'var(--verdigris)' : 'var(--refused-rust)' }}>
-                {signed(m.pnlPct)}%
-              </span>
-            </span>
-          </div>
-          <p className="text-[11px] font-mono text-[var(--text-tertiary)]">
-            cash {money(m.cash)} · open {money(m.unrealized)} · locked in {money(m.realized)}
-          </p>
-
-          {m.rows.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {m.rows.map((r) => (
-                <div key={r.ticker} className="flex items-center justify-between text-[12px] font-mono">
-                  <span className="text-[var(--text-primary)]">{r.ticker} <span className="text-[var(--text-tertiary)]">{(r.bookBps / 100).toFixed(0)}% · {r.sector}</span></span>
-                  <span style={{ color: cents(r.pnl) >= 0 ? 'var(--verdigris)' : 'var(--refused-rust)' }}>{money(r.pnl)}</span>
-                </div>
-              ))}
+          {/* Opt in, per sentence, and withdrawable. A record is shown next
+              to the sentence as simulated and never ranked. */}
+          {signer && !book!.demo && (
+            <div className="vault-buttons">
+              <button
+                type="button"
+                className="mesh-chip"
+                disabled={!!busy}
+                aria-pressed={!!book!.published}
+                onClick={async () => {
+                  setBusy('publish');
+                  try {
+                    let token = '';
+                    try { token = sessionStorage.getItem(tokenKey(ownerB58, index)) ?? ''; } catch { /* sign again */ }
+                    const res = await fetch('/api/agent-book', {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({ owner: ownerB58, index, token, publish: !book!.published }),
+                    });
+                    const body = await res.json();
+                    if (!res.ok) setNote(body.error ?? 'That did not save.');
+                    else { setBook({ ...book!, published: body.published }); setNote(body.published ? 'Your paper record now shows on your sentence, marked simulated.' : 'Your paper record is private again.'); }
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {busy === 'publish' ? 'Saving…' : book!.published ? 'Showing on my sentence' : 'Show this record on my sentence'}
+              </button>
             </div>
           )}
 
-          <p className="text-[11px] font-mono text-[var(--text-tertiary)]">
-            watching {book!.watching.map((w) => `${w.ticker} ${book!.moves[w.ticker] !== undefined ? `${signed(book!.moves[w.ticker] / 100)}%` : 'no price'}`).join(' · ')}
-            {book!.lastTickAt ? ` · last looked ${ago(book!.lastTickAt)}` : ''}
-          </p>
+          {/* Equity strip, the way every trading screen opens. */}
+          <div className="ob-strip">
+            <div><span>Equity</span><b>{money(m.total)}</b></div>
+            <div><span>P&amp;L</span><b style={{ color: cents(m.pnl) >= 0 ? 'var(--verdigris)' : 'var(--refused-rust)' }}>{signed(m.pnlPct)}%</b></div>
+            <div><span>Cash</span><b>{money(m.cash)}</b></div>
+          </div>
 
-          {book!.activity.length === 0 ? (
-            <p className="text-[11.5px] text-[var(--text-tertiary)]">
-              Nothing yet. It only asks when a price moves, and US equities do not move at weekends.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {book!.activity.slice(0, 8).map((a, i) => (
-                <p key={i} className="text-[11.5px] leading-[1.55] text-[var(--text-secondary)]">
-                  <span className="font-mono text-[var(--text-tertiary)]">{ago(a.at)} </span>
-                  {a.line}{' '}
-                  {a.signature && (
-                    <a href={`https://explorer.solana.com/tx/${a.signature}?cluster=devnet`} target="_blank" rel="noreferrer noopener" className="text-[var(--verdigris)] underline underline-offset-2">on chain</a>
-                  )}
-                </p>
-              ))}
+          {/* Positions, dense and right aligned, with a bar for share of book. */}
+          <div className="ob-table" role="table" aria-label="Positions">
+            <div className="ob-row ob-th" role="row">
+              <span>Name</span><span>Book</span><span>Avg</span><span>Mark</span><span>P&amp;L</span>
             </div>
+            {m.rows.length === 0 && <div className="ob-empty">No positions.</div>}
+            {m.rows.map((r) => (
+              <div key={r.ticker} className="ob-row" role="row">
+                <span className="ob-bar" style={{ width: `${(r.bookBps / maxBps) * 100}%` }} aria-hidden="true" />
+                <span className="ob-name">{r.ticker}<i>{r.sector}</i></span>
+                <span>{(r.bookBps / 100).toFixed(0)}%</span>
+                <span>{r.avgPrice.toFixed(2)}</span>
+                <span>{r.price !== null ? r.price.toFixed(2) : '–'}</span>
+                <span style={{ color: cents(r.pnl) >= 0 ? 'var(--verdigris)' : 'var(--refused-rust)' }}>{money(r.pnl)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* The tape: one row per decision, newest first. Tap for why. */}
+          <div className="ob-sub">
+            <span>Tape</span>
+            <span>
+              {book!.watching.map((w) => `${w.ticker} ${book!.moves[w.ticker] !== undefined ? `${signed(book!.moves[w.ticker] / 100)}%` : '–'}`).join(' · ')}
+              {book!.lastTickAt ? ` · looked ${ago(book!.lastTickAt)}` : ''}
+            </span>
+          </div>
+          <div className="ob-table" role="table" aria-label="Decisions">
+            {tape.length === 0 && (
+              <div className="ob-empty">Nothing yet. It asks only when a price moves, and US equities do not move at weekends.</div>
+            )}
+            {tape.map((f, i) => (
+              <React.Fragment key={f.signature}>
+                <button type="button" className="ob-row ob-tape" onClick={() => setOpenRow(openRow === i ? null : i)} aria-expanded={openRow === i}>
+                  <span className="ob-time">{clock(f.at)}</span>
+                  <span style={{ color: f.side === 0 ? 'var(--verdigris)' : 'var(--refused-rust)' }}>{f.side === 0 ? 'BUY' : 'SELL'}</span>
+                  <span className="ob-name">{f.ticker}</span>
+                  <span>{(f.allowedBps / 100).toFixed(0)}/{(f.askedBps / 100).toFixed(0)}%</span>
+                  <span>{f.allowedBps > 0 && f.price > 0 ? f.price.toFixed(2) : '–'}</span>
+                  <span className="ob-status" style={{ color: TONE[f.outcome], borderColor: TONE[f.outcome] }}>{STATUS[f.outcome]}</span>
+                </button>
+                {openRow === i && (
+                  <p className="ob-why">
+                    {lineFor(f.signature) ?? ''}{' '}
+                    <a href={`https://explorer.solana.com/tx/${f.signature}?cluster=devnet`} target="_blank" rel="noreferrer noopener">on chain</a>
+                  </p>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+          {(book!.fills.length > 6) && (
+            <button type="button" className="ob-more" onClick={() => setAllTape(!allTape)}>
+              {allTape ? 'less' : `all ${Math.min(20, book!.fills.length)}`}
+            </button>
           )}
         </>
       )}

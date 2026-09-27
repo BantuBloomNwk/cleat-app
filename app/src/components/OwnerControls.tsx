@@ -28,6 +28,7 @@ export const OwnerControls: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
   const [note, setNote] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+
   const read = useCallback(async (): Promise<{ exists: boolean; halted: boolean; private: boolean } | undefined> => {
     if (!signer) return;
     const mandate = mandatePda(signer.publicKey, index);
@@ -188,9 +189,7 @@ export const OwnerControls: React.FC<{ wallet: Wallet }> = ({ wallet }) => {
 
       {note && <p className="text-[11.5px] leading-[1.6] text-[var(--text-secondary)]" role="status">{note}</p>}
 
-      <a href="/privacy.html" className="text-[10.5px] font-mono text-[var(--verdigris)] underline underline-offset-2">
-        privacy policy
-      </a>
+
     </div>
   );
 };

@@ -302,3 +302,45 @@ export const TickerMark: React.FC<{
     />
   );
 };
+
+/** Held so a preload is not collected before it lands in the image cache. */
+const warm = new Set<HTMLImageElement>();
+
+/**
+ * Resolve and download marks before they are needed.
+ *
+ * The ticker board changes name every few seconds, and a mark looked up at
+ * the moment of the switch arrived a second or two after the name did. Called
+ * with the names about to be shown, so each switch finds its mark already in
+ * the browser's cache and draws on the same frame as the text.
+ */
+export async function preloadMarks(symbols: string[]) {
+  const m = await iconMap();
+  for (const sym of symbols) {
+    const t = tickerOf(sym);
+    let src = immediate(t);
+    if (src === undefined) {
+      const own = m.get(t);
+      if (own) {
+        remember(t, own);
+        src = own;
+      } else {
+        try {
+          const res = await fetch(`/api/backpack?path=haslogo&symbol=${t}`);
+          const { ok } = (await res.json()) as { ok: boolean };
+          src = ok ? `/api/backpack?path=logo&symbol=${t}` : null;
+          if (!ok) MISSING.add(t);
+          remember(t, src ?? '');
+        } catch {
+          continue;
+        }
+      }
+    }
+    if (!src) continue;
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = img.onerror = () => { warm.delete(img); };
+    warm.add(img);
+    img.src = src;
+  }
+}

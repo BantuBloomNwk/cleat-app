@@ -902,9 +902,10 @@ export const ChartMesh: React.FC<Props> = ({
       tonemap: gl.getUniformLocation(pointProg, 'uTonemap'),
     };
 
-    // One pixel per pixel on a lite phone. The bloom pass runs at this
-    // resolution too, so it is the cheapest saving in the whole view.
-    const dpr = isLite() ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    // A little under full density on a lite phone. The bloom pass runs at
+    // this resolution too, so it is the cheapest saving in the whole view,
+    // and at one and a half the lines stay crisp.
+    const dpr = isLite() ? 1.5 : Math.min(window.devicePixelRatio || 1, 2);
     const resize = () => {
       const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
       const cw = Math.round(w * dpr), ch = Math.round(h * dpr);

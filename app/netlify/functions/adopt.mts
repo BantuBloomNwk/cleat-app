@@ -119,6 +119,14 @@ export default async (req: Request) => {
     // thing that works for somebody part way through.
     // Enough to cover its own rent and fee, or it needs a hand.
     const needsTopUp = balance < TOP_UP_LAMPORTS;
+    // The sponsor pays a newcomer's first rent and fee. When it runs dry the
+    // chain's error blamed the person's own key ("not enough in the key"),
+    // which is false and sends them looking in the wrong place. Say whose
+    // balance it actually is. It ran dry once, on 27 September, after a day
+    // of testing.
+    if (needsTopUp && (await connection.getBalance(faucet.publicKey)) < TOP_UP_LAMPORTS + 50_000) {
+      return json({ error: "Cleat's devnet sponsor has run out of SOL, so it cannot cover your first fee right now. This is on our side, not your key. Try again later." });
+    }
     return json({
       blockhash, lastValidBlockHeight,
       has: { mandate: !!existing, vault: !!vaultAcc, log: !!logAcc },

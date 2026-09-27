@@ -5,7 +5,8 @@
  */
 import { BUILD_COUNT } from './agentBuilds';
 
-const STORE_KEY = 'cleat_portraits_v1';
+// v2: v1 held lossy WebP stills that looked soft. Bumping drops them.
+const STORE_KEY = 'cleat_portraits_v2';
 const BUILDS = BUILD_COUNT;
 
 export const stills = new Map<number, string>();

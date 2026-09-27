@@ -3,6 +3,7 @@ import { loadPublishedMandates, type PublishedMandate } from '../lib/chain';
 import { AgentAvatar } from './AgentAvatar';
 import { DataOrigin } from './DataOrigin';
 import { tactile } from '../utils/haptics';
+import { displayName, useNames } from '../lib/names';
 
 /**
  * Who runs whose sentence.
@@ -24,7 +25,6 @@ type Event = {
   mandate: PublishedMandate;
 };
 
-const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%`;
 
 function ago(unix: number): string {
@@ -48,6 +48,8 @@ export const AdoptionRoom: React.FC<{ onOpenSentences: () => void }> = ({ onOpen
     loadPublishedMandates({ distinct: false }).then((r) => { if (live) setRows(r); });
     return () => { live = false; };
   }, []);
+
+  const names = useNames((rows ?? []).map((m) => m.owner));
 
   const { events, adoptions, sentences } = useMemo(() => {
     const all = rows ?? [];
@@ -112,7 +114,7 @@ export const AdoptionRoom: React.FC<{ onOpenSentences: () => void }> = ({ onOpen
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <AgentAvatar seed={e.who} size={26} />
-                <span className="font-mono font-bold text-[12px] text-[var(--text-primary)]">{short(e.who)}</span>
+                <span className="font-mono font-bold text-[12px] text-[var(--text-primary)]">{displayName(e.who, names)}</span>
                 <span className="text-[9.5px] font-sans font-semibold px-2 py-0.5 rounded-full bg-[var(--card-surface)] text-[var(--text-tertiary)] border border-[var(--card-border-subtle)] whitespace-nowrap">
                   {BADGE[e.kind]}
                 </span>
@@ -121,7 +123,7 @@ export const AdoptionRoom: React.FC<{ onOpenSentences: () => void }> = ({ onOpen
             </div>
 
             <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed font-sans pl-8">
-              {e.kind === 'adopted' && e.from && <>Took {short(e.from)}'s sentence: </>}
+              {e.kind === 'adopted' && e.from && <>Took {displayName(e.from, names)}'s sentence: </>}
               {e.kind === 'rewrote' && <>Now at version {e.mandate.version}: </>}
               <span className="italic text-[var(--text-primary)]">“{e.mandate.text}”</span>
             </p>

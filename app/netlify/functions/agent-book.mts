@@ -10,7 +10,7 @@ import { ed25519 } from "@noble/curves/ed25519";
 import { Connection, PublicKey } from "@solana/web3.js";
 import {
   DEMO_OWNER, INSTRUMENTS, LOOP_AGENT, PAPER_BOOK_USD, checkToken, issueToken, mark, quote,
-  readBook, store, vaultPda, type Ticker,
+  mandatePda, readBook, store, vaultPda, type Ticker,
 } from "./loop-core.mts";
 
 const json = (body: unknown, status = 200) =>
@@ -28,7 +28,18 @@ export default async (req: Request) => {
   let token = url.searchParams.get("token") ?? "";
 
   if (req.method === "POST") {
-    const b = (await req.json().catch(() => ({}))) as { owner?: string; index?: number; ts?: number; signature?: string };
+    const b = (await req.json().catch(() => ({}))) as {
+      owner?: string; index?: number; ts?: number; signature?: string; token?: string; publish?: boolean;
+    };
+    // Publishing a paper record, with a read token the owner already holds.
+    if (typeof b.publish === "boolean" && b.owner && b.token) {
+      const i = Number(b.index ?? 0);
+      if (!checkToken(b.owner, i, b.token)) return json({ error: "sign in again" }, 403);
+      const mandate = mandatePda(new PublicKey(b.owner), i).toBase58();
+      if (b.publish) await store().setJSON(`public/${mandate}`, { owner: b.owner, index: i, since: Date.now() });
+      else await store().delete(`public/${mandate}`);
+      return json({ published: b.publish });
+    }
     owner = String(b.owner ?? "");
     index = Number(b.index ?? 0);
     const ts = Number(b.ts ?? 0);
@@ -65,6 +76,7 @@ export default async (req: Request) => {
   } catch { /* the book still reads without it */ }
 
   const book = await readBook(owner, index);
+  const published = isDemo || !!(await store().get(`public/${mandatePda(new PublicKey(owner), index).toBase58()}`));
   const prices: Partial<Record<Ticker, number>> = {};
   const moves: Partial<Record<Ticker, number>> = {};
   for (const i of INSTRUMENTS) {
@@ -77,6 +89,7 @@ export default async (req: Request) => {
   return json({
     token: isDemo ? undefined : token,
     demo: isDemo,
+    published,
     simulated: true,
     paperBookUsd: PAPER_BOOK_USD,
     agent: LOOP_AGENT.toBase58(),

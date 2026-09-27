@@ -14,7 +14,9 @@ import {
 import { tactile } from '../utils/haptics';
 import { toggleFollow, useFollowing } from '../lib/following';
 import { FollowingFeed } from './FollowingFeed';
-import { adoptMandate, firstFreeSleeve } from '../lib/adopt';
+import { HeldTogether } from './HeldTogether';
+import { displayName, useNames } from '../lib/names';
+import { adoptMandate, firstFreeSleeve, verdictLogPda } from '../lib/adopt';
 import type { OwnerSigner } from '../lib/signer';
 
 interface MandatesTabProps {
@@ -116,6 +118,40 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
     return m;
   }, [standings]);
   const following = useFollowing();
+  const names = useNames([...published.map((m) => m.owner), ...standings.map((r) => r.owner)]);
+
+  // Families: a sentence and everyone who adopted it, or adopted an adopter.
+  // Read from every mandate, not the deduplicated list, because an adopted
+  // copy carries its parent's text and is exactly the row that was dropped.
+  const [everyMandate, setEveryMandate] = useState<PublishedMandate[]>([]);
+  useEffect(() => { loadPublishedMandates({ distinct: false }).then(setEveryMandate); }, []);
+  const familyOf = useMemo(() => {
+    const byAddr = new Map(everyMandate.map((m) => [m.address, m]));
+    const root = (a: string) => {
+      let at = a;
+      for (let hop = 0; hop < 12; hop++) {
+        const up = byAddr.get(at)?.adoptedFrom;
+        if (!up || !byAddr.has(up)) break;
+        at = up;
+      }
+      return at;
+    };
+    const members = new Map<string, string[]>();
+    for (const m of everyMandate) {
+      const r = root(m.address);
+      members.set(r, [...(members.get(r) ?? []), m.address]);
+    }
+    return (address: string) => members.get(root(address)) ?? [address];
+  }, [everyMandate]);
+
+  // Paper records owners chose to show. Simulated, and never ranked.
+  const [records, setRecords] = useState<Map<string, { pnlPct: number; decisions: number; since: number }>>(new Map());
+  useEffect(() => {
+    fetch('/api/agent-records').then((r) => r.json())
+      .then((b: { records: { mandate: string; pnlPct: number; decisions: number; since: number }[] }) =>
+        setRecords(new Map((b.records ?? []).map((x) => [x.mandate, x]))))
+      .catch(() => {});
+  }, []);
 
 
   useEffect(() => {
@@ -267,6 +303,8 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
 
       <FollowingFeed published={published} />
 
+      <HeldTogether myLogs={signer ? Array.from({ length: 8 }, (_, i) => verdictLogPda(signer.publicKey, i).toBase58()) : []} />
+
       {standings.length > 0 && (
         <section className="flex flex-col gap-2.5" id="published-mandates">
           <div className="section-row-header">
@@ -301,7 +339,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                     size={26}
                   />
                   <span className="meta-kicker font-mono text-[10.5px]">
-                    {m.owner.slice(0, 4)}…{m.owner.slice(-4)}
+                    {displayName(m.owner, names)}
                   </span>
                 </span>
                 <span className="flex items-center gap-2 flex-wrap">
@@ -407,6 +445,26 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                       {ago && <span>last decided {ago} ago</span>}
                       {why && <span>mostly: {why}</span>}
                     </>
+                  );
+                })()}
+                {(() => {
+                  // The family's record, when there is more than one of them.
+                  const fam = familyOf(m.address);
+                  if (fam.length < 2) return null;
+                  const t = fam.reduce((a, addr) => {
+                    const p = pulseBy.get(addr);
+                    return p ? { c: a.c + p.cleared, t: a.t + p.clamped, r: a.r + p.refused } : a;
+                  }, { c: 0, t: 0, r: 0 });
+                  return <span>family of {fam.length} · together {t.c} cleared, {t.t} trimmed, {t.r} refused</span>;
+                })()}
+                {(() => {
+                  const rec = records.get(m.address);
+                  if (!rec) return null;
+                  const days = Math.max(1, Math.round((Date.now() - rec.since) / 86400000));
+                  return (
+                    <span title="The owner's agent, filled on paper at live Pyth prices. Nothing was bought.">
+                      paper {rec.pnlPct >= 0 ? '+' : ''}{rec.pnlPct.toFixed(2)}% over {days}d · simulated
+                    </span>
                   );
                 })()}
                 <span>unchanged {m.heldDays}d</span>
@@ -640,7 +698,7 @@ export const MandatesTab: React.FC<MandatesTabProps> = ({
                       size={22}
                     />
                     <span className="font-mono text-[11.5px] text-[var(--text-primary)] truncate">
-                      {row.owner.slice(0, 4)}…{row.owner.slice(-4)}
+                      {displayName(row.owner, names)}
                     </span>
                     <span className="text-[10.5px] font-mono text-[var(--text-tertiary)] whitespace-nowrap">
                       {row.decisions} decision{row.decisions === 1 ? '' : 's'}

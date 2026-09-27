@@ -77,16 +77,18 @@ export const AgentModel: React.FC<{
 
       let renderer: import('three').WebGLRenderer;
       try {
-        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !lite });
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
       } catch {
         return;
       }
-      // On a lite phone, one pixel per pixel and no antialiasing: at this
-      // size nobody sees the difference and the GPU feels every bit of it.
-      renderer.setPixelRatio(lite ? 1 : Math.min(window.devicePixelRatio, 2));
+      // Full density on every phone. Drawing at one pixel per pixel on a
+      // lite phone looked soft once the screen scaled it up, and the robot
+      // is the one thing people look at closely. The saving on lite phones
+      // comes from drawing less often and only when visible, not blurrier.
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(size, size, false);
       renderer.setClearAlpha(0);
-      renderer.shadowMap.enabled = !lite;
+      renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.style.width = `${size}px`;
       renderer.domElement.style.height = `${size}px`;

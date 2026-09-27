@@ -109,8 +109,23 @@ export default async (req: Request, context: EdgeContext): Promise<Response> => 
     const url =
       `${JUPITER}?inputMint=${USDC}&outputMint=${toToken}` +
       `&amount=${fromAmount}&slippageBps=50`;
-    const res = await fetch(url, { headers: { accept: "application/json" } });
-    const raw = await res.json();
+    // One retry. Jupiter has short bad moments and rate limits in bursts, and
+    // passing its 500 straight through put a red line in the console for a
+    // question that usually answers a moment later.
+    let res = await fetch(url, { headers: { accept: "application/json" } });
+    if (res.status === 429 || res.status >= 500) {
+      await new Promise((r) => setTimeout(r, 400));
+      res = await fetch(url, { headers: { accept: "application/json" } });
+    }
+    if (res.status === 429 || res.status >= 500) {
+      // Still down. That is a fact about the router, not an error in the
+      // request, so it is answered as one and the page treats it as unpriced.
+      return new Response(
+        JSON.stringify({ success: false, data: { quotes: [] }, unavailable: true, upstream: res.status }),
+        { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store" } },
+      );
+    }
+    const raw = await res.json().catch(() => ({}));
     // No route is an answer about the token, not a mistake in the request.
     // Passing Jupiter's 400 through made every untradable name a red line
     // in the console. An empty list already reads as unroutable.
@@ -163,10 +178,12 @@ export default async (req: Request, context: EdgeContext): Promise<Response> => 
       },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err).slice(0, 160) }), {
-      status: 502,
-      headers: { "content-type": "application/json" },
-    });
+    // The router could not be reached at all. Same answer as a router that
+    // is down: unpriced, said plainly, not an error in the console.
+    return new Response(
+      JSON.stringify({ success: false, data: { quotes: [] }, unavailable: true, reason: String(err).slice(0, 160) }),
+      { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store" } },
+    );
   }
 };
 
