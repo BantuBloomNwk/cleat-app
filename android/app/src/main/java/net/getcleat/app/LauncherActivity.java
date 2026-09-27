@@ -16,6 +16,7 @@
 package net.getcleat.app;
 
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -40,6 +41,35 @@ public class LauncherActivity
         } else {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         }
+    }
+
+    /**
+     * Which browser engine runs the app underneath.
+     *
+     * By default the helper hands the app to whatever the phone's default
+     * browser is. On a phone where that is Brave, Cleat opened as a Brave tab
+     * with Brave's own bars, because Brave does not carry the full-screen
+     * verified mode through. Chrome does, and it is also what hands a Mobile
+     * Wallet Adapter request to the Seed Vault Wallet. So Chrome when it is
+     * there, and the default picker only when it is not.
+     */
+    private static final String[] PREFERRED = {
+        "com.android.chrome", "com.chrome.beta", "com.chrome.dev",
+    };
+
+    @Override
+    protected com.google.androidbrowserhelper.trusted.TwaLauncher createTwaLauncher() {
+        PackageManager pm = getPackageManager();
+        for (String pkg : PREFERRED) {
+            try {
+                if (pm.getApplicationInfo(pkg, 0).enabled) {
+                    return new com.google.androidbrowserhelper.trusted.TwaLauncher(this, pkg);
+                }
+            } catch (PackageManager.NameNotFoundException ignored) {
+                // not installed, try the next
+            }
+        }
+        return super.createTwaLauncher();
     }
 
     @Override

@@ -18,8 +18,8 @@
   "maskableIconUrl": "https://cleat-preview.netlify.app/icon-maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": { "path": "../../.cleat-android/cleat-release.jks", "alias": "cleat" },
-  "appVersionName": "0.1.0",
-  "appVersionCode": 1,
+  "appVersionName": "0.1.1",
+  "appVersionCode": 2,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://cleat-preview.netlify.app/manifest.json",
@@ -34,5 +34,5 @@
   "fingerprints": [],
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
-  "appVersion": "0.1.0"
+  "appVersion": "0.1.1"
 }

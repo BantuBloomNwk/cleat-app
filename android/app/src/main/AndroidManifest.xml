@@ -30,6 +30,14 @@
 
     
 
+    <!-- Needed on Android 11 and later to see whether Chrome is installed,
+         which LauncherActivity checks before choosing it. -->
+    <queries>
+        <package android:name="com.android.chrome" />
+        <package android:name="com.chrome.beta" />
+        <package android:name="com.chrome.dev" />
+    </queries>
+
     <application
         android:name="Application"
         android:allowBackup="true"
