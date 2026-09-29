@@ -25,7 +25,7 @@ Every instruction, and the check that gates it.
 |---|---|
 | `create_mandate` | signer becomes owner; PDA seeded by signer |
 | `update_mandate` | `has_one = owner`, signer |
-| `adopt_mandate` | child PDA seeded by adopter, so only your own |
+| `adopt_mandate` | child PDA seeded by adopter, so only your own; refused if the parent's private marker exists, which is matched by seeds off the parent |
 | `open_vault` | signer becomes owner |
 | `set_agent`, `revoke_agent` | `has_one = owner`, signer |
 | `open_verdict_log` | `has_one = owner`, signer |
@@ -38,11 +38,21 @@ Every instruction, and the check that gates it.
 | `pay_agent_cost` | the exact agent the owner named |
 | `init_gate_comp_def` | any signer, idempotent |
 | `gate_trade` | owner, or the named agent while its grant is live |
-| `gate_breach_v5_callback` | Arcium, and every account derived from a pending record seeded by the computation |
+| `gate_breach_v7_callback` | Arcium, and every account derived from a pending record seeded by the computation |
 | `set_halted` | `has_one = owner`, signer, on an account that is never delegated |
 | `set_book_size` | `has_one = owner`, signer |
 | `set_position_handle` | `has_one = owner`, signer |
 | `migrate_verdict_log` | signer, seeds and the stored owner both checked |
+| `make_private`, `make_public` | `has_one = owner`, signer; the marker is seeded by the mandate |
+| `close_sleeve` | every account matched by seeds that begin with the signer's own key, so a stranger can only close their own nothing; refused while the vault is delegated |
+
+`close_sleeve` closes accounts by hand rather than through Anchor's `close`,
+so that logs written in older layouts can be deleted as surely as new ones.
+It only moves lamports out of accounts this program owns: anything else at
+one of those addresses, such as a stray transfer to a PDA that was never
+opened, is owned by the system program and left alone.
+`scripts/close-sleeve-test.mjs` runs ten cases on a local validator,
+including a stranger pointing it at somebody else's accounts.
 
 `fund_spend_account` taking any signer is intentional. Topping up an
 agent's allowance is a gift, and nothing about receiving one is dangerous.
@@ -338,6 +348,34 @@ Worth recording as a general point rather than as this incident: an
 unauthenticated third party endpoint is a dependency that can be withdrawn
 between two runs of the same test, and the only defence is that the thing
 it feeds degrades to a stated absence rather than to a blank or a lie.
+
+## The agent that runs on its own
+
+The loop signs with its own key, held only in the function's environment.
+That key's whole authority is what an owner grants it with `set_agent`: it
+may propose into that one vault until the grant expires, seven days from the
+app, thirty at most. It cannot write a sentence, move a vault's money, extend
+its grant or lift a halt, because none of those instructions accept it.
+
+The model that decides for it sees only what is already public: prices, the
+sentence and its caps, and the paper book's shares. It is not trusted with
+anything. Its answer is parsed against a fixed shape and fixed bounds, and
+whatever it proposes is decided by the program like any other proposal.
+
+The paper book is private by default. Its owner signs one message, with a
+passkey or a wallet, and gets a read token good for a day; the token is an
+HMAC over the owner, the sleeve and the expiry with a server secret. Only
+the demo account's book is open. The manual run used for testing is behind
+the same server secret and cannot be called from outside.
+
+## Known and open
+
+**The devnet sponsor can be drained.** New owners' first rent and fee come
+from a sponsor wallet, about 0.012 SOL each, and nothing limits how many new
+keys one person can make. A day of testing emptied it once, and every new
+signup then failed. The relay now says plainly when the sponsor is empty
+rather than blaming the person's key. A per-address limit is the fix and is
+not in yet. On mainnet there is no sponsor.
 
 ## What has not been done
 

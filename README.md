@@ -218,6 +218,98 @@ and it is not proof that nobody anywhere has built this. It is the best
 available answer to "has this been done at a Solana hackathon", and the answer
 was no.
 
+## On a phone
+
+Cleat installs on Android as an app, and on a Solana Seeker that is where it
+is meant to live. It runs the live site in the system WebView, so there is no
+browser around it, and every web deploy reaches the installed app the moment
+it lands. `app/android` is the project; `app/capacitor.config.ts` says why
+each setting is the way it is.
+
+There are two ways in, and neither gives Cleat your key. A passkey makes the
+key on the phone and unlocks it with your face or finger. Or the wallet you
+already have signs for you through Mobile Wallet Adapter, which on a Seeker
+means the Seed Vault Wallet and its hardware. Both produce the same owner, so
+nothing after sign-in can tell which door you used.
+
+Two of the things that had to be right for that to work were not obvious.
+Mobile Wallet Adapter switches itself off inside any WebView unless the user
+agent carries Solana Mobile's own marker for a sanctioned app shell, so the
+app sends it. And the wallet answers on a WebSocket on a loopback port, which
+the content security policy was refusing in silence, on every Android phone,
+until it was listed.
+
+A budget phone gets a lighter build without being asked. Phones reporting four
+gigabytes or less switch off the blur, flatten the shadows and stop the idle
+animations before the first frame is drawn. The robot stays sharp; it simply
+stops drawing when it is off screen.
+
+## The agent, running on its own
+
+Grant the agent authority from the Vault and it runs without anyone typing.
+Every thirty minutes it reads live prices for Tesla and the Nasdaq 100, from
+Pyth first and from Backpack's markets when Pyth has nothing, which is outside
+US hours. Gemini decides whether anything is worth asking for. It sees only
+what is already public: prices and their four hour move, your sentence and its
+caps, and the paper book's shares. It answers in a fixed shape, and anything
+outside it, including a busy or failed call, falls back to a plain momentum
+rule, so the loop never stops thinking.
+
+Whatever it decides is a real `propose_trade`, and your sentence clears, trims
+or refuses it on chain like any other. The first time it ran up against a
+fifteen percent sector cap, seven asks cleared, the eighth came back trimmed to
+the one percent of room that was left, and the ninth was refused.
+
+**The fills are on paper.** What the sentence allows is filled at the live
+price against a ten thousand dollar book, marked to market whenever you look.
+Nothing is bought. The panel says so before it says anything else, and it lays
+the book out the way a trading screen does: equity, positions, and a tape of
+every decision with its reason one tap away. A demo agent trades in public so
+this can be watched without setting anything up.
+
+The grant runs for seven days and you can revoke it at any time. It never
+gives the agent a way to write your sentence, move your money or extend
+itself.
+
+## What only you can do
+
+**Stop everything.** One transaction halts every proposal against a sentence,
+including a confidential check already on its way. It sits on the mandate
+rather than the vault so it works even while a vault is away on the rollup.
+
+**Keep a sentence out of the room.** Nobody can adopt it and Cleat lists it
+nowhere. It is still an account on Solana, readable by anyone who goes looking,
+and the app says that in so many words.
+
+**Delete your account.** `close_sleeve` closes the sentence, the vault, the log,
+the declared universe, the spend account and the private marker in one
+transaction and returns every lamport to your key. It refuses while a vault is
+out on the rollup rather than strand the money behind it. Transactions already
+on Solana stay in its history, because nothing can remove those. The privacy
+policy is in the app and at `/privacy.html`.
+
+## The room
+
+Nobody posts here, so there is nothing to moderate and no book to leak. What
+people share is what the chain already records.
+
+Every sentence shows its own record: how often it cleared, trimmed and
+refused, when it last decided, and the rule it meets most. A sentence and
+everyone who adopted it form a family with one combined record. You can follow
+sentences, and the ones you follow show their decisions as they land. When
+several unrelated sentences refuse the same sector within ten minutes, that
+shows as held together, with a note when yours was one of them.
+
+Any refusal can be shared as a card with the sentence, the rule that said no,
+the sector and the time, and never a company or an amount. A refusal is the
+safest thing in the product to share, because nothing touched a market. The
+link on it opens the app on that sentence.
+
+Owners can choose to show their agent's paper record next to their sentence,
+marked as simulated and never ranked, because a table of returns teaches
+people to shop for a looser agent. Where an owner has set a primary .sol name,
+it shows in place of their address; identity is still the key.
+
 ## What is not true yet, stated plainly
 
 Judges and users should hear this from us rather than find it.
@@ -236,6 +328,14 @@ delegate, a freeze authority and a pause switch. The issuer can move or freeze
 anyone's holding without their signature. This is the industry pattern rather
 than one issuer's flaw, and it means "not custodial" is true of Cleat and the
 agent, and not true of the token's issuer. Anyone building here should say so.
+
+**The agent's trades are paper.** Every proposal is real and decided on chain,
+and the fills are simulated at live prices. Real fills mean mainnet and real
+money, which is a legal question before it is an engineering one.
+
+**The model is on a free tier.** It is sometimes too busy to answer, and then
+the momentum rule decides. That is by design, but it means not every decision
+in the tape was the model's, and the reasoning shown says whose it was.
 
 **A perpetual is not a share.** Cash settled, nothing behind it, and on a single
 name that makes it a security based swap, which is more restricted than the
@@ -300,6 +400,21 @@ The app:
 cd app && npm install && npm run dev
 ```
 
+The delete path, on a local validator, before any program deploy:
+
+```bash
+solana-test-validator --reset --bpf-program 2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL target/deploy/cleat.so
+node scripts/close-sleeve-test.mjs
+```
+
+The browser checks, which drive the real app on a phone-sized screen:
+
+```bash
+cd tests/e2e && npm install && node boot.mjs https://<deploy>.netlify.app
+```
+
+`tests/e2e/README.md` lists all seven and which of them write to devnet.
+
 `SECURITY.md` says what this program can do when it misbehaves, what has
 been checked, and what has not, including the things that are known and
 accepted rather than hidden.
@@ -313,8 +428,11 @@ day one.
 ```
 programs/cleat/      the Anchor program: mandate, vault, verdict log, gate, spend
 encrypted-ixs/       the Arcis circuit
-app/                 React and Vite, with a function proxying market data
-scripts/             setup, gate, spend demo, the OWS policy, the pin check
+app/                 React and Vite, with functions for market data, the relay and the agent loop
+app/android/         the Android app
+scripts/             setup, gate, spend demo, the OWS policy, the pin check, the delete test
+tests/e2e/           browser checks against a deployed build
+store/               dApp Store icon, feature graphic, screenshots and listing
 PRODUCT.md           what this is for and what it refuses to be
 DESIGN.md            the visual system
 TOOLCHAIN.md         how to not lose a week to Arcium
@@ -339,6 +457,11 @@ name, so a real crude price moving is a real reason to want energy exposure,
 and a real refusal comes back against a deny list of actual mints. Nothing in
 that chain is staged. `app/netlify/functions/pyth.mts` reads it,
 `app/src/components/Watching.tsx` draws it.
+
+Pyth is also where the agent running on its own reads its prices first. Its
+five minute bars for Tesla and the Nasdaq 100 are what the four hour move is
+measured on, and every paper fill records which feed priced it.
+`app/netlify/functions/loop-core.mts` has it.
 
 **PreStocks** supplies the private companies, and it is the hardest instrument
 this product has to say anything about. Every other name here has a book,
