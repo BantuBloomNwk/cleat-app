@@ -19,6 +19,7 @@
 // one reads every instruction back before it signs: a Cleat adopt and at most
 // one system transfer out of the faucet, to the adopter, for no more than the
 // rent. Anything else is refused unsigned.
+import { getStore } from "@netlify/blobs";
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 
 const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
@@ -72,7 +73,31 @@ const mandatePda = (owner: PublicKey, index: number) =>
     PROGRAM_ID,
   )[0];
 
-export default async (req: Request) => {
+/**
+ * How much of the sponsor one requester may use in a day.
+ *
+ * New owners get their first rent and fee paid, and nothing stopped one
+ * person making new keys until the sponsor was empty; a day of testing did
+ * exactly that once, and every signup after it failed. So: at most this many
+ * top ups and this many paid fees per address per UTC day. The count is
+ * taken just before the sponsor signs, which is the only point that costs
+ * anything, so skipping the prepare step does not skip the limit.
+ */
+const TOP_UPS_PER_IP_PER_DAY = 10;
+const FEES_PER_IP_PER_DAY = 150;
+
+async function spend(ip: string, kind: "topup" | "fee"): Promise<boolean> {
+  const day = new Date().toISOString().slice(0, 10);
+  const store = getStore({ name: "cleat-relay", consistency: "strong" });
+  const key = `sponsor/${day}/${kind}/${ip}`;
+  const used = Number((await store.get(key)) ?? 0);
+  if (used >= (kind === "topup" ? TOP_UPS_PER_IP_PER_DAY : FEES_PER_IP_PER_DAY)) return false;
+  await store.set(key, String(used + 1));
+  return true;
+}
+
+export default async (req: Request, context?: { ip?: string }) => {
+  const ip = context?.ip ?? req.headers.get("x-nf-client-connection-ip") ?? "unknown";
   const faucetSecret = process.env.CLEAT_SANDBOX_OWNER;
   const upstream = process.env.SOLANA_RPC_URL;
   if (!faucetSecret || !upstream) return json({ error: "adopting is not configured on this deploy" }, 503);
@@ -191,8 +216,15 @@ export default async (req: Request) => {
       return json({ error: "too much is happening in one transaction" }, 400);
     }
 
-    // Sign only if we are actually party to it.
+    // Sign only if we are actually party to it, and only within today's
+    // allowance for this requester.
     if (tx.feePayer?.equals(faucet.publicKey) || sawTransfer === 1) {
+      const ok = sawTransfer === 1 ? await spend(ip, "topup") : await spend(ip, "fee");
+      if (!ok) {
+        return json({
+          error: "The devnet sponsor has covered as many new setups from your connection as it can today. Try again tomorrow, or fund your key with devnet SOL and it will not be needed.",
+        });
+      }
       tx.partialSign(faucet);
     }
 

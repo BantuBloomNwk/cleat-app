@@ -1,0 +1,21 @@
+# systemd unit for the Cleat agent runner.
+# Copy the built runner to /opt/cleat-agent and the env file to
+# /etc/cleat-agent.env (mode 600, owned by root), then:
+#   systemctl enable --now cleat-agent
+[Unit]
+Description=Cleat agent loop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/node --env-file=/etc/cleat-agent.env /opt/cleat-agent/agent-runner.mjs
+Restart=always
+RestartSec=30
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

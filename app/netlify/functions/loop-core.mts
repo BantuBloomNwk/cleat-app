@@ -102,7 +102,45 @@ export function applyFill(b: Book, ticker: Ticker, side: 0 | 1, allowedBps: numb
 }
 // Strong, not the default eventual: each pass reads the book the last one
 // wrote. Eventual consistency lost four of seven fills in the first test run.
-export const store = () => getStore({ name: "cleat-loop", consistency: "strong" });
+//
+// Inside Netlify this is Blobs directly. On another machine (the Contabo
+// runner) there is no Blobs access without an account-wide Netlify token,
+// which is too much power to leave on a server, so it goes through
+// /api/agent-store instead: one narrow endpoint, its own secret, and only
+// the loop's own keys. Set CLEAT_STORE_URL and CLEAT_RUNNER_SECRET there.
+export interface LoopStore {
+  get(key: string, opts?: { type: "json" }): Promise<unknown>;
+  setJSON(key: string, value: unknown): Promise<unknown>;
+  delete(key: string): Promise<unknown>;
+  list(opts: { prefix: string }): Promise<{ blobs: { key: string }[] }>;
+}
+
+function remoteStore(url: string, secret: string): LoopStore {
+  const call = async (op: string, body: Record<string, unknown>) => {
+    const res = await fetch(`${url}/api/agent-store`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cleat-runner": secret },
+      body: JSON.stringify({ op, ...body }),
+    });
+    if (!res.ok) throw new Error(`agent-store ${op} ${res.status}`);
+    return res.json();
+  };
+  return {
+    get: async (key) => ((await call("get", { key })) as { value: unknown }).value ?? null,
+    setJSON: (key, value) => call("set", { key, value }),
+    delete: (key) => call("delete", { key }),
+    list: async ({ prefix }) => ({ blobs: ((await call("list", { prefix })) as { keys: string[] }).keys.map((key) => ({ key })) }),
+  };
+}
+
+export const store = (): LoopStore =>
+  process.env.CLEAT_STORE_URL && process.env.CLEAT_RUNNER_SECRET
+    ? remoteStore(process.env.CLEAT_STORE_URL, process.env.CLEAT_RUNNER_SECRET)
+    : (getStore({ name: "cleat-loop", consistency: "strong" }) as unknown as LoopStore);
+
+/** A runner elsewhere writes this every pass. While it is fresh, Netlify's schedule stands down. */
+export const RUNNER_HEARTBEAT = "runner/heartbeat";
+export const RUNNER_FRESH_MS = 45 * 60 * 1000;
 export const bookKey = (owner: string, index: number) => `book/${owner}/${index}`;
 
 export async function readBook(owner: string, index: number): Promise<Book> {
@@ -327,15 +365,15 @@ async function discoverModel(key: string): Promise<string | null> {
   }
 }
 
-export interface Thought { ticker: Ticker; side: 0 | 1; bps: number; why: string; by: "Gemini" }
+export interface Thought { ticker: Ticker; side: 0 | 1; bps: number; why: string; by: string }
 
-export async function thinkWithGemini(ctx: {
+export interface ThinkCtx {
   sentence: string; capBps: number; tradeCapBps: number; cash: number;
   quotes: Partial<Record<Ticker, Quote>>; book: Book;
-}): Promise<Thought | null> {
-  lastGemini = { status: "not called" };
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) { lastGemini = { status: "no key" }; return null; }
+}
+
+/** The same question for every model: the public facts, and the fixed answer shape. */
+function promptFor(ctx: ThinkCtx) {
   const names = INSTRUMENTS.filter((i) => ctx.quotes[i.ticker]);
   if (!names.length) return null;
   const facts = names.map((i) => {
@@ -356,7 +394,79 @@ export async function thinkWithGemini(ctx: {
     `Instruments: ${JSON.stringify(facts)}`,
     "Favour holding unless a move is meaningful (roughly 25 bps or more). Do not add to a name traded in the last 120 minutes.",
     "Answer with action add, reduce or hold; ticker; bps between 100 and 500 (for reduce, at most what is held); and why in under 100 characters citing the numbers.",
+    'Reply with only a JSON object: {"action":"...","ticker":"...","bps":0,"why":"..."}',
   ].join("\n");
+  return { names, prompt };
+}
+
+/**
+ * Read an answer, from whichever model, against the same bounds. The object
+ * is found wherever it sits in the text, and a hold is read even from an
+ * answer cut off halfway. Anything out of bounds is no answer at all.
+ */
+function readAnswer(text: string, ctx: ThinkCtx, by: string): Thought | "hold" | null {
+  if (/"action"\s*:\s*"hold"/.test(text)) return "hold";
+  const found = text.match(/\{[\s\S]*\}/);
+  if (!found) return null;
+  let a: { action?: string; ticker?: string; bps?: number; why?: string };
+  try { a = JSON.parse(found[0]); } catch { return null; }
+  if (a.action === "hold" || !a.action) return "hold";
+  const inst = INSTRUMENTS.find((i) => i.ticker === a.ticker);
+  const bps = Math.round(Number(a.bps));
+  if (!inst || !Number.isFinite(bps) || bps < 100 || bps > 500) return null;
+  const held = ctx.book.positions[inst.ticker]?.bps ?? 0;
+  if (a.action === "reduce" && (held <= 0 || bps > held)) return null;
+  if (a.action !== "add" && a.action !== "reduce") return null;
+  const why = String(a.why ?? "").replace(/[\r\n\u2014]/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+  if (!why) return null;
+  return { ticker: inst.ticker, side: a.action === "add" ? 0 : 1, bps, why, by };
+}
+
+/**
+ * A model on our own server, when there is one: any OpenAI-compatible
+ * endpoint, such as the Qwen that already runs on the Contabo box. Nothing
+ * leaves that machine. Set LOCAL_LLM_URL (the base, ending in /v1) and
+ * LOCAL_LLM_MODEL. When it is set, Gemini is not asked at all.
+ */
+export async function thinkLocally(ctx: ThinkCtx): Promise<Thought | "hold" | null> {
+  lastGemini = { status: "not called" };
+  const base = process.env.LOCAL_LLM_URL;
+  const q = promptFor(ctx);
+  if (!base || !q) return null;
+  try {
+    const res = await fetch(`${base.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.LOCAL_LLM_MODEL ?? "qwen",
+        messages: [{ role: "user", content: q.prompt }],
+        temperature: 0.2,
+        max_tokens: 600,
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) { lastGemini = { model: "local", status: `http ${res.status}` }; return null; }
+    const out = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const text = out.choices?.[0]?.message?.content ?? "";
+    const r = readAnswer(text, ctx, "the local model");
+    lastGemini = { model: "local", status: r === "hold" ? "hold" : r ? "answered" : "unusable answer", answer: text.slice(0, 300) };
+    return r;
+  } catch (e) {
+    lastGemini = { model: "local", status: `error ${String((e as Error)?.message ?? e).slice(0, 120)}` };
+    return null;
+  }
+}
+
+/** Whichever model this machine has: local first, Gemini otherwise. */
+export const think = (ctx: ThinkCtx) => (process.env.LOCAL_LLM_URL ? thinkLocally(ctx) : thinkWithGemini(ctx));
+
+export async function thinkWithGemini(ctx: ThinkCtx): Promise<Thought | "hold" | null> {
+  lastGemini = { status: "not called" };
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) { lastGemini = { status: "no key" }; return null; }
+  const q = promptFor(ctx);
+  if (!q) return null;
+  const { names, prompt } = q;
 
   const body = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -412,21 +522,9 @@ export async function thinkWithGemini(ctx: {
       // Take the object from whichever part carries it. The fields and bounds
       // below are checked either way.
       const text = (out.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("\n");
-      lastGemini = { model, status: "answered", answer: text.slice(0, 300) };
-      // A hold needs nothing else read, even from an answer cut off halfway.
-      if (/"action"\s*:\s*"hold"/.test(text)) { lastGemini.status = "hold"; return null; }
-      const found = text.match(/\{[\s\S]*\}/);
-      if (!found) { lastGemini.status = "answered without JSON"; return null; }
-      const a = JSON.parse(found[0]) as { action?: string; ticker?: string; bps?: number; why?: string };
-      if (a.action === "hold" || !a.action) return null;
-      const inst = INSTRUMENTS.find((i) => i.ticker === a.ticker);
-      const bps = Math.round(Number(a.bps));
-      if (!inst || !Number.isFinite(bps) || bps < 100 || bps > 500) return null;
-      const held = ctx.book.positions[inst.ticker]?.bps ?? 0;
-      if (a.action === "reduce" && (held <= 0 || bps > held)) return null;
-      const why = String(a.why ?? "").replace(/[\r\n\u2014]/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
-      if (!why) return null;
-      return { ticker: inst.ticker, side: a.action === "add" ? 0 : 1, bps, why, by: "Gemini" };
+      const r = readAnswer(text, ctx, "Gemini");
+      lastGemini = { model, status: r === "hold" ? "hold" : r ? "answered" : "unusable answer", answer: text.slice(0, 300) };
+      return r;
     } catch (e) {
       lastGemini = { model, status: `error ${String((e as Error)?.message ?? e).slice(0, 120)}` };
       return null;
@@ -491,6 +589,7 @@ export async function runTick(opts: { force?: { owner: string; index: number; ti
 
     // Pick the one thing worth asking for this pass, if anything.
     let pick: { ticker: Ticker; side: 0 | 1; bps: number; why: string } | null = null;
+    let modelHeld = false;
     if (opts.force) {
       const held = book.positions[opts.force.ticker]?.bps ?? 0;
       pick = {
@@ -510,10 +609,13 @@ export async function runTick(opts: { force?: { owner: string; index: number; ti
       o += 4 + tlen + 32;
       const capBps = caps.readUInt16LE(o);
       const tradeCapBps = caps.readUInt16LE(o + 2);
-      const thought = await thinkWithGemini({ sentence, capBps, tradeCapBps, cash: book.cash, quotes, book }).catch(() => null);
-      if (thought) pick = { ticker: thought.ticker, side: thought.side, bps: thought.bps, why: `because ${thought.why.replace(/\.$/, "")} (Gemini's reasoning)` };
+      // A hold is a decision, not a missing answer, so the rule below does
+      // not overrule it. Only a failed or unusable answer falls through.
+      const thought = await think({ sentence, capBps, tradeCapBps, cash: book.cash, quotes, book }).catch(() => null);
+      if (thought === "hold") modelHeld = true;
+      else if (thought) pick = { ticker: thought.ticker, side: thought.side, bps: thought.bps, why: `because ${thought.why.replace(/\.$/, "")} (${thought.by}'s reasoning)` };
     }
-    if (!pick && !opts.force) {
+    if (!pick && !opts.force && !modelHeld) {
       let best = 0;
       for (const i of INSTRUMENTS) {
         const q = quotes[i.ticker];
