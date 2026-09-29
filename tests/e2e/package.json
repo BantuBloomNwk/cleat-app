@@ -1,0 +1,18 @@
+{
+  "name": "cleat-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser checks that drive the real app on a phone-sized screen.",
+  "scripts": {
+    "boot": "node boot.mjs",
+    "social": "node social.mjs",
+    "perf": "node perf.mjs",
+    "passkey": "node passkey.mjs",
+    "wallet": "node wallet.mjs",
+    "owner": "node owner.mjs",
+    "screenshots": "node screenshots.mjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}
