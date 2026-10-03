@@ -1,0 +1,356 @@
+// Regression tests for the gate's guards, run against the deployed program on
+// devnet, because the confidential half only exists on Arcium's cluster.
+//
+// Each case is one of the findings in SECURITY.md that was found by reading
+// and never had a test. A fresh owner every run, so nothing carries over.
+//
+//   node tests/program/guards.mjs
+//
+// Exits non zero if any case fails. What is not here: a forged callback.
+// Arcium signs callback outputs, so one cannot be built from outside without
+// the cluster's keys; that guard is covered by reading, and by the unit tests
+// on the log it writes into.
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import crypto from "node:crypto";
+import {
+  Connection, Keypair, PublicKey, SystemProgram,
+  Transaction, TransactionInstruction, sendAndConfirmTransaction,
+} from "@solana/web3.js";
+import anchor from "@anchor-lang/core";
+import { x25519 } from "@noble/curves/ed25519";
+import {
+  RescueCipher, getMXEPublicKey, getMXEAccAddress, getCompDefAccAddress,
+  getCompDefAccOffset, getMempoolAccAddress, getExecutingPoolAccAddress,
+  getComputationAccAddress, getClusterAccAddress, getFeePoolAccAddress,
+  getClockAccAddress, getArciumSignerAccAddress, ARCIUM_ADDR,
+} from "@arcium-hq/client";
+import { baseRpc } from "../../scripts/rpc.mjs";
+
+const PROGRAM_ID = new PublicKey("2B7Efr1WtxSZ9RqJ4hapyUtKJDs3sx3tkAsXc6JfuigL");
+// NVDAx, Backed's wrapper of Nvidia, live on mainnet today. Named so the
+// mandate's deny list has something real to be checked against.
+const MINT = new PublicKey("Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh");
+const CIRCUIT = "gate_breach_v7";
+const CLUSTER = 456; // back on 456 2026-09-20: 4500 stopped serving, see TOOLCHAIN.md
+
+const IDL = JSON.parse(fs.readFileSync(new URL("../../target/idl/cleat.json", import.meta.url), "utf8"));
+const disc = (n) => {
+  const ix = IDL.instructions.find((i) => i.name === n);
+  if (!ix) throw new Error(`no instruction ${n}`);
+  return Buffer.from(ix.discriminator);
+};
+const u16 = (n) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
+const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
+const u64 = (n) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n)); return b; };
+const i64 = (n) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(n)); return b; };
+const u128 = (buf16) => Buffer.from(buf16); // already 16 LE bytes
+const u8b = (n) => Buffer.from([n]);
+const str = (s) => { const b = Buffer.from(s, "utf8"); const l = Buffer.alloc(4); l.writeUInt32LE(b.length); return Buffer.concat([l, b]); };
+const vecPubkey = (k) => { const l = Buffer.alloc(4); l.writeUInt32LE(k.length); return Buffer.concat([l, ...k.map((x) => x.toBuffer())]); };
+const meta = (pubkey, isSigner, isWritable) => ({ pubkey, isSigner, isWritable });
+
+function persisted(name) {
+  const p = new URL(`./.${name}.json`, import.meta.url);
+  try { return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(p, "utf8")))); }
+  catch { const kp = Keypair.generate(); fs.writeFileSync(p, JSON.stringify(Array.from(kp.secretKey))); return kp; }
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function readLog(data) {
+  let o = 8 + 32 + 32;
+  const head = data.readUInt8(o); o += 1;
+  const cleared = data.readUInt32LE(o); o += 4;
+  const clamped = data.readUInt32LE(o); o += 4;
+  const refused = data.readUInt32LE(o); o += 4;
+  const count = data.readUInt32LE(o); o += 4;
+  const entries = [];
+  for (let i = 0; i < count; i++) {
+    const e = {
+      slot: data.readBigUInt64LE(o), version: data.readUInt16LE(o + 8),
+      category: data.readUInt8(o + 10), proposed: data.readUInt16LE(o + 11),
+      allowed: data.readUInt16LE(o + 13), outcome: data.readUInt8(o + 15),
+      reason: data.readUInt8(o + 16),
+    };
+    o += 17; entries.push(e);
+  }
+  return { head, cleared, clamped, refused, entries };
+}
+
+async function main() {
+  const funder = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
+    fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))));
+  // A fresh key every run, and the reason is not neatness.
+  //
+  // The book accumulates. Every proposal this script clears adds to that
+  // sector's running total, so after enough runs the sector sits at its cap
+  // and the public check refuses the next proposal before the confidential
+  // gate is ever reached. The demonstration then fails with an error about
+  // a cap rather than showing the thing it exists to show, which is exactly
+  // what happened after an afternoon of measurement runs against a shared
+  // key. Somebody running this for the first time should not inherit
+  // whoever ran it last.
+  //
+  // REUSE=1 keeps the old persisted key, which is faster and only safe if
+  // you know what is already in its book.
+  const owner = process.env.REUSE === "1" ? persisted("gate-owner-v2") : Keypair.generate();
+  const connection = new Connection(baseRpc(), "confirmed");
+  const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(owner), { commitment: "confirmed" });
+
+  const [mandate] = PublicKey.findProgramAddressSync([Buffer.from("mandate"), owner.publicKey.toBuffer()], PROGRAM_ID);
+  const [vault] = PublicKey.findProgramAddressSync([Buffer.from("vault"), owner.publicKey.toBuffer()], PROGRAM_ID);
+  const [log] = PublicKey.findProgramAddressSync([Buffer.from("verdicts"), owner.publicKey.toBuffer()], PROGRAM_ID);
+
+  const [universe] = PublicKey.findProgramAddressSync(
+    [Buffer.from("universe"), mandate.toBuffer()], PROGRAM_ID);
+
+  const arcium = new PublicKey(ARCIUM_ADDR);
+  const mxe = getMXEAccAddress(PROGRAM_ID);
+  const offset = Buffer.from(getCompDefAccOffset(CIRCUIT)).readUInt32LE(0);
+  const compDef = getCompDefAccAddress(PROGRAM_ID, offset);
+
+  console.log("owner  ", owner.publicKey.toBase58());
+  console.log("mxe    ", mxe.toBase58());
+  console.log("compdef", compDef.toBase58());
+
+  const send = (ixs, signers, skipPreflight = false) => {
+    const tx = new Transaction().add(...ixs);
+    tx.feePayer = signers[0].publicKey;
+    return sendAndConfirmTransaction(connection, tx, signers, { commitment: "confirmed", skipPreflight });
+  };
+
+  if ((await connection.getBalance(owner.publicKey)) < 150_000_000) {
+    await send([SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: owner.publicKey, lamports: 300_000_000 })], [funder]);
+    console.log("funded the owner");
+  }
+
+  const text = "Moderate growth, nothing over fifteen percent in one name, and no fossil fuels.";
+  if (!(await connection.getAccountInfo(mandate))) {
+    await send([new TransactionInstruction({ programId: PROGRAM_ID,
+      keys: [meta(owner.publicKey, true, true), meta(mandate, false, true), meta(SystemProgram.programId, false, false)],
+      data: Buffer.concat([disc("create_mandate"), u16(0), str(text), u16(600), u16(300), u16(20), vecPubkey([])]) })], [owner]);
+    console.log("mandate: 6% position cap, 3% single trade cap");
+  }
+  if (!(await connection.getAccountInfo(vault))) {
+    await send([new TransactionInstruction({ programId: PROGRAM_ID,
+      keys: [meta(owner.publicKey, true, true), meta(mandate, false, false), meta(vault, false, true), meta(SystemProgram.programId, false, false)],
+      data: Buffer.concat([disc("open_vault"), u16(0)]) })], [owner]);
+    console.log("vault opened");
+  }
+  if (!(await connection.getAccountInfo(log))) {
+    await send([new TransactionInstruction({ programId: PROGRAM_ID,
+      keys: [meta(owner.publicKey, true, true), meta(vault, false, false), meta(log, false, true), meta(SystemProgram.programId, false, false)],
+      data: Buffer.concat([disc("open_verdict_log"), u16(0)]) })], [owner]);
+    console.log("verdict log opened");
+  }
+  await send([new TransactionInstruction({ programId: PROGRAM_ID,
+    keys: [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
+    data: Buffer.concat([disc("set_agent"), u16(0), owner.publicKey.toBuffer(), i64(3600), u64(250_000_000)]) })], [owner]);
+
+  const mxePub = await getMXEPublicKey(provider, PROGRAM_ID);
+  if (!mxePub) throw new Error("no MXE x25519 key yet");
+  console.log("mxe x25519 key present\n");
+
+  const ask = async (label, exposureBps, proposedBps, category, opt = {}) => {
+    // Fresh keypair and nonce per request. The holdings are encrypted to a
+    // secret shared with the MXE, so the program forwarding them never has a
+    // key that would open them.
+    const priv = x25519.utils.randomPrivateKey();
+    const pub = x25519.getPublicKey(priv);
+    const shared = x25519.getSharedSecret(priv, mxePub);
+    const cipher = new RescueCipher(shared);
+    const nonce = crypto.randomBytes(16);
+    // one secret now: the exposure as a share of the book. The circuit needs
+    // nothing else, because the caps are public on the mandate.
+    const ct = cipher.encrypt([BigInt(exposureBps)], nonce); // one u64, bare
+
+    // Publish the handle before asking about it.
+    //
+    // The gate refuses any sealed exposure that is not the one the vault
+    // published, which is what stops an agent sealing a flattering number to
+    // its own key and asking the network about that instead. The owner is the
+    // only signer who can move the handle, so the owner moves it here.
+    await send([new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [meta(owner.publicKey, true, false), meta(vault, false, true)],
+      data: Buffer.concat([disc("set_position_handle"), u16(0), Buffer.from(ct[0])]),
+    })], [owner]);
+    // To test the binding, send a different sealing of the same number than
+    // the one just published. Same value, different ciphertext.
+    const sent = opt.unbound ? cipher.encrypt([BigInt(exposureBps)], crypto.randomBytes(16))[0] : ct[0];
+
+    const compOffset = crypto.randomBytes(8).readBigUInt64LE(0) >> 1n;
+    const computation = getComputationAccAddress(CLUSTER, new anchor.BN(compOffset.toString()));
+    // Seeded by the computation rather than by the owner, so two questions in
+    // flight cannot share a slot and a callback cannot be aimed at somebody
+    // else's log. The callback derives everything else from what is in here.
+    const [pending] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pending"), computation.toBuffer()], PROGRAM_ID);
+
+    const before = readLog((await connection.getAccountInfo(log)).data);
+
+    const t0 = performance.now();
+    let sig;
+    try {
+      sig = await send([new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        meta(owner.publicKey, true, true),
+        meta(vault, false, false),
+        meta(mandate, false, false),
+        meta(log, false, true),
+        meta(universe, false, false),
+        meta(getArciumSignerAccAddress(PROGRAM_ID), false, true),
+        meta(mxe, false, false),
+        meta(getMempoolAccAddress(CLUSTER), false, true),
+        meta(getExecutingPoolAccAddress(CLUSTER), false, true),
+        meta(computation, false, true),
+        meta(compDef, false, false),
+        meta(pending, false, true),
+        meta(getClusterAccAddress(CLUSTER), false, true),
+        meta(getFeePoolAccAddress(), false, true),
+        meta(getClockAccAddress(), false, true),
+        meta(SystemProgram.programId, false, false),
+        meta(arcium, false, false),
+      ],
+      data: Buffer.concat([
+        disc("gate_trade"), u64(compOffset), u16(0),
+        Buffer.from(sent),
+        Buffer.from(pub), u128(nonce),
+        u8b(category), u16(proposedBps), u8b(0), (opt.mint || MINT).toBuffer(),
+      ]),
+    })], [owner], true);
+    } catch (err) {
+      const c = String(err.message || err).match(/"Custom":(\d+)/);
+      if (c) return { code: Number(c[1]) };
+      throw err;
+    }
+    if (opt.afterQueue) await opt.afterQueue();
+    const queued = Math.round(performance.now() - t0);
+
+    // Wait for the MPC network to answer and the callback to write it down.
+    //
+    // The computation account is watched alongside the log, because the two
+    // failures look identical from the log alone. A cluster that never got
+    // to the job leaves the account sitting there; a job that ran and came
+    // back a failure closes the account with nothing written. Reporting only
+    // "no verdict" told us which minute we were in and nothing else.
+    const WAIT_MS = Number(process.env.GATE_WAIT_MS || 300_000);
+    let after = before, waited = 0, compSeen = true, compGoneAt = null;
+    while (waited < WAIT_MS) {
+      await sleep(2000); waited += 2000;
+      const [logInfo, compInfo] = await Promise.all([
+        connection.getAccountInfo(log),
+        connection.getAccountInfo(computation),
+      ]);
+      if (compSeen && !compInfo) { compSeen = false; compGoneAt = waited; }
+      after = readLog(logInfo.data);
+      if (after.entries.length > before.entries.length ||
+          after.cleared + after.clamped + after.refused > before.cleared + before.clamped + before.refused) break;
+      // Once the computation account is gone the answer is in, one way or
+      // the other. Give the callback a couple of slots and stop waiting.
+      if (!compSeen && waited > compGoneAt + 6000) break;
+    }
+    const total_ms = Math.round(performance.now() - t0);
+    // Count with the counters, not the entry list. The log is a ring of 16:
+    // once it is full a new verdict replaces the oldest one and the list
+    // stops growing, so "did it get longer" says no forever after.
+    const landed = after.cleared + after.clamped + after.refused >
+      before.cleared + before.clamped + before.refused;
+    const newest = after.entries.length < 16
+      ? after.entries.length - 1
+      : (after.head + 15) % 16;
+    const v = landed ? after.entries[newest] : null;
+    const words = ["cleared", "clamped", "refused"];
+    console.log(`  ${label}`);
+    console.log(`    queued in ${queued}ms, waited ${Math.round(total_ms / 1000)}s`);
+    if (v) {
+      console.log(`    verdict: ${words[v.outcome]}  asked ${(v.proposed/100).toFixed(0)}%  allowed ${(v.allowed/100).toFixed(0)}%`);
+    } else if (!compSeen) {
+      console.log(`    the computation closed at ${Math.round(compGoneAt/1000)}s and wrote no verdict`);
+      console.log(`    computation ${computation.toBase58()}  tx ${sig.slice(0, 24)}…`);
+    } else {
+      console.log(`    the computation was still queued after ${Math.round(total_ms/1000)}s`);
+      console.log(`    computation ${computation.toBase58()}  tx ${sig.slice(0, 24)}…`);
+    }
+    return { v };
+  };
+
+  const ix = (name, keys, data) => new TransactionInstruction({ programId: PROGRAM_ID, keys, data: Buffer.concat([disc(name), ...data]) });
+  const mandateIx = () => ix("update_mandate",
+    [meta(owner.publicKey, true, false), meta(mandate, false, true)],
+    [u16(0), str(text), u16(600), u16(300), u16(20), vecPubkey([])]);
+  const haltIx = (on) => ix("set_halted",
+    [meta(owner.publicKey, true, false), meta(mandate, false, true)], [u16(0), u8b(on ? 1 : 0)]);
+  const resyncIx = () => ix("set_agent",
+    [meta(owner.publicKey, true, false), meta(vault, false, true), meta(mandate, false, false)],
+    [u16(0), owner.publicKey.toBuffer(), i64(3600), u64(250_000_000)]);
+
+  const failures = [];
+  const expect = (name, ok, got) => {
+    console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : `  (got ${JSON.stringify(got)})`}`);
+    if (!ok) failures.push(name);
+  };
+  const outcome = (r) => r.code ? `error ${r.code}` : r.v ? `${["cleared", "clamped", "refused"][r.v.outcome]}/${r.v.reason}` : "no verdict";
+
+  // 1. The running total is what makes the position cap a position cap.
+  //    600 cap, 300 per trade: two clears fill the sector, the third is
+  //    refused in public before anything is queued.
+  let r = await ask("sector 2, first 3%", 100, 300, 2);
+  expect("first trade into an empty sector clears", r.v?.outcome === 0, outcome(r));
+  r = await ask("sector 2, second 3%", 100, 300, 2);
+  expect("second trade fills the sector to the cap", r.v?.outcome === 0, outcome(r));
+  r = await ask("sector 2, third 3%", 100, 300, 2);
+  expect("a full sector is refused before queuing (SectorCapBreached)", r.code === 6025, outcome(r));
+
+  // 2. The sealed exposure has to be the one the owner published.
+  r = await ask("unbound sealing", 100, 300, 3, { unbound: true });
+  expect("a sealing that is not the published handle is refused (ExposureNotBound)", r.code === 6027, outcome(r));
+
+  // 3. The kill switch, before and during.
+  await send([haltIx(true)], [owner]);
+  r = await ask("while halted", 100, 300, 3);
+  expect("a halted mandate refuses before queuing (Halted)", r.code === 6031, outcome(r));
+  await send([haltIx(false)], [owner]);
+  r = await ask("halted mid computation", 100, 300, 3, { afterQueue: () => send([haltIx(true)], [owner]) });
+  expect("a halt thrown while the network thinks is recorded as a refusal (reason 9)", r.v?.outcome === 2 && r.v?.reason === 9, outcome(r));
+  await send([haltIx(false)], [owner]);
+
+  // 4. A mandate edited after the grant, before and during.
+  await send([mandateIx()], [owner]);
+  r = await ask("stale grant", 100, 300, 4);
+  expect("a grant pinned to an older mandate refuses (StaleMandate)", r.code === 6010, outcome(r));
+  await send([resyncIx()], [owner]);
+  r = await ask("edited mid computation", 100, 300, 4, { afterQueue: () => send([mandateIx()], [owner]) });
+  expect("an answer to an edited mandate is recorded as a refusal (reason 4)", r.v?.outcome === 2 && r.v?.reason === 4, outcome(r));
+  await send([resyncIx()], [owner]);
+
+  // 5. The declared universe. Last, because once declared it stays.
+  await send([ix("declare_universe",
+    [meta(owner.publicKey, true, true), meta(mandate, false, false), meta(universe, false, true), meta(SystemProgram.programId, false, false)],
+    [u16(0), u32(1), MINT.toBuffer(), u8b(5)])], [owner]);
+  r = await ask("declared mint, wrong sector", 100, 300, 4);
+  expect("a declared mint asked under another sector is refused (SectorMismatch)", r.code === 6024, outcome(r));
+  r = await ask("undeclared mint", 100, 300, 5, { mint: Keypair.generate().publicKey });
+  expect("a mint outside the declared universe is refused (UndeclaredAsset)", r.code === 6023, outcome(r));
+  r = await ask("declared mint, its sector", 100, 300, 5);
+  expect("the declared mint in its own sector still clears", r.v?.outcome === 0, outcome(r));
+
+  console.log(failures.length ? `\n${failures.length} failed` : "\nall passed");
+  process.exit(failures.length ? 1 : 0);
+}
+
+main().catch(async (e) => {
+  console.error("\ngate run failed:", e.message || String(e));
+  if (e.logs) console.error(e.logs.slice(-16).join("\n"));
+  if (e.signature) {
+    const c = new Connection(baseRpc(), "confirmed");
+    await new Promise((r) => setTimeout(r, 5000));
+    const t = await c.getTransaction(e.signature, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+    console.error("on chain err:", JSON.stringify(t?.meta?.err));
+    console.error((t?.meta?.logMessages || ["no logs"]).join("\n"));
+  }
+  process.exit(1);
+});

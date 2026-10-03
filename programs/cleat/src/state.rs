@@ -438,3 +438,130 @@ pub struct Treasury {
     pub clearances: u64,
     pub bump: u8,
 }
+
+// Tests for the bookkeeping the gate leans on. They only exist in a test
+// build, so the deployed program is byte for byte what it was.
+//
+// The ring is here because a harness misread it for ten days: once the log
+// fills, the newest verdict is the one just behind `head`, not the last entry.
+// The running total is here because it is what turns a trade cap into a
+// position cap, and it was missing entirely once.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn log() -> VerdictLog {
+        VerdictLog {
+            owner: Pubkey::default(),
+            vault: Pubkey::default(),
+            head: 0,
+            cleared: 0,
+            clamped: 0,
+            refused: 0,
+            entries: Vec::new(),
+            exposure_bps: [0; CATEGORY_COUNT],
+            bump: 0,
+        }
+    }
+
+    fn verdict(slot: u64, outcome: u8) -> Verdict {
+        Verdict {
+            slot,
+            mandate_version: 1,
+            category: 1,
+            proposed_bps: 300,
+            allowed_bps: if outcome == 2 { 0 } else { 300 },
+            outcome,
+            reason: if outcome == 2 { 1 } else { 0 },
+        }
+    }
+
+    fn newest(l: &VerdictLog) -> &Verdict {
+        let n = l.entries.len();
+        if n < VERDICT_CAPACITY {
+            &l.entries[n - 1]
+        } else {
+            &l.entries[(l.head as usize + VERDICT_CAPACITY - 1) % VERDICT_CAPACITY]
+        }
+    }
+
+    #[test]
+    fn ring_keeps_the_newest_behind_head_once_full() {
+        let mut l = log();
+        for i in 0..(VERDICT_CAPACITY as u64 + 5) {
+            l.push(verdict(i, 2));
+        }
+        assert_eq!(l.entries.len(), VERDICT_CAPACITY);
+        assert_eq!(newest(&l).slot, VERDICT_CAPACITY as u64 + 4);
+        // The last entry is not the newest any more. This is the read that
+        // made a working gate look like it refused everything.
+        assert_ne!(l.entries[VERDICT_CAPACITY - 1].slot, newest(&l).slot);
+    }
+
+    #[test]
+    fn counters_keep_counting_after_the_ring_wraps() {
+        let mut l = log();
+        for i in 0..40u64 {
+            l.push(verdict(i, (i % 3) as u8));
+        }
+        assert_eq!(l.cleared + l.clamped + l.refused, 40);
+        assert_eq!(l.entries.len(), VERDICT_CAPACITY);
+    }
+
+    #[test]
+    fn running_total_turns_a_trade_cap_into_a_position_cap() {
+        let mut l = log();
+        // Five cleared entries of 300 in one sector fill a 1500 cap.
+        for _ in 0..5 {
+            assert!(l.headroom(2, 1500) >= 300);
+            l.apply_exposure(2, 0, 300);
+        }
+        assert_eq!(l.headroom(2, 1500), 0);
+        // Other sectors are untouched.
+        assert_eq!(l.headroom(3, 1500), 1500);
+    }
+
+    #[test]
+    fn exits_give_room_back_and_never_underflow() {
+        let mut l = log();
+        l.apply_exposure(1, 0, 900);
+        l.apply_exposure(1, 1, 300);
+        assert_eq!(l.headroom(1, 1500), 900);
+        l.apply_exposure(1, 1, 5000);
+        assert_eq!(l.exposure_bps[1], 0);
+        assert_eq!(l.headroom(1, 1500), 1500);
+    }
+
+    #[test]
+    fn totals_saturate_instead_of_wrapping() {
+        let mut l = log();
+        l.apply_exposure(4, 0, u16::MAX);
+        l.apply_exposure(4, 0, 300);
+        assert_eq!(l.exposure_bps[4], u16::MAX);
+        assert_eq!(l.headroom(4, 1500), 0);
+    }
+
+    #[test]
+    fn an_out_of_range_sector_has_no_room_at_all() {
+        let mut l = log();
+        assert_eq!(l.headroom(CATEGORY_COUNT as u8, 1500), 0);
+        assert_eq!(l.headroom(255, 1500), 0);
+        // And writing to one changes nothing anywhere.
+        l.apply_exposure(255, 0, 300);
+        assert_eq!(l.exposure_bps, [0; CATEGORY_COUNT]);
+    }
+
+    #[test]
+    fn an_undeclared_mint_has_no_sector() {
+        let a = Pubkey::new_unique();
+        let b = Pubkey::new_unique();
+        let u = AssetUniverse {
+            mandate: Pubkey::default(),
+            owner: Pubkey::default(),
+            entries: vec![AssetEntry { mint: a, category: 3 }],
+            bump: 0,
+        };
+        assert_eq!(u.category_of(&a), Some(3));
+        assert_eq!(u.category_of(&b), None);
+    }
+}
