@@ -4,7 +4,10 @@ An agent that trades part of your portfolio and cannot see what is in it.
 
 You write one sentence about how you want your money handled. Something like
 "moderate growth, nothing over fifteen percent in one name, no fossil fuels."
-That sentence becomes an account on Solana. An agent reads public market data,
+That sentence becomes an account on Solana. (The caps are enforced exactly. "No
+fossil fuels" holds when you declare the assets the agent may trade, up to
+thirty two; without that list it is a deny list of eight mints, which is a few
+companies rather than a sector. `SECURITY.md` has the detail.) An agent reads public market data,
 proposes trades against it, and every proposal is checked against your sentence
 inside a confidential computation that never learns what you hold. The answer
 that comes back is one of three words: cleared, trimmed, refused.

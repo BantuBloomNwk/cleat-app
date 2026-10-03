@@ -216,6 +216,19 @@ Widening it means either a larger account or a commitment to a list held
 off chain, and the second one gives back the property that makes the first
 one worth having.
 
+The declared universe, added on 20 September, is what closes this in
+practice, and it was missing from this file. An owner can declare up to
+thirty two mints, each with its sector, and once a universe exists any mint
+not on it is refused before a computation is queued (`UndeclaredAsset`).
+That turns the clause around: the owner lists what the agent may buy, so a
+wrapper nobody has seen yet is refused for being undeclared rather than
+missed for being unnamed. "No fossil fuels" holds by leaving them off.
+
+The limit is that this only applies to a mandate that has one. A mandate
+with no universe falls back to the eight mint deny list above, which is
+exactly as weak as described. And thirty two declared mints is the whole
+tradable set, not a filter over the market.
+
 **The issuer field is not always populated.** Sunrise lists forty six
 tokenized shares and one of them, Nike, carries no issuer at all today.
 Code that assumes the field is set reports the wrong issuer rather than an
@@ -429,6 +442,39 @@ repository.
 Anybody running that script before this is fixed should expect it to
 fail there, and any claim that the private rollup loop closes today
 should be read as a claim about 22 September.
+
+**The gate looked broken from 22 September to 2 October. It was the
+harness.** `scripts/measure-gate.mjs` reported every landed computation as
+refused, including a holding of 1% asking for 3% under a 15% cap, which
+cannot breach. The gate was answering correctly throughout.
+
+Two things in the script, both its own. It reused one owner across every
+run, so that owner's sector totals climbed toward the cap and stayed there.
+And it read the newest verdict as the last entry in the log. The log is a
+ring of sixteen: once it fills, the program writes at `head` and the last
+entry stops changing. From the sixteenth verdict on, which fell part way
+through the 22 September run, the script was re-reading one stale refusal
+and recording it against every new computation. That is why that run flips
+from cleared to refused on identical inputs, and why every run after it is
+all refusals.
+
+It was traced by reading the reused owner's mandate off chain (current
+layout, caps 1500, 500 and 20, so not a shifted field), then running the
+script that does use a fresh owner, `gate-run.mjs`, which cleared and
+refused correctly, then probing the reused owner directly in a sector with
+room left, which cleared while the counters moved and the entry did not.
+`gate-run.mjs` had a quieter form of the same mistake: on a full log it
+decided nothing had landed. The app's own reader was already right.
+
+Both scripts now take the newest entry from `head` and check it against the
+counters, which do not wrap. `measure-gate.mjs` uses a fresh owner unless
+`REUSE=1`, and exits non zero if a sample that must clear never does, or a
+sample over the cap clears. Nothing asserted that a clear ever happens,
+which is how this survived ten days. The measurement on 2 October,
+`measurements/gate-1790992440456.json`, landed twelve of twelve: six cleared
+at a 1% holding, six refused at 14%, inputs otherwise identical, p50 4.2
+seconds for each outcome. The three all refused files from 23 September,
+25 September and 2 October are misreads and are kept as the record of it.
 
 The confidential gate returns verdicts as of 15 September 2026, so the
 account handling described above has now been exercised by callbacks

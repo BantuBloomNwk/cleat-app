@@ -245,9 +245,15 @@ async function main() {
       if (!compSeen && waited > compGoneAt + 6000) break;
     }
     const total_ms = Math.round(performance.now() - t0);
-    const v = after.entries.length > before.entries.length
-      ? after.entries[after.entries.length - 1]
-      : null;
+    // Count with the counters, not the entry list. The log is a ring of 16:
+    // once it is full a new verdict replaces the oldest one and the list
+    // stops growing, so "did it get longer" says no forever after.
+    const landed = after.cleared + after.clamped + after.refused >
+      before.cleared + before.clamped + before.refused;
+    const newest = after.entries.length < 16
+      ? after.entries.length - 1
+      : (after.head + 15) % 16;
+    const v = landed ? after.entries[newest] : null;
     const words = ["cleared", "clamped", "refused"];
     console.log(`  ${label}`);
     console.log(`    queued in ${queued}ms, waited ${Math.round(total_ms / 1000)}s`);

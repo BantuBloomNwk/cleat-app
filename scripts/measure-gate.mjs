@@ -64,6 +64,9 @@ function persisted(name) {
   catch { const kp = Keypair.generate(); fs.writeFileSync(p, JSON.stringify(Array.from(kp.secretKey))); return kp; }
 }
 
+/** Matches VERDICT_CAPACITY in programs/cleat/src/constants.rs. */
+const VERDICT_CAPACITY = 16;
+
 function readLog(data) {
   let o = 8 + 32 + 32;
   const head = data.readUInt8(o); o += 1;
@@ -95,7 +98,11 @@ const pct = (xs, p) => {
 async function main() {
   const funder = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
     fs.readFileSync(path.join(os.homedir(), ".config/solana/id.json"), "utf8"))));
-  const owner = persisted("gate-owner-v2");
+  // A fresh owner per run unless REUSE=1. A reused owner carries every
+  // earlier run's state with it: its sectors fill toward the cap and stay
+  // full, and its verdict log wraps. Both made this script report a working
+  // gate as one that refused everything, from 22 September onward.
+  const owner = process.env.REUSE === "1" ? persisted("gate-owner-v2") : Keypair.generate();
   const connection = new Connection(baseRpc(), "confirmed");
   const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(owner), { commitment: "confirmed" });
 
@@ -278,7 +285,23 @@ async function main() {
     }
     const totalMs = Math.round(performance.now() - t0);
     const landed = after.total > before.total;
-    const v = landed ? after.entries[after.entries.length - 1] : null;
+    // The log is a ring of VERDICT_CAPACITY entries. Until it fills, the
+    // newest verdict is the last entry. After that the program writes at
+    // `head` and advances it, so the newest is the one just behind `head`,
+    // and the last entry is whatever happened to land in that slot long ago.
+    // Reading the last entry is what made a working gate read as refusing
+    // everything once a reused owner's log had filled.
+    const newest = after.entries.length < VERDICT_CAPACITY
+      ? after.entries.length - 1
+      : (after.head + VERDICT_CAPACITY - 1) % VERDICT_CAPACITY;
+    const v = landed ? after.entries[newest] : null;
+    // Cross-check against the counters, which cannot wrap. If they disagree
+    // with the entry, the read is wrong and the run says so instead of
+    // recording a verdict nobody gave.
+    if (v) {
+      const moved = after.cleared > before.cleared ? 0 : after.clamped > before.clamped ? 1 : 2;
+      if (moved !== v.outcome) throw new Error(`log read disagrees with the counters at sample ${n}`);
+    }
 
     // The callback is submitted by the network, not by us. Find it by asking
     // the log account what touched it last, and read who paid.
@@ -355,6 +378,23 @@ async function main() {
   console.log(`lamports      handle ${report.lamports.handle}  queue ${report.lamports.queue}  callback ${report.lamports.callback}`);
   console.log(`callback paid by ${report.lamports.callbackPaidBy.join(", ") || "unknown"}`);
   console.log(`\nwritten to ${path.basename(out.pathname)}`);
+
+  // The assertion that would have caught 22 September. A sample sealed at 1%
+  // asking for 3% under a 15% cap must clear. If every one of them landed as
+  // a refusal, the gate or this harness is broken, and a run like that is
+  // evidence of nothing except that something says no.
+  // FAIL=1 refuses everything on purpose, so the assertions only apply to a
+  // normal run.
+  const mustClear = FAIL ? [] : landed.filter((r) => r.exposureBps + r.proposedBps <= 1500);
+  if (mustClear.length && !mustClear.some((r) => r.outcome === "cleared")) {
+    console.error(`\nFAIL: ${mustClear.length} samples that must clear all came back refused`);
+    process.exit(1);
+  }
+  const mustRefuse = FAIL ? [] : landed.filter((r) => r.exposureBps + r.proposedBps > 1500);
+  if (mustRefuse.some((r) => r.outcome === "cleared")) {
+    console.error("\nFAIL: a sample over the cap cleared");
+    process.exit(1);
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
