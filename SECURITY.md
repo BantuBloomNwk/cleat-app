@@ -326,7 +326,7 @@ removes a warning.
 
 Since 2 October the app says so where the instrument is shown rather than
 inside a row someone has to open: a line above the issuer comparison, and a
-label on every issuer that keeps the override. It ships with the next
+label on every issuer that keeps the override. Live since the 2 October
 deploy.
 
 **Account layouts have changed and older accounts do not read.** Three
@@ -400,8 +400,8 @@ the same server secret and cannot be called from outside.
 from a sponsor wallet, about 0.012 SOL each, and nothing limits how many new
 keys one person can make. A day of testing emptied it once, and every new
 signup then failed. The relay now says plainly when the sponsor is empty
-rather than blaming the person's key. The fix is written and ships with the
-next deploy: at most ten top ups and 150 paid fees per requesting address per
+rather than blaming the person's key. The limit has been live since the
+2 October deploy: at most ten top ups and 150 paid fees per requesting address per
 day, counted at the moment the sponsor signs, so skipping the prepare step
 does not skip the limit. On mainnet there is no sponsor.
 
