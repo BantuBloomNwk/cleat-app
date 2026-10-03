@@ -164,6 +164,16 @@ export const CrossIssuer: React.FC<CrossIssuerProps> = ({
         </div>
       )}
 
+      {/* Said up front, not inside a row someone has to open. It is the
+          sharpest thing about owning any of these, and it is true of every
+          issuer here, so it belongs above the comparison rather than in it. */}
+      {Object.values(ISSUERS).some((f) => f.issuerOverride) && (
+        <p className="text-[11px] leading-[1.55] text-[var(--text-secondary)] px-0.5">
+          <span className="font-bold text-[var(--ember)]">Whichever one you hold, its issuer can move or freeze it without your signature.</span>{' '}
+          Each of these mints keeps a permanent delegate and a freeze authority, read off Solana mainnet. Nothing in Cleat changes that.
+        </p>
+      )}
+
       {loading && (
         <p className="text-[11.5px] font-mono text-[var(--text-tertiary)]">
           Asking every issuer…
@@ -384,6 +394,14 @@ const Row: React.FC<{
           <span className="text-[10.5px] text-[var(--text-secondary)] truncate">
             {title}
           </span>
+          {facts.issuerOverride && (
+            <span
+              className="text-[9px] font-mono uppercase tracking-wider text-[var(--ember)] whitespace-nowrap"
+              title="The issuer keeps a permanent delegate and a freeze authority on this mint"
+            >
+              issuer can freeze
+            </span>
+          )}
         </span>
         <span className="flex items-baseline gap-3 shrink-0 font-mono text-[11px] tabular-nums">
           <span className="text-[var(--text-primary)] font-bold">

@@ -238,17 +238,79 @@ async function rehearse(multisigPdaStr, programIdStr) {
     : "ROUND TRIP FAILED. Do not hand over the real program.");
 }
 
+
+/**
+ * Add members and raise the threshold, as one vote.
+ *
+ * The config authority is empty on purpose, so membership only changes by a
+ * proposal the current members approve. Both changes go in one config
+ * transaction: adding a member without raising the threshold would leave a
+ * two member multisig that either key can still drive alone, which is two
+ * single points of failure rather than none.
+ *
+ * Refuses a threshold that the new member count cannot reach, and refuses to
+ * add a key that is already a member.
+ */
+async function addMembers(multisigPdaStr, keysCsv, thresholdStr) {
+  const multisigPda = new PublicKey(multisigPdaStr);
+  const acct = await multisig.accounts.Multisig.fromAccountAddress(connection, multisigPda);
+  const current = acct.members.map((m) => m.key.toBase58());
+  const adding = keysCsv.split(",").map((k) => new PublicKey(k.trim()));
+  for (const k of adding) {
+    if (current.includes(k.toBase58())) throw new Error(`${k.toBase58()} is already a member`);
+  }
+  const threshold = Number(thresholdStr);
+  const total = current.length + adding.length;
+  if (!Number.isInteger(threshold) || threshold < 2 || threshold > total) {
+    throw new Error(`threshold has to be between 2 and ${total}`);
+  }
+
+  const actions = [
+    ...adding.map((key) => ({ __kind: "AddMember", newMember: { key, permissions: Permissions.all() } })),
+    { __kind: "ChangeThreshold", newThreshold: threshold },
+  ];
+  const transactionIndex = BigInt(Number(acct.transactionIndex) + 1);
+  console.log(`adding ${adding.length}, threshold ${acct.threshold} -> ${threshold} of ${total}`);
+
+  let sig = await multisig.rpc.configTransactionCreate({
+    connection, feePayer: wallet, multisigPda, transactionIndex,
+    creator: wallet.publicKey, actions, memo: "add members, raise threshold",
+  });
+  await connection.confirmTransaction(sig, "confirmed");
+  console.log("  proposed  ", sig);
+  sig = await multisig.rpc.proposalCreate({ connection, feePayer: wallet, multisigPda, transactionIndex, creator: wallet });
+  await connection.confirmTransaction(sig, "confirmed");
+  sig = await multisig.rpc.proposalApprove({ connection, feePayer: wallet, multisigPda, transactionIndex, member: wallet });
+  await connection.confirmTransaction(sig, "confirmed");
+  console.log("  approved  ", sig);
+
+  const proposalPda = multisig.getProposalPda({ multisigPda, transactionIndex })[0];
+  const proposal = await multisig.accounts.Proposal.fromAccountAddress(connection, proposalPda);
+  if (proposal.status.__kind !== "Approved") {
+    console.log(`  not executing: proposal is ${proposal.status.__kind}, waiting on the other members`);
+    return;
+  }
+  sig = await multisig.rpc.configTransactionExecute({
+    connection, feePayer: wallet, multisigPda, transactionIndex, member: wallet, rentPayer: wallet,
+  });
+  await connection.confirmTransaction(sig, "confirmed");
+  console.log("  executed  ", sig);
+  await show(multisigPdaStr);
+}
+
 const [cmd, ...rest] = process.argv.slice(2);
 try {
   if (cmd === "create") await create(Number(rest[0]), rest[1].split(","));
   else if (cmd === "show") await show(rest[0]);
   else if (cmd === "vault-setauth") await vaultSetAuth(rest[0], rest[1], rest[2]);
   else if (cmd === "rehearse") await rehearse(rest[0], rest[1]);
+  else if (cmd === "add-members") await addMembers(rest[0], rest[1], rest[2]);
   else {
     console.log("commands: create <threshold> <pubkeys,comma,separated>");
     console.log("          show <multisigPda>");
     console.log("          vault-setauth <multisigPda> <programId> <newAuthority>");
     console.log("          rehearse <multisigPda> <throwawayProgramId>");
+    console.log("          add-members <multisigPda> <pubkeys,comma,separated> <newThreshold>");
     process.exit(1);
   }
 } catch (e) {

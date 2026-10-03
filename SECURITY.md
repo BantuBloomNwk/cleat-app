@@ -290,6 +290,13 @@ hardware wallet, `usb://ledger`; there is no other scheme in the binary.
 Anything else can only ever sign through a web wallet adapter, which means
 no member on such a device can approve from the command line.
 
+Adding the other members is now one command, `scripts/msig.mjs add-members
+<multisig> <keys> <threshold>`, which adds them and raises the threshold in
+the same vote, so there is never a window where two members exist and either
+can act alone. Rehearsed on a throwaway on 2 October, 1 of 1 to 2 of 3. The
+real one is still 1 of 1 and waits on the other two keys: a second person's,
+held somewhere else, and a hardware one.
+
 **The issuers keep a permanent delegate.** Every tokenized equity checked
 on mainnet, Backpack's and Backed's alike, carries a permanent delegate, a
 freeze authority and a pause switch. The issuer can move or freeze any
@@ -315,6 +322,12 @@ It fails closed in every case, which was tested rather than assumed:
 The chain enforces the same limit independently, in `pay_agent_cost`, so
 the policy being bypassed or removed does not raise the ceiling. It only
 removes a warning.
+
+
+Since 2 October the app says so where the instrument is shown rather than
+inside a row someone has to open: a line above the issuer comparison, and a
+label on every issuer that keeps the override. It ships with the next
+deploy.
 
 **Account layouts have changed and older accounts do not read.** Three
 mandate layouts have existed and two verdict log layouts, and the fields
