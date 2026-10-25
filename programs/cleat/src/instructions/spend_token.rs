@@ -150,7 +150,6 @@ pub struct AgentPaidToken {
     pub payee: Pubkey,
     pub mint: Pubkey,
     pub amount: u64,
-    pub remaining: u64,
     pub purpose: u8,
 }
 
@@ -158,8 +157,8 @@ pub struct AgentPaidToken {
 pub struct AgentTokenPaymentRefused {
     pub owner: Pubkey,
     pub mint: Pubkey,
-    pub asked: u64,
-    pub remaining: u64,
+    /// As in spend.rs: the count only, never the amount asked or what was left.
+    pub refusals: u32,
 }
 
 fn spend_seeds<'a>(spend: &'a AgentTokenSpend, index: &'a [u8], bump: &'a [u8]) -> [&'a [u8]; 5] {
@@ -220,7 +219,7 @@ pub fn exec_pay_agent_token(ctx: Context<PayAgentToken>, index: u16, amount: u64
         let remaining = spend.ceiling.saturating_sub(spend.spent);
         if amount > remaining {
             spend.refusals = spend.refusals.saturating_add(1);
-            emit!(AgentTokenPaymentRefused { owner: spend.owner, mint: spend.mint, asked: amount, remaining });
+            emit!(AgentTokenPaymentRefused { owner: spend.owner, mint: spend.mint, refusals: spend.refusals });
             set_return_data(&[REFUSED]);
             return Ok(());
         }
@@ -255,7 +254,6 @@ pub fn exec_pay_agent_token(ctx: Context<PayAgentToken>, index: u16, amount: u64
         payee: ctx.accounts.payee.key(),
         mint: spend.mint,
         amount,
-        remaining: spend.ceiling.saturating_sub(spend.spent),
         purpose,
     });
     set_return_data(&[PAID]);

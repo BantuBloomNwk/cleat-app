@@ -113,7 +113,6 @@ pub struct AgentPaid {
     pub owner: Pubkey,
     pub payee: Pubkey,
     pub lamports: u64,
-    pub remaining: u64,
     /// A short tag naming what was bought, so the diary can say it.
     pub purpose: u8,
 }
@@ -121,8 +120,10 @@ pub struct AgentPaid {
 #[event]
 pub struct AgentPaymentRefused {
     pub owner: Pubkey,
-    pub asked: u64,
-    pub remaining: u64,
+    /// The running refusal count, already public on the account. The amount
+    /// asked and what was left are kept out: a payee watching refusals could
+    /// otherwise bracket the ceiling from a handful of them.
+    pub refusals: u32,
 }
 
 pub fn exec_open_spend_account(
@@ -221,8 +222,7 @@ pub fn exec_pay_agent_cost(
         spend.refusals = spend.refusals.saturating_add(1);
         emit!(AgentPaymentRefused {
             owner: spend.owner,
-            asked: lamports,
-            remaining,
+            refusals: spend.refusals,
         });
         set_return_data(&[REFUSED]);
         return Ok(());
@@ -259,7 +259,6 @@ pub fn exec_pay_agent_cost(
         owner: spend.owner,
         payee: ctx.accounts.payee.key(),
         lamports,
-        remaining: spend.ceiling_lamports.saturating_sub(spend.spent_lamports),
         purpose,
     });
     set_return_data(&[PAID]);
