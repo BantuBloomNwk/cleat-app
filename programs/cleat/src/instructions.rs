@@ -5,6 +5,7 @@ pub mod mandate;
 pub mod per;
 pub mod spend;
 pub mod spend_token;
+pub mod squads_guard;
 pub mod vault;
 pub mod verdict;
 
@@ -15,5 +16,6 @@ pub use mandate::*;
 pub use per::*;
 pub use spend::*;
 pub use spend_token::*;
+pub use squads_guard::*;
 pub use vault::*;
 pub use verdict::*;

@@ -125,3 +125,20 @@ pub const PROTOCOL_FEE_BPS: u64 = 3;
 
 /// No single clearance pays more than this, whatever it was worth.
 pub const PROTOCOL_FEE_CAP: u64 = 2_000_000; // 0.002 SOL on devnet
+
+/// Squads v4, the same id on mainnet and devnet. A guard sits in front of one
+/// of its spending limits; see instructions/squads_guard.rs.
+pub const SQUADS_PROGRAM_ID: Pubkey = pubkey!("SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf");
+
+/// Anchor's 8-byte names for the two Squads things the guard touches:
+/// sha256("account:SpendingLimit") and sha256("global:spending_limit_use").
+pub const SQUADS_SPENDING_LIMIT_DISC: [u8; 8] = [10, 201, 27, 160, 218, 195, 222, 152];
+pub const SQUADS_SPENDING_LIMIT_USE_DISC: [u8; 8] = [16, 57, 130, 127, 193, 20, 155, 134];
+
+#[constant]
+pub const SQUADS_GUARD_SEED: &[u8] = b"squads_guard";
+
+/// Why a guard said no. The reason is public; the amount never is.
+pub const GUARD_REFUSED_PAUSED: u8 = 1;
+pub const GUARD_REFUSED_DESTINATION: u8 = 2;
+pub const GUARD_REFUSED_OVER_LIMIT: u8 = 3;

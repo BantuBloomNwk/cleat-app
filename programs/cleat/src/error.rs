@@ -72,4 +72,12 @@ pub enum CleatError {
     PrivateMandate,
     #[msg("This allowance is for a different token.")]
     WrongSpendMint,
+    #[msg("That is not a Squads v4 spending limit.")]
+    NotSquadsSpendingLimit,
+    #[msg("The multisig is not the one this spending limit belongs to.")]
+    WrongSquadsMultisig,
+    #[msg("Only the guard's authority can do that.")]
+    NotGuardAuthority,
+    #[msg("The guard is not a member of this spending limit yet. The multisig has to add it.")]
+    GuardNotOnLimit,
 }

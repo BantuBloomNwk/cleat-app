@@ -280,6 +280,24 @@ pub mod cleat {
         instructions::spend_token::exec_close_token_spend(ctx, index)
     }
 
+    /// A guard in front of a Squads v4 spending limit, so the times it says no
+    /// are kept. See instructions/squads_guard.rs.
+    pub fn open_squads_guard(ctx: Context<OpenSquadsGuard>) -> Result<()> {
+        instructions::squads_guard::exec_open_squads_guard(ctx)
+    }
+
+    pub fn set_squads_guard_paused(ctx: Context<SetSquadsGuardPaused>, paused: bool) -> Result<()> {
+        instructions::squads_guard::exec_set_squads_guard_paused(ctx, paused)
+    }
+
+    pub fn squads_guard_pay(ctx: Context<SquadsGuardPay>, amount: u64, decimals: u8) -> Result<()> {
+        instructions::squads_guard::exec_squads_guard_pay(ctx, amount, decimals)
+    }
+
+    pub fn close_squads_guard(_ctx: Context<CloseSquadsGuard>) -> Result<()> {
+        Ok(())
+    }
+
     /// Keep this sentence out of the room: nobody can adopt it and the app
     /// lists it nowhere.
     pub fn make_private(ctx: Context<MakePrivate>, index: u16) -> Result<()> {

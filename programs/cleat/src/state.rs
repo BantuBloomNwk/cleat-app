@@ -595,3 +595,20 @@ mod tests {
         assert_eq!(u.category_of(&b), None);
     }
 }
+
+/// A guard in front of one Squads v4 spending limit, for one agent. Its own
+/// address is the spending limit's member; the agent pays through it, and it
+/// keeps the count of payments and of refusals Squads would have rolled back.
+#[account]
+#[derive(InitSpace)]
+pub struct SquadsGuard {
+    /// May pause, resume and close the guard. No say over the limit itself.
+    pub authority: Pubkey,
+    pub agent: Pubkey,
+    pub multisig: Pubkey,
+    pub spending_limit: Pubkey,
+    pub paused: bool,
+    pub payments: u32,
+    pub refusals: u32,
+    pub bump: u8,
+}
