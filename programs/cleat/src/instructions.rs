@@ -4,6 +4,7 @@ pub mod gate;
 pub mod mandate;
 pub mod per;
 pub mod spend;
+pub mod spend_token;
 pub mod vault;
 pub mod verdict;
 
@@ -13,5 +14,6 @@ pub use gate::*;
 pub use mandate::*;
 pub use per::*;
 pub use spend::*;
+pub use spend_token::*;
 pub use vault::*;
 pub use verdict::*;

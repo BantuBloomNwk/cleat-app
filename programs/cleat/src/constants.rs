@@ -80,6 +80,15 @@ pub const VERDICT_CAPACITY: usize = 16;
 #[constant]
 pub const SPEND_SEED: &[u8] = b"spend";
 
+/// The same allowance in a token (USDC, which is what agents pay with under
+/// x402), one per owner, mint and sleeve.
+pub const SPEND_TOKEN_SEED: &[u8] = b"spend_token";
+
+/// What a payment instruction returns, so a caller can tell a refusal from a
+/// payment without reading logs. A refusal succeeds as a transaction.
+pub const PAID: u8 = 1;
+pub const REFUSED: u8 = 0;
+
 /// The shortest window a spending allowance may be written over.
 ///
 /// An allowance with a very short period is really an unlimited allowance

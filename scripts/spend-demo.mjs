@@ -151,11 +151,16 @@ for (let i = 1; i <= 5; i++) {
       data: Buffer.concat([disc("pay_agent_cost"), u16(0), u64(CALL), u8b(PURPOSE.inference)]),
     })], [owner, agent]);
     const after = readSpend((await connection.getAccountInfo(spend)).data);
+    // A refusal is a successful transaction that moved nothing and raised the refusal count.
+    if (after.refusals > before.refusals) {
+      console.log(`  call ${i}: REFUSED. asked ${sol(CALL)}, ${sol(left)} left in the period, refusal on record   ${sig.slice(0, 12)}…`);
+      break;
+    }
     console.log(`  call ${i}: paid ${sol(CALL)}, ${sol(after.ceiling - after.spent)} left   ${sig.slice(0, 12)}…`);
   } catch (e) {
-    const isCap = /SpendCapBreached|6017|0x1781/.test(String(e.message)) || true;
-    console.log(`  call ${i}: REFUSED. asked ${sol(CALL)}, ${sol(left)} left in the period`);
-    if (!isCap) console.log(`    (unexpected: ${e.message.slice(0, 120)})`);
+    // Older builds of the program refused by failing the transaction, which left no record.
+    if (!/SpendCapBreached|6017|0x1781/.test(String(e.message) + (e.logs || []).join("\n"))) throw e;
+    console.log(`  call ${i}: REFUSED. asked ${sol(CALL)}, ${sol(left)} left in the period (older program, not recorded)`);
     break;
   }
 }

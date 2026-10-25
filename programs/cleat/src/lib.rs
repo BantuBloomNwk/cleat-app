@@ -259,6 +259,27 @@ pub mod cleat {
         instructions::spend::exec_pay_agent_cost(ctx, index, lamports, purpose)
     }
 
+    /// The allowance in a token, USDC first. See instructions/spend_token.rs.
+    pub fn open_token_spend(ctx: Context<OpenTokenSpend>, index: u16, agent: Pubkey, ceiling: u64, period_secs: i64) -> Result<()> {
+        instructions::spend_token::exec_open_token_spend(ctx, index, agent, ceiling, period_secs)
+    }
+
+    pub fn set_token_spend_cap(ctx: Context<SetTokenSpendCap>, index: u16, ceiling: u64, period_secs: i64) -> Result<()> {
+        instructions::spend_token::exec_set_token_spend_cap(ctx, index, ceiling, period_secs)
+    }
+
+    pub fn pay_agent_token(ctx: Context<PayAgentToken>, index: u16, amount: u64, purpose: u8) -> Result<()> {
+        instructions::spend_token::exec_pay_agent_token(ctx, index, amount, purpose)
+    }
+
+    pub fn withdraw_token_spend(ctx: Context<WithdrawTokenSpend>, index: u16, amount: u64) -> Result<()> {
+        instructions::spend_token::exec_withdraw_token_spend(ctx, index, amount)
+    }
+
+    pub fn close_token_spend(ctx: Context<CloseTokenSpend>, index: u16) -> Result<()> {
+        instructions::spend_token::exec_close_token_spend(ctx, index)
+    }
+
     /// Keep this sentence out of the room: nobody can adopt it and the app
     /// lists it nowhere.
     pub fn make_private(ctx: Context<MakePrivate>, index: u16) -> Result<()> {

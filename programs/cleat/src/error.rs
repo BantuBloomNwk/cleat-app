@@ -70,4 +70,6 @@ pub enum CleatError {
     VaultDelegated,
     #[msg("That sentence is private. Its owner has not offered it for adoption.")]
     PrivateMandate,
+    #[msg("This allowance is for a different token.")]
+    WrongSpendMint,
 }

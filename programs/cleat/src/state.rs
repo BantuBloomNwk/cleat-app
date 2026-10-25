@@ -351,6 +351,36 @@ pub struct AgentSpend {
     pub bump: u8,
 }
 
+/// The same allowance, in a token. Agents pay for inference and data in USDC
+/// under x402, so a ceiling counted in lamports could not cover the job it was
+/// written for. The tokens sit in an account this one controls; the owner sets
+/// the ceiling and can take the rest back; the agent can only spend under it.
+#[account]
+#[derive(InitSpace)]
+pub struct AgentTokenSpend {
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+    pub mint: Pubkey,
+    /// In the token's smallest unit (micro-USDC for USDC).
+    pub ceiling: u64,
+    pub period_secs: i64,
+    pub spent: u64,
+    pub period_start: i64,
+    pub lifetime: u64,
+    pub payments: u32,
+    pub refusals: u32,
+    pub bump: u8,
+}
+
+impl AgentTokenSpend {
+    pub fn remaining(&self, now: i64) -> u64 {
+        if now >= self.period_start.saturating_add(self.period_secs) {
+            return self.ceiling;
+        }
+        self.ceiling.saturating_sub(self.spent)
+    }
+}
+
 impl AgentSpend {
     /// What is left in the period, treating a lapsed period as already reset.
     pub fn remaining(&self, now: i64) -> u64 {

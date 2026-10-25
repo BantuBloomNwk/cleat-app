@@ -20,6 +20,7 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
+use anchor_lang::solana_program::program::set_return_data;
 
 use crate::constants::*;
 use crate::error::CleatError;
@@ -187,6 +188,11 @@ pub fn exec_fund_spend_account(ctx: Context<FundSpendAccount>, _index: u16, lamp
 /// silently dropped, because the count of times the agent was stopped is the
 /// same kind of fact as the count of trades it was stopped from making, and
 /// this product exists to show people that number.
+///
+/// A refusal therefore SUCCEEDS as a transaction. It used to return an error,
+/// and on Solana an error rolls back every account change, so the refusal
+/// count could never rise. Now nothing moves, the count goes up, the event is
+/// emitted, and the return data says which it was: 1 paid, 0 refused.
 pub fn exec_pay_agent_cost(
     ctx: Context<PayAgentCost>,
     _index: u16,
@@ -218,7 +224,8 @@ pub fn exec_pay_agent_cost(
             asked: lamports,
             remaining,
         });
-        return Err(CleatError::SpendCapBreached.into());
+        set_return_data(&[REFUSED]);
+        return Ok(());
     }
 
     // The allowance has to keep enough to stay alive, or the account is closed
@@ -255,5 +262,6 @@ pub fn exec_pay_agent_cost(
         remaining: spend.ceiling_lamports.saturating_sub(spend.spent_lamports),
         purpose,
     });
+    set_return_data(&[PAID]);
     Ok(())
 }
